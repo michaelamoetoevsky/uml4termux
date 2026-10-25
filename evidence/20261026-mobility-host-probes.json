@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.0",
+  "project_version": "0.1.0",
+  "run_id": "device-20261026-mobility",
+  "generated_at": "2026-10-26T06:10:43+07:00",
+  "device": {
+    "model": "2406APNFAG",
+    "android_release": "16",
+    "abi": "aarch64",
+    "unprivileged": true,
+    "cpu_count": 8,
+    "termux_version": "0.119.0-beta.3"
+  },
+  "host": {
+    "gvproxy_version": "v0.9.0"
+  },
+  "kernel": {
+    "booted": true,
+    "arch": "um/arm64",
+    "release": "n/a (host-side probes only)"
+  },
+  "capabilities": {
+    "boot": {
+      "ok": false,
+      "evidence": "no guest boot in this run: host-side lifecycle probes only"
+    },
+    "wake_lock_available": {
+      "ok": true,
+      "evidence": "yes"
+    },
+    "app_process_count": 80,
+    "phantom_process_limit": 32,
+    "pressure_psi_readable": {
+      "ok": false,
+      "evidence": "denied"
+    },
+    "battery_readable": {
+      "ok": false,
+      "evidence": "denied"
+    },
+    "free_gb_home": null,
+    "bess_eof_kills_gvproxy": {
+      "ok": true,
+      "evidence": "gvproxy exits when the BESS peer disconnects"
+    }
+  },
+  "observed": {
+    "phantom_mitigation": "Developer options -> Disable child process restrictions (Android 14+) or adb shell device_config put activity_manager max_phantom_processes 2147483647",
+    "known_limits_observed": [
+      "phantom process killer (32 system-wide) applies to guest + dockerd + containers",
+      "/proc/pressure/* and battery/cgroup sysfs are not readable by an unprivileged app",
+      "network handover untested"
+    ]
+  },
+  "verdict": "partial",
+  "notes": "Host-side lifecycle probes. This record deliberately claims nothing about guest behaviour: it documents what Android lets an unprivileged app observe, and the mitigations the project documents.",
+  "artifacts": [
+    {
+      "kind": "console-log",
+      "path": "mobility.out",
+      "sha256": "32c7a125e93b6117a149ce87092d7a8a3fab82f7c2a4e687171f669370362dc7"
+    }
+  ]
+}

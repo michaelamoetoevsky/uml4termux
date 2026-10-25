@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "project_version": "0.1.0",
+  "run_id": "device-20261026-bench-ptrace",
+  "generated_at": "2026-10-26T06:10:43+07:00",
+  "device": {
+    "model": "2406APNFAG",
+    "android_release": "16",
+    "abi": "aarch64",
+    "unprivileged": true,
+    "cpu_count": 8,
+    "termux_version": "0.119.0-beta.3"
+  },
+  "host": {
+    "gvproxy_version": "v0.9.0"
+  },
+  "kernel": {
+    "booted": true,
+    "arch": "um/arm64",
+    "release": "7.2.0-rc4-opt"
+  },
+  "capabilities": {
+    "boot": {
+      "ok": true,
+      "evidence": "guest reached userspace; strict=on; ncpus=1"
+    },
+    "docker": {
+      "ok": true,
+      "evidence": "20.10.24+dfsg1"
+    },
+    "seccomp_fast_path": {
+      "ok": false,
+      "evidence": "mode=ptrace cpus=1"
+    },
+    "vcpu_count": 1,
+    "networking_gvproxy": {
+      "ok": true,
+      "evidence": "192.168.127.2/24"
+    },
+    "bess_transport": {
+      "ok": true,
+      "evidence": "vec0:transport=bess"
+    },
+    "bench_getppid_us": 81.0685,
+    "bench_open_us": 574.9655,
+    "bench_forkexec_200_ms": 11290,
+    "bench_lsR_usr_ms": 4058,
+    "bench_docker_run_x20_ms": 237038
+  },
+  "observed": {
+    "method": "shell/perl workloads inside the guest (relative comparison; a static C benchmark cannot be linked from the Termux prefix: no crtbegin_static.o / libc.a)",
+    "known_limits_observed": [
+      "timings are relative and device-specific"
+    ]
+  },
+  "verdict": "partial",
+  "notes": "Optimality comparison run (ptrace, 1 vCPU). Only relative numbers are claimed; the same userspace workload ran in both modes.",
+  "artifacts": [
+    {
+      "kind": "console-log",
+      "path": "bench-ptrace.log",
+      "sha256": "1624bea5d915721b536bb2fb2d8c71e3aaa5cacd8180b2ea52cf0dfb5a6c922c"
+    }
+  ]
+}

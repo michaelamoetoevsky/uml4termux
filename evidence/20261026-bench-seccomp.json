@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "project_version": "0.1.0",
+  "run_id": "device-20261026-bench-seccomp",
+  "generated_at": "2026-10-26T06:10:43+07:00",
+  "device": {
+    "model": "2406APNFAG",
+    "android_release": "16",
+    "abi": "aarch64",
+    "unprivileged": true,
+    "cpu_count": 8,
+    "termux_version": "0.119.0-beta.3"
+  },
+  "host": {
+    "gvproxy_version": "v0.9.0"
+  },
+  "kernel": {
+    "booted": true,
+    "arch": "um/arm64",
+    "release": "7.2.0-rc4-opt"
+  },
+  "capabilities": {
+    "boot": {
+      "ok": true,
+      "evidence": "guest reached userspace; strict=on; ncpus=4"
+    },
+    "docker": {
+      "ok": true,
+      "evidence": "20.10.24+dfsg1"
+    },
+    "seccomp_fast_path": {
+      "ok": true,
+      "evidence": "mode=seccomp cpus=4"
+    },
+    "vcpu_count": 4,
+    "networking_gvproxy": {
+      "ok": true,
+      "evidence": "192.168.127.2/24"
+    },
+    "bess_transport": {
+      "ok": true,
+      "evidence": "vec0:transport=bess"
+    },
+    "bench_getppid_us": 4.4441,
+    "bench_open_us": 237.1684,
+    "bench_forkexec_200_ms": 10206,
+    "bench_lsR_usr_ms": 5683,
+    "bench_docker_run_x20_ms": 319408
+  },
+  "observed": {
+    "method": "shell/perl workloads inside the guest (relative comparison; a static C benchmark cannot be linked from the Termux prefix: no crtbegin_static.o / libc.a)",
+    "known_limits_observed": [
+      "timings are relative and device-specific"
+    ]
+  },
+  "verdict": "partial",
+  "notes": "Optimality comparison run (seccomp, 4 vCPU). Only relative numbers are claimed; the same userspace workload ran in both modes.",
+  "artifacts": [
+    {
+      "kind": "console-log",
+      "path": "bench-seccomp.log",
+      "sha256": "f2c4356954074bde7bd86803e39866224ca7b0aaac4b90ae9148b62876a1645a"
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.0",
+  "project_version": "0.1.0",
+  "run_id": "device-20261026-adv2b-probes",
+  "generated_at": "2026-10-26T06:10:43+07:00",
+  "device": {
+    "model": "2406APNFAG",
+    "android_release": "16",
+    "abi": "aarch64",
+    "unprivileged": true,
+    "cpu_count": 8,
+    "termux_version": "0.119.0-beta.3"
+  },
+  "host": {
+    "gvproxy_version": "v0.9.0"
+  },
+  "kernel": {
+    "booted": true,
+    "arch": "um/arm64",
+    "release": "7.2.0-rc4-opt",
+    "boot_seconds": 268.0
+  },
+  "capabilities": {
+    "boot": {
+      "ok": true,
+      "evidence": "ADV2 marker reached (driver missed it only because it greps ADV_MARKER_DONE while the script prints ADV2_MARKER_DONE)"
+    },
+    "docker": {
+      "ok": true,
+      "evidence": "20.10.24+dfsg1"
+    },
+    "overlay2": {
+      "ok": true,
+      "evidence": "nested docker build inside the guest succeeded"
+    },
+    "cgroup_v2": {
+      "ok": true,
+      "evidence": "cgroup2_controllers=cpu io memory pids"
+    },
+    "seccomp_fast_path": {
+      "ok": true,
+      "evidence": "mode_tag=seccomp-4cpu, guest_cpus=4"
+    },
+    "vcpu_count": 4,
+    "networking_gvproxy": {
+      "ok": true,
+      "evidence": "192.168.127.2/24 guest_cpus=4"
+    },
+    "bess_transport": {
+      "ok": true,
+      "evidence": "vec0:transport=bess,dst=$TMPDIR/bess.sock,depth=128,gro=1"
+    },
+    "port_forwarding_loopback": {
+      "ok": false,
+      "evidence": "not exercised in this run (probe suite only)"
+    },
+    "privileged_mount": {
+      "ok": true,
+      "evidence": "PRIV_MOUNT_OK|"
+    },
+    "pid_namespace": {
+      "ok": true,
+      "evidence": "PIDNS_OK pid1=sh|"
+    },
+    "user_namespace": {
+      "ok": true,
+      "evidence": "USERNS_OK map= 0 0 4294967295|"
+    },
+    "nested_docker_build": {
+      "ok": true,
+      "evidence": "sha256:85f6c6b8c794b2f9b51333b4be5f7a52321775dae8c61aa203e710b2cbf8c999|built-by-guest-docker|"
+    },
+    "container_pid_isolation": {
+      "ok": true,
+      "evidence": "ctr_proc_hidden=3|"
+    },
+    "hostfs_exposure": {
+      "ok": true,
+      "evidence": "hostfs mount listed host files: REA,dokumentasi-poc-agent-terminal-webui.md,katalog-antigravity-skills.md,poc-memory-arsitektur-2026-10-26.md,riset-gith"
+    },
+    "ipv6_container_network": {
+      "ok": false,
+      "evidence": "time=\"2026-10-25T22:31:40.312646130Z\" level=error msg=\"Could not add route to IPv6 network fd00:1::1/64 via device br-faed98dd8262: network is down\"|time=\"2026-10-25T22:35:07.730337778Z\" level=error msg=\"Could not add route to IPv6 network fd00:2::1/64 via device br-b32e3fb44c55: network is down\"|"
+    },
+    "kernel_modules": {
+      "ok": false,
+      "evidence": "cfg_missing_docker: # CONFIG_CPUSETS is not set # CONFIG_MODULES is not set"
+    },
+    "oom_kill_enforcement": {
+      "ok": false,
+      "evidence": "probe did not exceed the limit: WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.|NO_OOM|"
+    }
+  },
+  "observed": {
+    "default_container_capability_mask": "CapEff:\t00000000a80425fb|",
+    "iptables_version": "iptables v1.8.9 (nf_tables)",
+    "ip6tables_present": "/usr/sbin/ip6tables ip6tables_rc=0",
+    "guest_kernel_symbols": "CONFIG_CGROUPS=y CONFIG_MEMCG=y CONFIG_BLK_CGROUP=y CONFIG_CGROUP_PIDS=y CONFIG_CGROUP_BPF=y CONFIG_UTS_NS=y CONFIG_IPC_NS=y CONFIG_USER_NS=y CONFIG_PID_NS=y CONFIG_NET_NS=y CONFIG_SMP=y CONFIG_HOSTFS=y CONFIG_SECCOMP_FILTER=y CONFIG_BINFMT_MISC=y CONFIG_NETFILTER=y CONFIG_BRIDGE_NETFILTER=y CONFIG_NF_NAT=y CONFIG_NF_TABLES=y CONFIG_NFT_FIB=y CONFIG_IP_NF_IPTABLES=y CONFIG_NF_TABLES_IPV6=y CONFIG_IP6_NF_IPTABLES=y CONFIG_IP6_NF_NAT=y CONFIG_BRIDGE=y CONFIG_VETH=y CONFIG_OVERLAY_FS=y CONFIG_KEYS=y",
+    "known_limits_observed": [
+      "IPv6 container networking fails (bridge route) although IP6_NF_IPTABLES=y",
+      "no kernel modules (CONFIG_MODULES unset)",
+      "no cpuset controller",
+      "hostfs exposes host files to the guest",
+      "OOM kill not verified"
+    ]
+  },
+  "verdict": "partial",
+  "notes": "Second-round probes with corrected test design (mkdir before mount, --cap-add=SYS_ADMIN for namespace tests). Three capabilities are explicitly NOT claimed: IPv6 container networking, kernel modules, and in-guest OOM kill.",
+  "artifacts": [
+    {
+      "kind": "console-log",
+      "path": "adv2b.log",
+      "sha256": "c39a481bba9a1f45200e8a43b57383d09856f07d0e45c1296dcbc6542e09e331"
+    }
+  ]
+}

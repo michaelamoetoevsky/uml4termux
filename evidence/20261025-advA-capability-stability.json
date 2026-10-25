@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.0",
+  "project_version": "0.1.0",
+  "run_id": "device-20261025-advA",
+  "generated_at": "2026-10-26T06:10:43+07:00",
+  "device": {
+    "model": "2406APNFAG",
+    "android_release": "16",
+    "abi": "aarch64",
+    "unprivileged": true,
+    "cpu_count": 8,
+    "termux_version": "0.119.0-beta.3"
+  },
+  "host": {
+    "gvproxy_version": "v0.9.0"
+  },
+  "kernel": {
+    "booted": true,
+    "arch": "um/arm64",
+    "release": "7.2.0-rc4-opt guest_page=16384",
+    "boot_seconds": 782.0
+  },
+  "capabilities": {
+    "boot": {
+      "ok": true,
+      "evidence": "UMARM/ADV marker reached; uname '7.2.0-rc4-opt guest_page=16384'"
+    },
+    "docker": {
+      "ok": true,
+      "evidence": "20.10.24+dfsg1"
+    },
+    "overlay2": {
+      "ok": true,
+      "evidence": ""
+    },
+    "cgroup_v2": {
+      "ok": true,
+      "evidence": "cgroup2_controllers=cpu io memory pids"
+    },
+    "seccomp_fast_path": {
+      "ok": true,
+      "evidence": "Userspace mode: SECCOMP; ncpus=4"
+    },
+    "vcpu_count": 4,
+    "networking_gvproxy": {
+      "ok": true,
+      "evidence": "guest_ip=192.168.127.2/24"
+    },
+    "bess_transport": {
+      "ok": true,
+      "evidence": "kernel cmdline vec0:transport=bess,dst=$TMPDIR/bess.sock"
+    },
+    "port_forwarding_loopback": {
+      "ok": true,
+      "evidence": "host_fetch: 8123=OK:HTTP/1.1 200 OK|Content-Length: 4||adv|, 8124=OK:HTTP/1.1 200 OK|Content-Length: 4||hst|"
+    },
+    "cgroup_memory_limit": {
+      "ok": true,
+      "evidence": "WARNING: Your kernel does not support swap limit capabilities or the cgroup is not mounted. Memory limited without swap.|67108864|"
+    },
+    "cgroup_pids_limit": {
+      "ok": true,
+      "evidence": "PIDS_LIMIT_HIT_AT_14|"
+    },
+    "readonly_rootfs": {
+      "ok": true,
+      "evidence": "touch: /x: Read-only file system|EXPECTED_DENY|"
+    },
+    "device_cgroup": {
+      "ok": true,
+      "evidence": "ls: /dev/mem: No such file or directory|DEV_MEM_HIDDEN|"
+    },
+    "embedded_dns": {
+      "ok": true,
+      "evidence": "Server:\t\t127.0.0.11|Address:\t127.0.0.11:53||Non-authoritative answer:||Non-authoritative answer:|Name:\td1|Address: 172.19.0.2||"
+    },
+    "volume": {
+      "ok": true,
+      "evidence": "hello|"
+    },
+    "docker_exec_logs": {
+      "ok": true,
+      "evidence": "EXEC_OK| / EXECPAYLOAD"
+    },
+    "cycle_leak_check": {
+      "ok": true,
+      "evidence": "cycles=30 before[871776 before_procs=111 before_docker_kb=42288] after[873616 after_procs=109 after_docker_kb=33904] kernel_bug_scan=0"
+    },
+    "idle_cpu_percent": 3.2,
+    "uml_rss_kb_after_idle": 205712
+  },
+  "observed": {
+    "docker_version": "20.10.24",
+    "storage_driver": "overlay2",
+    "container_image": "hello-world, alpine, busybox",
+    "container_port": 80,
+    "host_port": 8123,
+    "host_port_check": "python3: connect 127.0.0.1:8123 -> HTTP/1.1 200 OK",
+    "guest_dockerd_ready_ms": 35186,
+    "docker_ps": "webh:|web:0.0.0.0:8123->80/tcp, :::8123->80/tcp|e1:|d1:|",
+    "known_limits_observed": [
+      "cpuset controller unavailable (docker info warning)",
+      "no swap limit support (docker info warning)",
+      "IPv6 container network route fails",
+      "no kernel modules in this build (CONFIG_MODULES unset)"
+    ]
+  },
+  "verdict": "pass",
+  "notes": "Full suite in one boot: capability probes, 30 container cycles, host-side RSS/threads/idle-CPU and the inbound port-forward check. No BUG/WARNING/Oops in the guest dmesg. Guest dmesg/kernel HERE is the guest kernel, not Android's.",
+  "artifacts": [
+    {
+      "kind": "console-log",
+      "path": "advA.log",
+      "sha256": "1fa72eac944251c7506c4b43abfaf2e0cdb745f6ace844a9ff0e8e600ab389da"
+    },
+    {
+      "kind": "console-log",
+      "path": "advA.host.json",
+      "sha256": "03f4db83c5cbbe18e7f1da8bfd6844a5953f59c5b9158dc9bea6ebb8cc47b985"
+    }
+  ]
+}
