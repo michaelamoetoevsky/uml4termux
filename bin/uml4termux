@@ -1,0 +1,449 @@
+#!/bin/sh
+#
+# uml4termux — UML (User-Mode Linux) arm64 + rootless Docker for Termux/Android.
+#
+# This file must run under bash.  Termux has no /usr/bin/env and Android's
+# /bin/sh is not bash, so the shebang stays POSIX and we re-exec into bash
+# immediately (that keeps the script runnable as ./bin/uml4termux on a plain
+# Linux box and on Android/Termux alike).
+#
+# SPDX-License-Identifier: GPL-2.0-only
+
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec bash "$0" "$@"
+fi
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# locate the tree (resolve symlinks so /usr/bin/uml4termux works)
+# ---------------------------------------------------------------------------
+_uml4_self="${BASH_SOURCE[0]}"
+while [ -L "${_uml4_self}" ]; do
+  _uml4_link="$(readlink "${_uml4_self}")"
+  case "${_uml4_link}" in
+    /*) _uml4_self="${_uml4_link}" ;;
+    *)  _uml4_self="$(dirname "${_uml4_self}")/${_uml4_link}" ;;
+  esac
+done
+UML4TERMUX_ROOT="$(cd "$(dirname "${_uml4_self}")/.." && pwd)"
+export UML4TERMUX_ROOT
+unset _uml4_self _uml4_link 2>/dev/null || true
+
+# shellcheck source=../lib/common.sh
+. "${UML4TERMUX_ROOT}/lib/common.sh"
+# shellcheck source=../lib/fetch.sh
+. "${UML4TERMUX_ROOT}/lib/fetch.sh"
+# shellcheck source=../lib/net.sh
+. "${UML4TERMUX_ROOT}/lib/net.sh"
+# shellcheck source=../lib/guest.sh
+. "${UML4TERMUX_ROOT}/lib/guest.sh"
+# shellcheck source=../lib/doctor.sh
+. "${UML4TERMUX_ROOT}/lib/doctor.sh"
+
+UML4TERMUX_VERSION="${UML4TERMUX_VERSION:-0.1.0}"
+
+# ---------------------------------------------------------------------------
+# usage
+# ---------------------------------------------------------------------------
+usage() {
+  cat <<'EOF'
+uml4termux — run UML (User-Mode Linux) arm64 with rootless Docker on Termux
+
+Usage: uml4termux [--dry-run] <command> [options]
+
+Commands:
+  doctor       report host capabilities, assets and risks (never boots UML)
+  fetch        download kernel / stub_exe / disk image / initramfs / gvproxy
+  init-image   decompress debian-docker.ext4.gz -> debian-docker.ext4
+  boot         boot the guest: default dockerd mode, --shell or --gate
+  docker       full runbook: gvproxy + UML + dockerd, expose ports, verify
+  expose       expose HOSTPORT[:GUESTPORT] from a running instance
+  stop         stop the instance and clean sockets / ~/.uml state
+  dist-info    print paths, assets and the resolved configuration
+  version      print the version
+  help [cmd]   this text, or help for one command
+
+Global options:
+  --dry-run    print every external command without executing anything
+  -h, --help   this text
+
+Examples:
+  uml4termux fetch
+  uml4termux doctor
+  uml4termux docker --mem 1024 --cpus 4
+  uml4termux expose 8080:8123
+  uml4termux boot --shell
+  uml4termux stop
+
+Environment (all optional):
+  UML4TERMUX_HOME        asset directory (default ~/.local/share/uml4termux)
+  UML4TERMUX_MEM         guest RAM in MB            (default 1024)
+  UML4TERMUX_CPUS        guest vCPUs (seccomp mode) (default 4)
+  UML4TERMUX_PORTS       host:guest port pairs      (default 8123:8123 8124:8124)
+  UML4TERMUX_KERNEL_URL  kernel URL (default: the verified fork linux-bionic-smp)
+  UML4TERMUX_UPSTREAM_BASE_URL  release dir for the disk image + base initramfs
+
+Exit codes: 0 ok, 1 failure, 77 skipped (missing assets).
+EOF
+}
+
+usage_boot() {
+  cat <<'EOF'
+uml4termux boot [--shell | --gate] [options]
+
+  (no flag)   boot the Debian 12 + Docker image with the generated initramfs;
+              the guest reaches WEB_UP_MARKER and then keeps running
+  --shell     busybox shell inside UML (rdinit=/bin/sh, interactive console)
+  --gate      boot gate: no disk image, prints kernel/guest evidence and halts
+
+Options:
+  --mem MB        guest RAM (default 1024)
+  --cpus N        guest vCPUs, seccomp mode only (default 4)
+  --timeout S     wait budget for the guest marker (default 900)
+  --foreground    stay attached until the guest powers off
+  -h, --help      this text
+EOF
+}
+
+usage_docker() {
+  cat <<'EOF'
+uml4termux docker [options]
+
+Runs the full verified runbook:
+  1. refuse to start if an instance is already running
+  2. start a fresh gvproxy (proot-bound on Termux so it finds /etc/resolv.conf)
+  3. build the guest initramfs and boot UML with the seccomp/BESS transport
+  4. wait for WEB_UP_MARKER (dockerd up, containers publishing ports)
+  5. expose the container ports on 127.0.0.1 through gvproxy
+  6. fetch each port from the host loopback and print VERDICT=PASS|FAIL
+
+Options:
+  --mem MB        guest RAM (default 1024)
+  --cpus N        guest vCPUs (default 4)
+  --ports LIST    space or comma separated HOST:GUEST pairs
+                  (default "8123:8123 8124:8124")
+  --timeout S     wait budget for WEB_UP_MARKER (default 900)
+  --foreground    keep this command attached until the guest powers off
+  -h, --help      this text
+EOF
+}
+
+usage_stop() {
+  cat <<'EOF'
+uml4termux stop
+
+Stops the UML kernel first (so gvproxy sees the BESS peer disconnect), then
+gvproxy, then removes the unix sockets, the stale instance state and the
+~/.uml/<umid> directory.  Safe to run when nothing is running.
+EOF
+}
+
+usage_expose() {
+  cat <<'EOF'
+uml4termux expose HOSTPORT[:GUESTPORT]
+
+Asks the running gvproxy control socket to forward 127.0.0.1:HOSTPORT to
+GUEST_IP:GUESTPORT (default: the same port).  Needs a live instance.
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# commands
+# ---------------------------------------------------------------------------
+cmd_version() {
+  printf 'uml4termux %s (%s)\n' "${UML4TERMUX_VERSION}" "${UML4TERMUX_LICENSE}"
+  printf 'root: %s\n' "${UML4TERMUX_ROOT}"
+  printf 'home: %s\n' "${UML4TERMUX_HOME}"
+}
+
+cmd_help() {
+  local topic="${1:-}"
+  if [ -z "${topic}" ]; then usage; return 0; fi
+  case "${topic}" in
+    doctor|fetch|init-image|boot|docker|expose|stop|version|dist-info|help)
+      case "${topic}" in
+        doctor)     doctor_usage ;;
+        fetch)      cmd_fetch_usage ;;
+        init-image) cmd_init_image --help ;;
+        boot)       usage_boot ;;
+        docker)     usage_docker ;;
+        expose)     usage_expose ;;
+        stop)       usage_stop ;;
+        version)    printf 'uml4termux version — print the version and where the tree lives.\n' ;;
+        dist-info)  printf 'uml4termux dist-info — machine-readable paths, assets and configuration.\n' ;;
+        help)       usage ;;
+      esac
+      ;;
+    *) die "no help for '${topic}'" ;;
+  esac
+}
+
+cmd_dist_info() {
+  local fmt="kv" a path size state actual want
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json) fmt="json" ;;
+      -h|--help) printf 'uml4termux dist-info [--json]\n'; return 0 ;;
+      *) die "dist-info: unknown option '$1'" ;;
+    esac
+    shift
+  done
+
+  if [ "${fmt}" = "json" ]; then
+    uml4termux_require_python
+    uml4termux_dirs_init
+    uml4termux_python - "${UML4TERMUX_ROOT}" "${UML4TERMUX_HOME}" <<'PYEOF'
+import json, os, sys
+root, home = sys.argv[1], sys.argv[2]
+print(json.dumps({
+    "name": "uml4termux",
+    "version": os.environ.get("UML4TERMUX_VERSION", "0.1.0"),
+    "license": "GPL-2.0-only",
+    "root": root,
+    "home": home,
+    "mem_mb": int(os.environ.get("UML4TERMUX_MEM", "1024")),
+    "cpus": int(os.environ.get("UML4TERMUX_CPUS", "4")),
+    "ports": os.environ.get("UML4TERMUX_PORTS", "8123:8123 8124:8124").split(),
+}, indent=2, sort_keys=True))
+PYEOF
+    return 0
+  fi
+
+  printf 'NAME=uml4termux\n'
+  printf 'VERSION=%s\n' "${UML4TERMUX_VERSION}"
+  printf 'LICENSE=%s\n' "${UML4TERMUX_LICENSE}"
+  printf 'ROOT=%s\n' "${UML4TERMUX_ROOT}"
+  printf 'HOME=%s\n' "${UML4TERMUX_HOME}"
+  printf 'STATE=%s\n' "${UML4TERMUX_STATE_DIR}"
+  printf 'RUNTIME=%s\n' "${UML4TERMUX_RUNTIME}"
+  printf 'LOG_DIR=%s\n' "${UML4TERMUX_LOG_DIR}"
+  printf 'UMID=%s\n' "${UML4TERMUX_UMID}"
+  printf 'PREFIX=%s\n' "${PREFIX}"
+  printf 'IS_TERMUX=%s\n' "${UML4TERMUX_IS_TERMUX}"
+  printf 'MEM=%s\n' "${UML4TERMUX_MEM}"
+  printf 'CPUS=%s\n' "${UML4TERMUX_CPUS}"
+  printf 'SMP=%s\n' "${UML4TERMUX_SMP}"
+  printf 'PORTS=%s\n' "${UML4TERMUX_PORTS}"
+  printf 'GUEST_IP=%s\n' "${UML4TERMUX_GUEST_IP}"
+  printf 'GVNET_SOCK=%s\n' "${UML4TERMUX_GVNET_SOCK}"
+  printf 'BESS_SOCK=%s\n' "${UML4TERMUX_BESS_SOCK}"
+  printf 'KERNEL_URL=%s\n' "${UML4TERMUX_KERNEL_URL}"
+  printf 'UPSTREAM_BASE_URL=%s\n' "${UML4TERMUX_UPSTREAM_BASE_URL}"
+  printf 'GVPROXY_URL=%s\n' "${UML4TERMUX_GVPROXY_URL}"
+  printf 'GIT_COMMIT=%s\n' "$(git -C "${UML4TERMUX_ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  printf '\n# assets\n'
+  for a in kernel stub disk disk-gz base-initramfs gvproxy; do
+    path="$(uml4termux_asset_path "${a}")"
+    want="$(uml4termux_asset_sha "${a}")"
+    if [ ! -f "${path}" ]; then
+      state="missing"; size="-"; actual="-"
+    else
+      size="$(uml4termux_sizeof "${path}")"
+      actual="$(uml4termux_sha256 "${path}" 2>/dev/null || echo '?')"
+      if [ -z "${want}" ]; then state="unverified"
+      elif [ "${actual}" = "${want}" ]; then state="ok"
+      else state="mismatch"; fi
+    fi
+    printf 'ASSET %s state=%s size=%s sha256=%s expected=%s path=%s\n' \
+      "${a}" "${state}" "${size}" "${actual}" "${want:-none}" "${path}"
+  done
+}
+
+cmd_stop() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help) usage_stop; return 0 ;;
+      *) die "stop: unknown option '$1'" ;;
+    esac
+    shift
+  done
+
+  if ! uml4termux_instance_live && [ ! -S "${UML4TERMUX_BESS_SOCK}" ] \
+     && [ ! -S "${UML4TERMUX_GVNET_SOCK}" ] && [ ! -r "${UML4TERMUX_INSTANCE_ENV}" ]; then
+    info "no uml4termux instance is running"
+    uml4termux_clean_stale 0
+    printf 'STOPPED=0\n'
+    return 0
+  fi
+  net_stop
+  printf 'STOPPED=1\n'
+  return 0
+}
+
+cmd_expose() {
+  [ $# -ge 1 ] || die "expose needs at least one HOSTPORT[:GUESTPORT]"
+  case "${1:-}" in -h|--help) usage_expose; return 0 ;; esac
+  uml4termux_clean_stale 1
+  if [ ! -r "${UML4TERMUX_INSTANCE_ENV}" ] && ! uml4termux_is_dry_run; then
+    die "no instance state: start one with 'uml4termux docker' first"
+  fi
+  local spec
+  for spec in "$@"; do
+    net_expose "${spec}"
+  done
+  return 0
+}
+
+# cmd_boot [--shell|--gate] [--mem MB] [--cpus N] [--timeout S] [--foreground]
+cmd_boot() {
+  local mode="docker" interactive=0 foreground=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --shell)      mode="shell"; interactive=1 ;;
+      --gate)       mode="gate" ;;
+      --mem)        UML4TERMUX_MEM="${2:?--mem needs a value}"; shift ;;
+      --cpus)       UML4TERMUX_CPUS="${2:?--cpus needs a value}"; shift ;;
+      --timeout)    UML4TERMUX_BOOT_TIMEOUT="${2:?--timeout needs a value}"; shift ;;
+      --foreground) foreground=1 ;;
+      -h|--help)    usage_boot; return 0 ;;
+      *)            die "boot: unknown option '$1' (try 'uml4termux help boot')" ;;
+    esac
+    shift
+  done
+
+  uml4termux_assert_no_instance
+  if [ "${mode}" = "shell" ] && [ ! -t 0 ]; then
+    warn "stdin is not a tty: use 'uml4termux boot' for the non-interactive path"
+  fi
+
+  net_start_gvproxy
+  if [ "${mode}" = "shell" ]; then
+    info "the guest console is attached to this terminal; type 'poweroff -f' to leave"
+    guest_boot_shell
+    return 0
+  fi
+
+  guest_boot "${mode}" 0
+  local marker="WEB_UP_MARKER"
+  [ "${mode}" = "gate" ] && marker="GATE_OK"
+  if guest_wait_marker "${marker}" "${UML4TERMUX_BOOT_TIMEOUT}" "${UML4TERMUX_UML_LOG}"; then
+    guest_report "${UML4TERMUX_UML_LOG}"
+    ok "guest is up (mode=${mode})"
+    printf 'BOOT_MODE=%s\n' "${mode}"
+    printf 'BOOT_VERDICT=PASS\n'
+  else
+    guest_report "${UML4TERMUX_UML_LOG}"
+    printf 'BOOT_VERDICT=FAIL\n'
+    net_stop
+    return 1
+  fi
+  if [ "${mode}" = "gate" ] || [ "${foreground}" = "1" ]; then
+    guest_wait_exit "${UML4TERMUX_BOOT_TIMEOUT}" || warn "guest did not power off in time"
+  else
+    info "instance left running; 'uml4termux stop' shuts it down"
+  fi
+  return 0
+}
+
+# cmd_docker [--mem MB] [--cpus N] [--ports LIST] [--timeout S] [--foreground]
+cmd_docker() {
+  local foreground=0 verify_rc=0 spec host
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --mem)        UML4TERMUX_MEM="${2:?--mem needs a value}"; shift ;;
+      --cpus)       UML4TERMUX_CPUS="${2:?--cpus needs a value}"; shift ;;
+      --ports)      UML4TERMUX_PORTS="${2//,/ }"; shift ;;
+      --timeout)    UML4TERMUX_BOOT_TIMEOUT="${2:?--timeout needs a value}"; shift ;;
+      --foreground) foreground=1 ;;
+      -h|--help)    usage_docker; return 0 ;;
+      *)            die "docker: unknown option '$1' (try 'uml4termux help docker')" ;;
+    esac
+    shift
+  done
+
+  step "uml4termux docker: mem=${UML4TERMUX_MEM}M cpus=${UML4TERMUX_CPUS} ports='${UML4TERMUX_PORTS}'"
+  uml4termux_require_python
+  uml4termux_require_assets kernel stub disk gvproxy
+  uml4termux_assert_no_instance
+
+  net_start_gvproxy
+
+  if ! guest_boot docker 0; then
+    err "the guest failed to start"
+    printf 'VERDICT=FAIL\n'
+    net_stop
+    return 1
+  fi
+
+  step "waiting for the guest: DHCP -> dockerd -> containers ('${UML4TERMUX_MARKER}')"
+  if ! guest_wait_marker "${UML4TERMUX_MARKER}" "${UML4TERMUX_BOOT_TIMEOUT}" "${UML4TERMUX_UML_LOG}"; then
+    guest_report "${UML4TERMUX_UML_LOG}"
+    printf 'VERDICT=FAIL\n'
+    net_stop
+    return 1
+  fi
+  guest_report "${UML4TERMUX_UML_LOG}"
+
+  step "exposing container ports through gvproxy"
+  for spec in ${UML4TERMUX_PORTS}; do
+    net_expose "${spec}"
+  done
+
+  step "verifying from the host loopback"
+  for spec in ${UML4TERMUX_PORTS}; do
+    host="${spec%%:*}"
+    if ! net_verify_port "${host}"; then verify_rc=1; fi
+  done
+
+  if uml4termux_is_dry_run; then
+    printf 'VERDICT=DRY-RUN (no UML was booted)\n'
+    return 0
+  fi
+  if [ "${verify_rc}" -ne 0 ]; then
+    printf 'VERDICT=FAIL (a container port is not reachable on 127.0.0.1)\n'
+    err "leaving the instance up for inspection: 'uml4termux stop' to clean up"
+    return 1
+  fi
+  printf 'VERDICT=PASS (Docker container ports reachable from the phone on 127.0.0.1)\n'
+  ok "run 'uml4termux stop' to shut the instance down"
+  if [ "${foreground}" = "1" ]; then
+    info "keeping this command attached until the guest powers off"
+    guest_wait_exit "${UML4TERMUX_BOOT_TIMEOUT}" || warn "guest did not power off in time"
+    net_stop
+  fi
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# dispatch
+# ---------------------------------------------------------------------------
+main() {
+  local -a argv=()
+  local arg
+  for arg in "$@"; do
+    case "${arg}" in
+      --dry-run|-n) UML4TERMUX_DRY_RUN=1 ;;
+      *) argv+=("${arg}") ;;
+    esac
+  done
+  export UML4TERMUX_DRY_RUN
+
+  local cmd="${argv[0]:-help}"
+  if [ "${#argv[@]}" -gt 0 ]; then
+    argv=("${argv[@]:1}")
+  else
+    argv=()
+  fi
+  # `help -h` and a bare `-h` both land on help
+  if [ "${#argv[@]}" -gt 0 ]; then
+    case "${argv[0]}" in -h|--help) argv=() ;; esac
+  fi
+
+  case "${cmd}" in
+    -h|--help)      usage ; return 0 ;;
+    doctor)         cmd_doctor "${argv[@]}" ;;
+    fetch)          cmd_fetch "${argv[@]}" ;;
+    init-image)     cmd_init_image "${argv[@]}" ;;
+    boot)           cmd_boot "${argv[@]}" ;;
+    docker)         cmd_docker "${argv[@]}" ;;
+    expose)         cmd_expose "${argv[@]}" ;;
+    stop)           cmd_stop "${argv[@]}" ;;
+    dist-info)      cmd_dist_info "${argv[@]}" ;;
+    version|--version) cmd_version ;;
+    help)           cmd_help "${argv[@]}" ;;
+    *)              err "unknown command: ${cmd}"; usage >&2; return 1 ;;
+  esac
+}
+
+main "$@"
