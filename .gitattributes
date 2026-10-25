@@ -1,0 +1,49 @@
+# .gitattributes
+# Normalise line endings (LF) and mark text/binary for git.
+#
+# Large binary assets (kernels, rootfs, gvproxy, raw logs) are *not* tracked
+# (they live under .gitignore). This file only governs the small source files
+# that are actually committed.
+
+* text=auto eol=lf
+
+# Explicitly text with LF
+*.sh text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+Makefile text eol=lf
+.editorconfig text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+CONTRIBUTING.md text eol=lf
+SECURITY.md text eol=lf
+CHANGELOG.md text eol=lf
+VERSION text eol=lf
+LICENSE text eol=lf
+
+# Explicitly binary (never diff, never merge)
+*.cpio -diff -merge
+*.cpio.gz -diff -merge
+*.ext4 -diff -merge
+*.tar.gz -diff -merge
+gvproxy -diff -merge
+bin/linux* -diff -merge
+*.raw.log -diff -merge
+
+# Linguist overrides (so the repo language stats stay meaningful)
+*.sh linguist-language=Shell
+*.py linguist-language=Python
+*.yml linguist-language=YAML
+*.yaml linguist-language=YAML
+*.md linguist-language=Markdown
+Makefile linguist-language=Makefile
+
+# Documentation directories that should never appear in `git archive` diffs
+# are deliberately NOT export-ignore'd: `make dist` stages the full tree
+# with `tar` and we *want* tests/, ci/, evidence/ in the source tarball.
+# If you need a clean export for a downstream package, use `make dist` instead
+# of `git archive`.
