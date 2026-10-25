@@ -1,0 +1,260 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: release
+
+# =============================================================================
+# Tag -> GitHub Release.
+#
+#   Trigger: pushing a tag matching `v*` (e.g. v0.1.0), or a manual
+#   workflow_dispatch with an explicit tag (recovery path for a release that was
+#   built before an artifact existed, or for re-cutting an existing tag).
+#
+#   Steps: gate on repository metadata (VERSION must equal the tag, CHANGELOG
+#   must have a matching Keep-a-Changelog section), build the dist tarball with
+#   the same script `make dist` uses, record SHA256SUMS, then publish a GitHub
+#   Release whose body is the CHANGELOG excerpt for that tag.
+#
+#   Like ci.yml, this NEVER boots UML -- a release artifact is a source tarball,
+#   not a kernel image or a rootfs. Assets such as the built UML kernel and
+#   gvproxy are fetched by the CLI on the device and are deliberately not
+#   published here (no provenance, no reproducible toolchain on a runner).
+# =============================================================================
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (must already exist, e.g. v0.1.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark the release as a pre-release'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Build and validate everything, but do not create the release'
+        required: false
+        type: boolean
+        default: false
+
+# Required to create the Release and upload its assets.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SHELLCHECK_SEVERITY: warning
+  SHELLCHECK_EXCLUDE: SC1090,SC1091,SC2016,SC2034,SC2154,SC2317,SC2329
+  PYTHONDONTWRITEBYTECODE: '1'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+
+jobs:
+  release:
+    name: build and publish
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      tarball: ${{ steps.meta.outputs.tarball }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install validation dependencies
+        run: python -m pip install --quiet pyyaml jsonschema
+
+      # --- decide and validate the tag --------------------------------------
+      - name: Resolve and validate tag <-> VERSION
+        id: meta
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+
+          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$'; then
+            echo "::error title=FAIL::tag '$tag' is not of the form v<major>.<minor>.<patch>"
+            exit 1
+          fi
+
+          version=$(tr -d ' \t\r\n' < VERSION)
+          tag_version=${tag#v}
+
+          if [ "$version" != "$tag_version" ]; then
+            {
+              echo "::error title=FAIL::VERSION ($version) does not match tag ($tag)."
+              echo "Release tags must match the VERSION file exactly: bump VERSION,"
+              echo "add a CHANGELOG section for $tag_version, commit, then re-tag."
+            }
+            exit 1
+          fi
+
+          if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "::error title=FAIL::tag '$tag' does not exist in this repository"
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "tarball=dist/uml4termux-$version.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "releasing tag=$tag version=$version"
+
+      # --- gate on metadata before building anything -------------------------
+      - name: Extract CHANGELOG section for the tag
+        run: |
+          set -euo pipefail
+          version="${{ steps.meta.outputs.version }}"
+          bash ci/changelog-extract.sh "$version" > /tmp/release-notes.md
+          lines=$(wc -l < /tmp/release-notes.md)
+          echo "CHANGELOG section for $version: $lines line(s)"
+          if [ "$lines" -lt 2 ]; then
+            echo "::error title=FAIL::CHANGELOG section for $version is too thin to publish"
+            exit 1
+          fi
+          cat /tmp/release-notes.md
+
+      - name: Repository metadata consistency (self-test)
+        run: |
+          set +e
+          bash tests/ci-checks.sh
+          rc=$?
+          case "$rc" in
+            0)  echo "ci-checks.sh: PASS" ;;
+            77) echo "::notice title=SKIP::tests/ci-checks.sh reported nothing to check" ;;
+            *)  echo "::error title=FAIL::tests/ci-checks.sh exited $rc"; exit 1 ;;
+          esac
+
+      - name: YAML self-validation of every workflow file
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find .github/workflows -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) | sort)
+          python3 ci/yamlcheck.py --mode strict --workflow "${files[@]}"
+
+      - name: Lint shell files (bash -n always; shellcheck when available)
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(bash ci/list-shell-files.sh .)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::notice title=SKIP::no shell files found"
+            exit 0
+          fi
+          for f in "${files[@]}"; do bash -n "$f"; done
+          echo "bash -n: ${#files[@]} file(s) OK"
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck --shell=bash --severity="${SHELLCHECK_SEVERITY}" \
+              --exclude="${SHELLCHECK_EXCLUDE}" "${files[@]}"
+          else
+            echo "::notice::shellcheck not installed on this runner; bash -n only"
+          fi
+
+      # --- build ------------------------------------------------------------
+      - name: make dist
+        run: bash ci/make-dist.sh
+
+      - name: Verify SHA256SUMS
+        run: |
+          set -euo pipefail
+          cd dist && sha256sum -c SHA256SUMS && ls -l
+
+      - name: Release summary
+        run: |
+          {
+            echo "## Release ${{ steps.meta.outputs.tag }}"
+            echo ""
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+            echo ""
+            echo "### Release notes (CHANGELOG excerpt)"
+            echo ""
+            cat /tmp/release-notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dist artifact (also for dry runs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: uml4termux-release-${{ steps.meta.outputs.version }}
+          path: |
+            dist/uml4termux-*.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish GitHub Release
+        if: ${{ inputs.dry_run != true }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: uml4termux ${{ steps.meta.outputs.version }}
+          body_path: /tmp/release-notes.md
+          prerelease: ${{ inputs.prerelease == true }}
+          draft: false
+          fail_on_unmatched_files: true
+          files: |
+            dist/uml4termux-*.tar.gz
+            dist/SHA256SUMS
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish SKIPPED (dry run)
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          echo "::notice title=SKIP::dry_run=true -- artifacts built and validated, release not published"
+
+      # --- verify the release actually exists (state-changing write) ---------
+      - name: Verify the published release and its assets
+        if: ${{ inputs.dry_run != true }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.meta.outputs.tag }}"
+          version="${{ steps.meta.outputs.version }}"
+
+          # `gh` is preinstalled on ubuntu-latest; fall back to the REST API.
+          if command -v gh >/dev/null 2>&1; then
+            gh release view "$tag" --json tagName,assets,url > /tmp/release.json
+          else
+            curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" \
+              > /tmp/release.json
+          fi
+
+          python3 - "$version" <<'PY'
+          import json, sys
+          version = sys.argv[1]
+          data = json.load(open('/tmp/release.json'))
+          assets = [a['name'] for a in data.get('assets', [])]
+          want_tar = 'uml4termux-%s.tar.gz' % version
+          missing = [n for n in (want_tar, 'SHA256SUMS') if n not in assets]
+          if missing:
+              print('::error title=FAIL::release is missing asset(s): %s' % ', '.join(missing))
+              raise SystemExit(1)
+          print('release %s verified, assets: %s' % (data.get('tagName') or data.get('tag_name'), ', '.join(assets)))
+          PY
+
+      - name: Local SHA256 of published assets (for the record)
+        if: ${{ inputs.dry_run != true }}
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum -c SHA256SUMS
+          echo "published checksum:"
+          cat SHA256SUMS

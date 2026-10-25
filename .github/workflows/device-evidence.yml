@@ -1,0 +1,277 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: device-evidence
+
+# =============================================================================
+# Device-run evidence intake and validation.
+#
+#   WHY THIS WORKFLOW EXISTS
+#   ------------------------
+#   The only place uml4termux is ever *proven* to work is an Android/Termux
+#   device: a real arm64 User-Mode Linux kernel booted as an unprivileged
+#   userspace process, with Docker on overlay2, the seccomp fast path, 4 vCPUs,
+#   gvproxy+BESS networking, and a container port reachable on the phone's
+#   127.0.0.1 through the port-forwarding API. No GitHub-hosted runner can
+#   reproduce any of that (see the header of ci.yml), so this workflow does not
+#   run the software. It validates the *evidence* a device run produces.
+#
+#   TWO WAYS TO GET EVIDENCE IN
+#   ---------------------------
+#   1. Commit/PR an evidence record:  evidence/<run-id>.json
+#      Must satisfy evidence/schema.json. Validated here on push/PR too, so a
+#      bad record fails review rather than being discovered later.
+#   2. Push from the device without a commit (repository_dispatch):
+#
+#        curl -fsS -X POST \
+#          -H "Authorization: Bearer $GH_TOKEN" \
+#          -H "Accept: application/vnd.github+json" \
+#          https://api.github.com/repos/OWNER/REPO/dispatches \
+#          -d '{"event_type":"device-evidence",
+#               "client_payload":{"evidence":'"$(cat evidence/run.json)"'}}'
+#
+#      The payload's `.evidence` object is materialised as
+#      evidence/dispatch-<run_id>.json, validated, and uploaded as an artifact
+#      so the run is auditable even though nothing was committed.
+#
+#   Failing on a missing required field is intentional: a record that cannot say
+#   which device, which guest kernel, which probes, and what verdict is not
+#   evidence. When evidence/ holds no records at all the job reports SKIP (77)
+#   rather than a green pass, because "nothing was verified" is not "verified".
+# =============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_path:
+        description: 'Directory (or single JSON file) holding evidence records'
+        required: false
+        default: 'evidence'
+        type: string
+      upload_raw_logs:
+        description: 'Also upload evidence/*.raw.log alongside the JSON records'
+        required: false
+        type: boolean
+        default: true
+
+  repository_dispatch:
+    types: [device-evidence]
+
+  push:
+    branches: [main, master]
+    paths:
+      - 'evidence/**.json'
+  pull_request:
+    paths:
+      - 'evidence/**.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: device-evidence-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  schema:
+    name: schema (evidence/schema.json is self-consistent)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install validation dependencies
+        run: python -m pip install --quiet jsonschema
+
+      - name: FAIL if the schema file is missing
+        run: |
+          set -euo pipefail
+          if [ ! -f evidence/schema.json ]; then
+            echo "::error title=FAIL::evidence/schema.json is required but missing"
+            echo "The documented schema path is evidence/schema.json -- see evidence/README.md."
+            exit 1
+          fi
+          echo "schema path: evidence/schema.json ($(wc -c < evidence/schema.json) bytes)"
+
+      - name: Validate the schema itself and print its required-field tree
+        run: |
+          set -euo pipefail
+          python3 ci/check-evidence.py --schema evidence/schema.json --list-fields | tee /tmp/fields.txt
+          {
+            echo "### evidence/schema.json"
+            echo ""
+            echo '```'
+            cat /tmp/fields.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  evidence:
+    name: evidence records (validate)
+    needs: [schema]
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.validate.outputs.result }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install validation dependencies
+        run: python -m pip install --quiet jsonschema
+
+      # A device can push a run without committing anything. Turn the dispatch
+      # payload into a normal evidence file so one code path validates both.
+      - name: Materialise the repository_dispatch payload
+        if: github.event_name == 'repository_dispatch'
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$PAYLOAD" > /tmp/payload.json
+          if [ ! -s /tmp/payload.json ] || [ "$(tr -d '[:space:]' < /tmp/payload.json)" = "null" ]; then
+            echo "::warning title=SKIP::repository_dispatch carried no client_payload"
+            exit 0
+          fi
+          mkdir -p evidence
+          if jq -e 'has("evidence") and (.evidence | type == "object")' /tmp/payload.json >/dev/null 2>&1; then
+            jq '.evidence' /tmp/payload.json > "evidence/dispatch-${GITHUB_RUN_ID}.json"
+            echo "wrote evidence/dispatch-${GITHUB_RUN_ID}.json ($(wc -c < "evidence/dispatch-${GITHUB_RUN_ID}.json") bytes)"
+          else
+            echo "::warning title=SKIP::repository_dispatch payload has no .evidence object"
+            echo "expected client_payload = {\"evidence\": { ...record per evidence/schema.json... }}"
+          fi
+
+      - name: List evidence records
+        id: list
+        run: |
+          set -euo pipefail
+          target='${{ inputs.evidence_path || 'evidence' }}'
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          if [ ! -e "$target" ]; then
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            echo "::notice title=SKIP::$target does not exist"
+            exit 0
+          fi
+          if [ -d "$target" ]; then
+            count=$(find "$target" -maxdepth 1 -type f -name '*.json' \
+              ! -name 'schema.json' | wc -l | tr -d ' ')
+            find "$target" -maxdepth 1 -type f -name '*.json' ! -name 'schema.json' | sort
+          else
+            count=1
+            echo "$target"
+          fi
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "evidence records: $count"
+
+      # Exit-code contract: 0 valid, 1 invalid, 77 nothing to validate.
+      - name: Validate evidence against evidence/schema.json
+        id: validate
+        run: |
+          set +e
+          target='${{ steps.list.outputs.target }}'
+          if [ '${{ steps.list.outputs.count }}' = '0' ]; then
+            echo "::notice title=SKIP::no evidence records under $target -- nothing validated"
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          python3 ci/check-evidence.py --schema evidence/schema.json "$target" 2>&1 | tee /tmp/evidence-check.txt
+          rc=${PIPESTATUS[0]}
+
+          case "$rc" in
+            0)
+              echo "result=pass" >> "$GITHUB_OUTPUT"
+              echo "::notice title=PASS::evidence records are valid"
+              ;;
+            77)
+              echo "result=skipped" >> "$GITHUB_OUTPUT"
+              echo "::notice title=SKIP::no evidence records to validate"
+              ;;
+            *)
+              echo "result=fail" >> "$GITHUB_OUTPUT"
+              {
+                echo "::error title=FAIL::evidence validation failed (exit $rc)"
+                echo "A required field is missing or has the wrong type. Required fields:"
+                python3 ci/check-evidence.py --schema evidence/schema.json --list-fields | sed 's/^/  /'
+                echo "Full report:"
+                sed 's/^/  /' /tmp/evidence-check.txt
+              }
+              exit 1
+              ;;
+          esac
+
+      - name: Evidence summary
+        if: always()
+        run: |
+          {
+            echo "### evidence records"
+            echo ""
+            echo "result: \`${{ steps.validate.outputs.result || 'unknown' }}\`"
+            echo ""
+            if [ -f /tmp/evidence-check.txt ]; then
+              echo '```'
+              cat /tmp/evidence-check.txt
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload evidence records (audit trail)
+        if: always() && steps.list.outputs.count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-records-${{ github.run_id }}
+          path: |
+            evidence/*.json
+            !evidence/schema.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload raw console logs (when present)
+        if: always() && inputs.upload_raw_logs != false
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidence-raw-logs-${{ github.run_id }}
+          path: evidence/*.raw.log
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  verdict:
+    name: verdict
+    needs: [schema, evidence]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write the job summary
+        run: |
+          {
+            echo "## device-evidence"
+            echo ""
+            echo "| job | result |"
+            echo "| --- | --- |"
+            echo "| schema | ${{ needs.schema.result }} |"
+            echo "| evidence records | ${{ needs.evidence.result }} (\`${{ needs.evidence.outputs.result }}\`) |"
+            echo ""
+            echo "This workflow validates *evidence about a device run*; it does not"
+            echo "run uml4termux itself. A 'skipped' evidence result means no records"
+            echo "were present -- which is not verification."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail when any job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "::error title=FAIL::evidence intake failed -- see the job logs above"
+          exit 1

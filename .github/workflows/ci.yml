@@ -1,0 +1,399 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: ci
+
+# =============================================================================
+# WHAT THIS WORKFLOW DOES -- AND, LOUDLY, WHAT IT CANNOT DO
+#
+#   Runs on GitHub-hosted `ubuntu-latest` runners. It validates the repository:
+#   workflow YAML, shell lint, Python syntax, the initramfs generator's unit
+#   test, the evidence schema, the dist tarball + SHA256SUMS.
+#
+#   ***  THIS WORKFLOW NEVER BOOTS USER-MODE LINUX.  ***
+#   That is a hard constraint, not an untested gap and not a TODO. A
+#   GitHub-hosted runner cannot run this project, for four independent reasons:
+#
+#     1. The guest kernel is User-Mode Linux, SUBARCH=arm64, built from the
+#        downstream device port. There is no arm64 UML userspace on an x86_64
+#        runner, and the port's toolchain assumptions come from the device.
+#     2. No /dev/kvm, no /dev/net/tun, no tap device, no Android permission
+#        model -- the transports this project uses simply do not exist there.
+#     3. The container stack is verified against the *device's* cgroup v2,
+#        overlay2 and seccomp behaviour; a runner reproduces none of that, so a
+#        boot there would prove nothing about the supported configuration.
+#     4. Rootless operation is part of the contract; GitHub runners are also
+#        ephemeral and re-imaged, so the environment cannot be pinned.
+#
+#   A green run here therefore proves PACKAGING health only. Boot proof is
+#   produced on an Android/Termux device and validated by
+#   .github/workflows/device-evidence.yml.
+#
+#   ci/no-boot-guard.sh enforces the rule mechanically: if a future change adds
+#   a step that launches the kernel or the container stack, this workflow fails.
+# =============================================================================
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      # Raw console logs are bulky evidence uploads, not source. (They are
+      # .gitignore'd anyway; this keeps the intent explicit.)
+      - 'evidence/*.raw.log'
+  pull_request:
+  workflow_dispatch:
+
+# Nothing here writes to the repository: read-only by default.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # ---------------------------------------------------------------------------
+  # shellcheck policy -- severity + allowlist, decided once, applied everywhere
+  #
+  # Severity: `warning`. Anything below warning (info/style) is opinion, and on
+  # a project whose shell glue must run on Android, BusyBox-ish environments and
+  # CI, style noise hides real findings.
+  #
+  # Allowlist (each entry must have a reason; adding one needs a justification
+  # in the pull request):
+  #   SC1090  non-constant source path  -- every script sources its siblings via
+  #                                        ${BASH_SOURCE[0]}, which is by
+  #                                        definition not resolvable statically.
+  #   SC1091  not following sourced file -- same; the sourced ci/lib.sh is not
+  #                                        on shellcheck's search path.
+  #   SC2016  single quotes prevent expansion -- deliberate: we print literal
+  #                                        '$VARIABLE' and YAML '${ ... }' text
+  #                                        in help output and generated files.
+  #   SC2034  appears unused -- constants such as CI_SKIP are consumed by the
+  #                                        scripts that *source* this file.
+  #   SC2154  referenced but not assigned -- values come from sourced library
+  #                                        modules and from the guest/host
+  #                                        environment (PREFIX, ANDROID_ROOT,
+  #                                        TERMUX_VERSION ...).
+  #   SC2317  unreachable command -- false positives in functions used as trap
+  #                                        handlers and callbacks.
+  #   SC2329  function never invoked -- helper functions exported for callers
+  #                                        outside the file shellcheck sees.
+  # ---------------------------------------------------------------------------
+  SHELLCHECK_SEVERITY: warning
+  SHELLCHECK_EXCLUDE: SC1090,SC1091,SC2016,SC2034,SC2154,SC2317,SC2329
+  PYTHONDONTWRITEBYTECODE: '1'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  validate:
+    name: validate (workflow YAML + metadata)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install validation dependencies
+        run: python -m pip install --quiet pyyaml jsonschema
+
+      - name: Collect workflow files
+        id: wf
+        run: |
+          set -euo pipefail
+          find .github/workflows -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) \
+            | sort > /tmp/workflows.txt
+          count=$(grep -c . /tmp/workflows.txt || true)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "workflow files found: $count"
+          cat /tmp/workflows.txt
+
+      # Full YAML parse (PyYAML, duplicate-key-rejecting loader) plus GitHub
+      # Actions shape assertions: top-level name/on/jobs, per-job runs-on and
+      # steps, uses-xor-run per step, valid permission levels.
+      - name: YAML self-validation of every workflow file
+        if: steps.wf.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(grep . /tmp/workflows.txt)
+          python3 ci/yamlcheck.py --mode strict --workflow "${files[@]}"
+
+      - name: YAML self-validation SKIPPED
+        if: steps.wf.outputs.count == '0'
+        run: |
+          echo "::notice title=SKIP::no .github/workflows/*.yml found -- nothing to parse"
+
+      - name: Also validate evidence/schema.json as YAML-parsable JSON
+        run: |
+          set -euo pipefail
+          python3 ci/yamlcheck.py --mode strict evidence/schema.json >/dev/null 2>&1 || \
+            python3 -c "import json,sys; json.load(open('evidence/schema.json')); print('evidence/schema.json: valid JSON')"
+
+      - name: Forbid booting UML from CI (no-boot-guard)
+        run: bash ci/no-boot-guard.sh .
+
+      - name: Evidence schema must be a valid JSON Schema
+        run: |
+          set -euo pipefail
+          python3 ci/check-evidence.py --list-fields
+
+      - name: Repository metadata consistency (self-test)
+        run: |
+          set +e
+          bash tests/ci-checks.sh
+          rc=$?
+          case "$rc" in
+            0)  echo "ci-checks.sh: PASS" ;;
+            77) echo "::notice title=SKIP::tests/ci-checks.sh reported nothing to check" ;;
+            *)  echo "::error title=FAIL::tests/ci-checks.sh exited $rc"; exit 1 ;;
+          esac
+
+  # ---------------------------------------------------------------------------
+  lint-shell:
+    name: shell (bash -n + shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck
+          shellcheck --version
+
+      - name: Collect shell files
+        id: files
+        run: |
+          set -euo pipefail
+          bash ci/list-shell-files.sh . > /tmp/shell-files.txt
+          count=$(grep -c . /tmp/shell-files.txt || true)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "shell files found: $count"
+          cat /tmp/shell-files.txt
+
+      - name: bash -n (syntax check, no shellcheck needed)
+        if: steps.files.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(grep . /tmp/shell-files.txt)
+          fail=0
+          for f in "${files[@]}"; do
+            if bash -n "$f"; then
+              printf 'ok    %s\n' "$f"
+            else
+              printf 'FAIL  %s\n' "$f"
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "::error title=FAIL::one or more shell files failed 'bash -n'"
+            exit 1
+          fi
+          echo "bash -n: ${#files[@]} file(s) OK"
+
+      - name: shellcheck (severity=${{ env.SHELLCHECK_SEVERITY }}, allowlist documented in env block)
+        if: steps.files.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(grep . /tmp/shell-files.txt)
+          echo "policy: --severity=${SHELLCHECK_SEVERITY} --exclude=${SHELLCHECK_EXCLUDE}"
+          {
+            echo "### shellcheck policy"
+            echo ""
+            echo '```'
+            echo "severity: ${SHELLCHECK_SEVERITY}"
+            echo "exclude:  ${SHELLCHECK_EXCLUDE}"
+            echo "files:    ${#files[@]}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          shellcheck \
+            --shell=bash \
+            --severity="${SHELLCHECK_SEVERITY}" \
+            --exclude="${SHELLCHECK_EXCLUDE}" \
+            --color=always \
+            "${files[@]}"
+
+      - name: shell lint SKIPPED
+        if: steps.files.outputs.count == '0'
+        run: |
+          echo "::notice title=SKIP::no shell files present yet -- bash -n and shellcheck skipped"
+
+  # ---------------------------------------------------------------------------
+  python:
+    name: python (compile + initramfs generator test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Optional paths are owned by other workstreams and may legitimately not
+      # exist yet. Their absence is reported as SKIP, never as a pass.
+      - name: Detect optional project paths
+        id: detect
+        run: |
+          set -euo pipefail
+          if [ -f scripts/build-initramfs.py ]; then generator=1; else generator=0; fi
+          if [ -x bin/uml4termux ]; then cli=1; else cli=0; fi
+          echo "generator=$generator" >> "$GITHUB_OUTPUT"
+          echo "cli=$cli" >> "$GITHUB_OUTPUT"
+          echo "scripts/build-initramfs.py present: $generator"
+          echo "bin/uml4termux present: $cli"
+
+      - name: py_compile every Python file
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find ci tests scripts -maxdepth 2 -type f -name '*.py' 2>/dev/null | sort)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::notice title=SKIP::no Python files found"
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            python3 -m py_compile "$f"
+            printf 'compiled  %s\n' "$f"
+          done
+          echo "py_compile: ${#files[@]} file(s) OK"
+
+      - name: python3 -m py_compile scripts/build-initramfs.py
+        if: steps.detect.outputs.generator == '1'
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/build-initramfs.py
+          echo "py_compile: scripts/build-initramfs.py OK"
+
+      - name: py_compile scripts/build-initramfs.py SKIPPED
+        if: steps.detect.outputs.generator != '1'
+        run: |
+          echo "::notice title=SKIP::scripts/build-initramfs.py does not exist yet"
+
+      # Runs the real generator in a temp directory and re-parses the produced
+      # cpio archive with an independent newc reader (it does not import the
+      # generator), asserting a TRAILER, sane modes, and no path escapes.
+      - name: Generator unit test (build -> re-parse cpio)
+        if: steps.detect.outputs.generator == '1'
+        run: |
+          set +e
+          python3 tests/test_build_initramfs.py
+          rc=$?
+          case "$rc" in
+            0)  echo "generator unit test: PASS" ;;
+            77) echo "::notice title=SKIP::generator unit test skipped (prerequisite missing)" ;;
+            *)  echo "::error title=FAIL::generator unit test exited $rc"; exit 1 ;;
+          esac
+
+      - name: Generator unit test SKIPPED
+        if: steps.detect.outputs.generator != '1'
+        run: |
+          echo "::notice title=SKIP::generator unit test needs scripts/build-initramfs.py"
+
+  # ---------------------------------------------------------------------------
+  dist:
+    name: dist (tarball + SHA256SUMS)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check VERSION <-> CHANGELOG consistency
+        run: |
+          set -euo pipefail
+          version=$(tr -d ' \t\r\n' < VERSION)
+          echo "VERSION=$version"
+          bash ci/changelog-extract.sh "$version" > /tmp/release-notes.md
+          echo "CHANGELOG has a $version section, $(wc -l < /tmp/release-notes.md) line(s)"
+
+      - name: make dist
+        run: bash ci/make-dist.sh
+
+      - name: Verify SHA256SUMS
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum -c SHA256SUMS
+          ls -l
+
+      - name: Inspect the tarball
+        run: |
+          set -euo pipefail
+          tarball=$(ls dist/uml4termux-*.tar.gz)
+          echo "tarball: $tarball ($(wc -c < "$tarball") bytes)"
+          tar -tzf "$tarball" | head -40
+          echo "... $(tar -tzf "$tarball" | wc -l) entries total"
+          # A dist tarball must never carry a large binary asset: those are
+          # fetched by the CLI. Fail loudly if one sneaks in.
+          messy=$(tar -tzf "$tarball" | grep -E '\.(cpio|cpio\.gz|ext4|raw\.log|tar\.gz)$|(^|/)gvproxy$|(^|/)linux-[0-9]' || true)
+          if [ -n "$messy" ]; then
+            echo "::error title=FAIL::binary assets leaked into the dist tarball:"
+            printf '%s\n' "$messy"
+            exit 1
+          fi
+          echo "no binary assets in the tarball"
+
+      - name: Job summary
+        run: |
+          {
+            echo "### dist artifact"
+            echo ""
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+            echo ""
+            echo "Tarball: \`$(ls dist/uml4termux-*.tar.gz)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uml4termux-dist
+          path: |
+            dist/uml4termux-*.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  summary:
+    name: summary
+    needs: [validate, lint-shell, python, dist]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write the job summary
+        run: |
+          {
+            echo "## uml4termux CI"
+            echo ""
+            echo "| job | result |"
+            echo "| --- | --- |"
+            echo "| validate (workflow YAML + metadata) | ${{ needs.validate.result }} |"
+            echo "| shell (bash -n + shellcheck) | ${{ needs.lint-shell.result }} |"
+            echo "| python (compile + generator test) | ${{ needs.python.result }} |"
+            echo "| dist (tarball + SHA256SUMS) | ${{ needs.dist.result }} |"
+            echo ""
+            echo "### This workflow does NOT boot UML"
+            echo ""
+            echo "GitHub-hosted runners cannot run uml4termux: the arm64 User-Mode"
+            echo "Linux port needs an Android/Termux device (no KVM, no tap device,"
+            echo "no Android permission model, no device toolchain). A green run"
+            echo "here proves packaging, lint and unit-test health only -- never"
+            echo "that a kernel booted or a container ran."
+            echo ""
+            echo "Boot evidence is produced on a device and validated by"
+            echo "\`.github/workflows/device-evidence.yml\` against"
+            echo "\`evidence/schema.json\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail when any job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "::error title=FAIL::at least one job did not succeed"
+          exit 1
