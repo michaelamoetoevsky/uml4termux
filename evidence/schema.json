@@ -1,0 +1,206 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/uml4termux/uml4termux/blob/main/evidence/schema.json",
+  "title": "uml4termux device-run evidence record",
+  "description": "One JSON file per verification run, produced on an Android/Termux device by `bin/uml4termux evidence` (or written by hand). Device runs are the ONLY place a UML boot is ever proven: GitHub-hosted runners cannot execute the arm64 UML port. Evidence files are validated by .github/workflows/device-evidence.yml and by `make evidence-check` / `ci/local-ci.sh`. Fields marked required are the minimum needed to make the claim auditable: what device, which kernel, which capabilities were probed, and the verdict. Anything a reviewer would have to take on faith (a screenshot, a raw log, a kernel release string) belongs in the optional fields -- cite it, do not assert it.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "generated_at",
+    "device",
+    "kernel",
+    "capabilities",
+    "verdict"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "description": "Version of this schema the record was written against. Bump when a required field changes.",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "examples": ["1.0"]
+    },
+    "project_version": {
+      "description": "uml4termux VERSION at the time of the run (contents of the VERSION file).",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$",
+      "examples": ["0.1.0"]
+    },
+    "run_id": {
+      "description": "Stable identifier for this run: a git commit SHA, a CI run id, or a device-local timestamp id.",
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 128
+    },
+    "generated_at": {
+      "description": "ISO-8601 timestamp with timezone offset, when the record was written.",
+      "type": "string",
+      "format": "date-time",
+      "examples": ["2026-10-26T04:30:00+07:00"]
+    },
+    "device": {
+      "description": "The physical device the run happened on. Without this the evidence cannot be reproduced or compared.",
+      "type": "object",
+      "required": ["model", "android_release", "abi", "unprivileged"],
+      "additionalProperties": true,
+      "properties": {
+        "model": {
+          "description": "Device model, as reported by getprop ro.product.model.",
+          "type": "string",
+          "minLength": 1
+        },
+        "android_release": {
+          "description": "Android release, as reported by getprop ro.build.version.release.",
+          "type": "string",
+          "minLength": 1,
+          "examples": ["16"]
+        },
+        "abi": {
+          "description": "Primary ABI of the userspace running UML.",
+          "type": "string",
+          "enum": ["arm64-v8a", "aarch64"]
+        },
+        "unprivileged": {
+          "description": "Must be true. uml4termux is only supported unprivileged: if root was involved the result does not describe the supported configuration.",
+          "const": true
+        },
+        "termux_version": {
+          "description": "Termux app version and package source (F-Droid/Play/GitHub), when known.",
+          "type": "string"
+        },
+        "cpu_count": {
+          "description": "Number of online CPUs visible to the Termux process.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "host": {
+      "description": "Userspace environment the UML process ran in.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "python": { "type": "string" },
+        "gvproxy_version": { "type": "string" },
+        "free_memory_mb": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "kernel": {
+      "description": "The guest kernel that was booted (not the Android host kernel).",
+      "type": "object",
+      "required": ["booted", "arch"],
+      "additionalProperties": true,
+      "properties": {
+        "booted": {
+          "description": "true only if the guest reached userspace (init ran) during this run.",
+          "type": "boolean"
+        },
+        "arch": {
+          "description": "SUBARCH the UML build targeted. Any value other than um/arm64 does not describe this project.",
+          "type": "string",
+          "enum": ["um/arm64", "arm64", "um/x86_64", "x86_64"]
+        },
+        "release": {
+          "description": "Guest uname -r string, when the guest booted. Required in practice if booted is true; left optional so a failed boot can still be recorded.",
+          "type": "string"
+        },
+        "source_commit": {
+          "description": "Downstream port commit (zalexdev/Raymer8639 port) the kernel was built from.",
+          "type": "string"
+        },
+        "boot_seconds": {
+          "description": "Wall-clock seconds from process start to the guest reaching userspace.",
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "capabilities": {
+      "description": "Which of the project's headline capabilities were actually exercised and observed in this run. Each entry is a boolean probe result plus, ideally, the observation that backs it.",
+      "type": "object",
+      "required": ["boot"],
+      "additionalProperties": true,
+      "properties": {
+        "boot": { "$ref": "#/definitions/probe" },
+        "docker": { "$ref": "#/definitions/probe" },
+        "overlay2": { "$ref": "#/definitions/probe" },
+        "cgroup_v2": { "$ref": "#/definitions/probe" },
+        "seccomp_fast_path": { "$ref": "#/definitions/probe" },
+        "vcpu_count": {
+          "description": "Number of guest vCPUs configured for the run.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "networking_gvproxy": { "$ref": "#/definitions/probe" },
+        "bess_transport": { "$ref": "#/definitions/probe" },
+        "port_forwarding_loopback": { "$ref": "#/definitions/probe" }
+      }
+    },
+    "observed": {
+      "description": "Free-form observations: exact versions, commands, and one-line results quoted verbatim from the run. This is where a reviewer looks for the 'how do you know' behind each capability.",
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "docker_version": { "type": "string", "examples": ["20.10.24"] },
+        "storage_driver": { "type": "string", "examples": ["overlay2"] },
+        "container_image": { "type": "string" },
+        "container_port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "host_port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "host_port_check": {
+          "description": "Command whose success is the port-forwarding proof, e.g. a curl against 127.0.0.1:$host_port.",
+          "type": "string"
+        }
+      }
+    },
+    "known_limits_observed": {
+      "description": "Limits from the project's own documentation that showed up (or did not) in this run, recorded rather than hidden.",
+      "type": "array",
+      "items": { "type": "string" },
+      "examples": [[
+        "cpuset controller unavailable",
+        "no swap limit support",
+        "no 32-bit compat (i386 binaries do not run)",
+        "phantom processes possible after guest exit"
+      ]]
+    },
+    "verdict": {
+      "description": "Overall result of the run. 'pass' asserts every capability set to true in this record was directly observed; 'partial' is the honest label when something was assumed, flaky, or only partly exercised.",
+      "type": "string",
+      "enum": ["pass", "fail", "partial", "unknown"]
+    },
+    "notes": {
+      "description": "Anything a reader must know to reproduce or to distrust this record.",
+      "type": "string"
+    },
+    "artifacts": {
+      "description": "Pointers to bulky evidence (raw console log, screenshots). Raw logs must match .gitignore (*.raw.log) and are usually attached to the CI run rather than committed.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "path"],
+        "additionalProperties": true,
+        "properties": {
+          "kind": { "type": "string", "enum": ["console-log", "screenshot", "sha256sums", "other"] },
+          "path": { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "probe": {
+      "description": "A single capability probe: did it work, and what backs that claim.",
+      "type": "object",
+      "required": ["ok"],
+      "additionalProperties": true,
+      "properties": {
+        "ok": { "type": "boolean" },
+        "evidence": {
+          "description": "One line of verbatim output, or a command, that justifies 'ok'.",
+          "type": "string"
+        }
+      }
+    }
+  }
+}
