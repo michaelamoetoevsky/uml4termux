@@ -78,7 +78,16 @@ this project.
   `proot -b $PREFIX/etc:/etc` or DNS resolution is dead.
 - **Handover is untested.** WiFi↔cellular roaming was not exercised; do not assume
   a NAT'd connection survives it ([MOBILITY.md §6](MOBILITY.md#6-network-handover-and-why-gvproxys-exit-is-the-real-mobility-hazard)).
-- **hostfs exposes host storage.** Never mount it for untrusted guest code.
+- **hostfs exposes host storage.** Never mount it for untrusted guest code. This
+  was verified, not assumed: `mount -t hostfs none /mnt/host -o <host-dir>` inside
+  the guest listed and read the host's files as the app user.
+- **IPv6 container networking does not work.** `docker network create --ipv6`
+  creates the network object, but `dockerd` logs
+  `Could not add route to IPv6 network fd00:1::1/64 via device br-…: network is down`
+  (reproduced on two different subnets). The guest kernel *does* have
+  `CONFIG_IPV6`, `CONFIG_NF_TABLES_IPV6`, `CONFIG_IP6_NF_IPTABLES` and
+  `CONFIG_IP6_NF_NAT`, so this is a bridge/daemon-level gap, not a missing symbol.
+  IPv4 container networking (bridge, embedded DNS, published ports) is verified.
 
 ## Guest and container runtime
 
