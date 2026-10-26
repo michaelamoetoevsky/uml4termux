@@ -1,0 +1,23 @@
+diff --git a/include/linux/compiler_attributes.h b/include/linux/compiler_attributes.h
+index 476c4c560..9ba4601ae 100644
+--- a/include/linux/compiler_attributes.h
++++ b/include/linux/compiler_attributes.h
+@@ -41,7 +41,17 @@
+  *   gcc: https://gcc.gnu.org/onlinedocs/gcc/Common-Function-Attributes.html#index-alloc_005fsize-function-attribute
+  * clang: https://clang.llvm.org/docs/AttributeReference.html#alloc-size
+  */
+-#define __alloc_size__(x, ...)		__attribute__((__alloc_size__(x, ## __VA_ARGS__)))
++// UML host-side files (os-Linux under ARCH=um) are compiled with BOTH
++// __KERNEL__ and __UM_HOST__ defined (arch/um/Makefile USER_CFLAGS
++// force-includes this header), and glibc 2.41's __attribute_alloc_size__
++// expands to the name __alloc_size__ -- leaking the kernel macro there makes
++// glibc's stdlib.h unparseable. Keep it for real kernel objects only;
++// __UM_HOST__ objects lose one diagnostic attribute, which is harmless.
++#if defined(__KERNEL__) && !defined(__UM_HOST__)
++#define __alloc_size__(x, ...)          __attribute__((__alloc_size__(x, ## __VA_ARGS__)))
++#else
++#define __alloc_size__(x, ...)          /* um host side: leave glibc's use intact */
++#endif
+ 
+ /*
+  * Note: users of __always_inline currently do not write "inline" themselves,

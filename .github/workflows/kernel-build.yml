@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: kernel-build
+
+# =============================================================================
+# Build the UML arm64 kernel ourselves (bionic target).
+#
+#   WHY: the released kernels are downstream builds with verified gaps
+#   (no CONFIG_CPUSETS, no cgroup io.max, tmpfs/page-cache not charged).
+#   This workflow builds the port's own source with those symbols enabled,
+#   producing a bionic binary that runs natively in Termux.
+#
+#   WHY ubuntu-24.04-arm: UML is a process OF ITS HOST, so the kernel must be
+#   built on (and for) aarch64.  Public repositories get GitHub's arm64
+#   runners for free; private repos would need a paid plan or a self-hosted
+#   runner (the phone itself).
+#
+#   The config is the extracted config of the released Docker-capable kernel
+#   (ci/kernel/cfg-smp.txt) with the gap-closing symbols enabled:
+#   CONFIG_CPUSETS, CONFIG_BLK_CGROUP + CONFIG_BLK_DEV_THROTTLING (cgroup
+#   io.max), CONFIG_MODULES.  One upstream-port patch is applied
+#   (ci/kernel/alloc-size-uml-host.patch: glibc 2.41's
+#   __attribute_alloc_size__ expands to the kernel's __alloc_size__ name,
+#   which breaks every UML host-side compile on trixie-era distros).
+# =============================================================================
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'ci/kernel/**'
+      - '.github/workflows/kernel-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  bionic:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 150
+    steps:
+      - name: Checkout uml4termux (config + patches)
+        uses: actions/checkout@v4
+
+      - name: Clone the UML port source (branch um-arm64)
+        run: |
+          git clone --depth 1 -b um-arm64 \
+            https://github.com/zalexdev/linux-um-arm64 "$RUNNER_TEMP/ksrc"
+
+      - name: Base config + gap-closing symbols
+        working-directory: ${{ runner.temp }}/ksrc
+        run: |
+          cp "$GITHUB_WORKSPACE/ci/kernel/cfg-smp.txt" .config
+          scripts/config -e CONFIG_CPUSETS -e CONFIG_BLK_CGROUP \
+            -e CONFIG_BLK_DEV_THROTTLING -e CONFIG_MODULES
+          make ARCH=um olddefconfig
+          for s in CPUSETS BLK_CGROUP BLK_DEV_THROTTLING MODULES; do
+            grep -E "^CONFIG_${s}=" .config || { echo "symbol $s missing after olddefconfig"; exit 1; }
+          done
+
+      - name: Patch __alloc_size__ (UML host-side vs glibc 2.41)
+        working-directory: ${{ runner.temp }}/ksrc
+        run: |
+          git apply --check "$GITHUB_WORKSPACE/ci/kernel/alloc-size-uml-host.patch"
+          git apply "$GITHUB_WORKSPACE/ci/kernel/alloc-size-uml-host.patch"
+
+      - name: Install the NDK (r27c, linux-x86_64 tools, bionic sysroot)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/ndk.zip" \
+            https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
+          unzip -q "$RUNNER_TEMP/ndk.zip" -d "$RUNNER_TEMP/ndk"
+          echo "NDK=$RUNNER_TEMP/ndk/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64" >> "$GITHUB_ENV"
+
+      - name: Build (bionic)
+        working-directory: ${{ runner.temp }}/ksrc
+        run: |
+          set -euo pipefail
+          make ARCH=um SUBARCH=arm64 \
+            HOSTCC=gcc HOSTCXX=g++ \
+            CC="$NDK/bin/clang --target=aarch64-linux-android30" \
+            LD="$NDK/bin/ld.lld" AR="$NDK/bin/llvm-ar" NM="$NDK/bin/llvm-nm" \
+            OBJCOPY="$NDK/bin/llvm-objcopy" OBJDUMP="$NDK/bin/llvm-objdump" \
+            READELF="$NDK/bin/llvm-readelf" STRIP="$NDK/bin/llvm-strip" \
+            LLVM_IAS=1 CLANG_TARGET_FLAGS=aarch64-linux-android30 \
+            -j"$(nproc)" 2>&1 | tee build.log
+          test -x linux
+
+      - name: Collect artifacts
+        if: always()
+        working-directory: ${{ runner.temp }}/ksrc
+        run: |
+          mkdir -p "$RUNNER_TEMP/artifacts"
+          if [ -f linux ]; then
+            cp linux "$RUNNER_TEMP/artifacts/linux-bionic"
+            "$NDK/bin/llvm-strip" --strip-debug "$RUNNER_TEMP/artifacts/linux-bionic" || true
+          fi
+          if [ -f arch/um/kernel/skas/stub_exe ]; then
+            cp arch/um/kernel/skas/stub_exe "$RUNNER_TEMP/artifacts/stub_exe"
+          fi
+          cp build.log "$RUNNER_TEMP/artifacts/" 2>/dev/null || true
+          (cd "$RUNNER_TEMP/artifacts" && sha256sum * > SHA256SUMS || true)
+          ls -la "$RUNNER_TEMP/artifacts"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: uml4termux-kernel-bionic
+          path: ${{ runner.temp }}/artifacts/*
+          if-no-files-found: error
