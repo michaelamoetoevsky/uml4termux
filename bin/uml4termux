@@ -38,6 +38,8 @@ unset _uml4_self _uml4_link 2>/dev/null || true
 . "${UML4TERMUX_ROOT}/lib/net.sh"
 # shellcheck source=../lib/guest.sh
 . "${UML4TERMUX_ROOT}/lib/guest.sh"
+# shellcheck source=../lib/mobility.sh
+. "${UML4TERMUX_ROOT}/lib/mobility.sh"
 # shellcheck source=../lib/doctor.sh
 . "${UML4TERMUX_ROOT}/lib/doctor.sh"
 
@@ -102,6 +104,8 @@ Options:
   --cpus N        guest vCPUs, seccomp mode only (default 4)
   --timeout S     wait budget for the guest marker (default 900)
   --foreground    stay attached until the guest powers off
+  --wake-lock     hold a Termux wake lock while the guest runs (screen off
+                  must not freeze the VM); released by 'uml4termux stop'
   -h, --help      this text
 EOF
 }
@@ -125,6 +129,8 @@ Options:
                   (default "8123:8123 8124:8124")
   --timeout S     wait budget for WEB_UP_MARKER (default 900)
   --foreground    keep this command attached until the guest powers off
+  --wake-lock     hold a Termux wake lock while the guest runs (screen off
+                  must not freeze the VM); released by 'uml4termux stop'
   -h, --help      this text
 EOF
 }
@@ -287,7 +293,7 @@ cmd_expose() {
 
 # cmd_boot [--shell|--gate] [--mem MB] [--cpus N] [--timeout S] [--foreground]
 cmd_boot() {
-  local mode="docker" interactive=0 foreground=0
+  local mode="docker" interactive=0 foreground=0 wake_lock=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --shell)      mode="shell"; interactive=1 ;;
@@ -296,6 +302,7 @@ cmd_boot() {
       --cpus)       UML4TERMUX_CPUS="${2:?--cpus needs a value}"; shift ;;
       --timeout)    UML4TERMUX_BOOT_TIMEOUT="${2:?--timeout needs a value}"; shift ;;
       --foreground) foreground=1 ;;
+      --wake-lock)  wake_lock=1 ;;
       -h|--help)    usage_boot; return 0 ;;
       *)            die "boot: unknown option '$1' (try 'uml4termux help boot')" ;;
     esac
@@ -303,6 +310,9 @@ cmd_boot() {
   done
 
   uml4termux_assert_no_instance
+  if [ "${wake_lock}" = "1" ]; then
+    uml4termux_wakelock_acquire || warn "continuing without a wake lock"
+  fi
   if [ "${mode}" = "shell" ] && [ ! -t 0 ]; then
     warn "stdin is not a tty: use 'uml4termux boot' for the non-interactive path"
   fi
@@ -338,7 +348,7 @@ cmd_boot() {
 
 # cmd_docker [--mem MB] [--cpus N] [--ports LIST] [--timeout S] [--foreground]
 cmd_docker() {
-  local foreground=0 verify_rc=0 spec host
+  local foreground=0 verify_rc=0 spec host wake_lock=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --mem)        UML4TERMUX_MEM="${2:?--mem needs a value}"; shift ;;
@@ -346,6 +356,7 @@ cmd_docker() {
       --ports)      UML4TERMUX_PORTS="${2//,/ }"; shift ;;
       --timeout)    UML4TERMUX_BOOT_TIMEOUT="${2:?--timeout needs a value}"; shift ;;
       --foreground) foreground=1 ;;
+      --wake-lock)  wake_lock=1 ;;
       -h|--help)    usage_docker; return 0 ;;
       *)            die "docker: unknown option '$1' (try 'uml4termux help docker')" ;;
     esac
@@ -356,6 +367,10 @@ cmd_docker() {
   uml4termux_require_python
   uml4termux_require_assets kernel stub disk gvproxy
   uml4termux_assert_no_instance
+
+  if [ "${wake_lock}" = "1" ]; then
+    uml4termux_wakelock_acquire || warn "continuing without a wake lock"
+  fi
 
   net_start_gvproxy
 

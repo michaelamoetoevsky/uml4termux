@@ -179,6 +179,16 @@ cmd_doctor() {
   else
     doc_field "running" "no"
   fi
+  doc_head "wake lock (screen-off survival)"
+  if uml4termux_wakelock_available; then
+    doc_field "tool" "termux-wake-lock present"
+    doc_field "held" "$(uml4termux_wakelock_held && echo yes || echo no)"
+    doc_field "why" "without it, Android freezes the app when the screen is off and the guest stops making progress"
+    doc_field "use" "uml4termux docker --wake-lock (released by 'uml4termux stop')"
+  else
+    doc_field "tool" "MISSING (install termux-tools)"
+    doc_field "risk" "AMBER: the guest can be frozen when the screen is off"
+  fi
   local stale=0
   [ -e "${UML4TERMUX_INSTANCE_ENV}" ] && stale=1
   [ -S "${UML4TERMUX_BESS_SOCK}" ] && stale=1

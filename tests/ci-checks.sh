@@ -78,8 +78,10 @@ required=(
   ci/check-evidence.py
   ci/make-dist.sh
   ci/local-ci.sh
+  lib/mobility.sh
   tests/ci-checks.sh
   tests/test-check-evidence.sh
+  tests/test-mobility.sh
   tests/test_build_initramfs.py
   evidence/schema.json
   .github/workflows/ci.yml
@@ -168,6 +170,11 @@ run_check "ci/local-ci.sh --help" bash -c 'bash ci/local-ci.sh --help >/dev/null
 #     the first GitHub run.
 # ---------------------------------------------------------------------------
 run_check "evidence checker contract (dir vs --dir)" bash -c 'bash tests/test-check-evidence.sh'
+
+# ---------------------------------------------------------------------------
+# 12. Wake-lock helpers: acquire, release, idempotence, missing-tool path.
+# ---------------------------------------------------------------------------
+run_check "mobility (wake lock) contract" bash -c 'bash tests/test-mobility.sh'
 
 # ---------------------------------------------------------------------------
 # Summary

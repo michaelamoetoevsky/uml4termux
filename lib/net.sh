@@ -301,6 +301,9 @@ net_stop() {
   fi
   uml4termux_instance_clear
   rm -f "$(uml4termux_pidfile uml)" "$(uml4termux_pidfile gvproxy)"
+  # The wake lock belongs to the instance, not to the command that took it:
+  # the guest keeps running in the background, so it must be released here.
+  uml4termux_wakelock_release
   ok "instance stopped"
 }
 
