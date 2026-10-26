@@ -176,7 +176,14 @@ quoted from an upstream README.
 | Run all three released kernels with Docker | **only two of three** | the non-SMP `linux-bionic` lacks `OVERLAY_FS`/`VETH`/`BRIDGE`/`NETFILTER`/`PID_NS`/`USER_NS`/`MEMCG`/`CGROUP_PIDS` |
 | cpuset controller | **absent** | `CONFIG_CPUSETS` not set; `docker info` warns "No cpuset support" |
 | swap limit support | **absent** | guest kernel gap |
-| 32-bit (i386 / armv7) userspace | **absent** | `CONFIG_COMPAT` off in every released kernel |
+| 32-bit (i386 / armv7) userspace | **via qemu-user emulation** | native: `CONFIG_COMPAT` off; emulated: `qemu-user-static` + binfmt_misc inside the guest runs `i386/alpine` (`uname -m` → `i686`) |
+| IPv6 container networking | **verified** | two containers on `--ipv6` network ping each other over `fd00:9::/64`, 0% loss both ways (avg 1.8/3.8 ms) |
+| Compose (v2.29.7, aarch64 binary) | **verified** | two-service stack (web + `depends_on` worker) `up -d` → both running, `down -v` clean |
+| BuildKit build | **verified** | `DOCKER_BUILDKIT=1 docker build` completes (`#6 DONE`) |
+| cgroup memory limit + OOM kill | **verified** | `--memory 64m`: `memory.max=67108864` set; an anonymous-RSS workload is OOM-killed (`OOMKilled=true`, exit 137); without a limit the same allocator peaks at 146 MB and survives |
+| cgroup cpu limit | **verified** | `--cpus 0.5` → `cpu.max` = `50000 100000` read from inside the container |
+| cgroup io limit (`io.max`) | **absent** | cgroup v2 exposes `io.stat` only — `--device-*-bps` cannot be enforced |
+| tmpfs / page-cache charging | **absent** | `CONFIG_MEMCG_KMEM` unset: a 200 MB tmpfs write inside a 64 MB-limited container never approached the limit (`memory.current` ≈ 5 MB) |
 | `stub_exe` mandatory | **verified** | memfd exec is refused by the sandbox |
 | `con=null con0=null,fd:1` mandatory | **verified** | a regular-file fd fails `epoll_ctl` with `EPERM` and the console dies silently |
 | OpenRC as PID 1 | **hangs** | minimal init + `switch_root` used instead |
@@ -264,22 +271,45 @@ filter active, `/proc/sys` not readable.
   is mandatory; OpenRC as PID 1 hangs; `ip addr add 127.0.0.1/8 dev lo` fails
   with `Address already assigned`.
 - Guest kernel gaps: no `CONFIG_CPUSETS`, no swap limit support, `CONFIG_COMPAT`
-  off, hostfs exposes host storage.
+  off (native 32-bit), hostfs exposes host storage.
+- Capability round 2 (evidence `20261026-capability-round-2.json`): 32-bit
+  images run through `qemu-user-static` + binfmt_misc (`i386/alpine` →
+  `uname -m` = `i686`); Docker Compose v2.29.7 runs a two-service stack
+  (`up -d` → both containers, `down -v` clean); BuildKit builds; cgroup limits
+  proven — `memory.max` set and an anonymous-RSS workload OOM-killed
+  (`OOMKilled=true`, exit 137) while the same allocator without a limit peaks
+  at 146 MB; `cpu.max` enforced (`50000 100000`); **io.max absent** (only
+  `io.stat`) and **tmpfs/page cache not charged** (`CONFIG_MEMCG_KMEM` unset,
+  so memory limits cap anonymous RSS only).
+- IPv6 container networking **works** (refines the 0.1.0 finding): two
+  containers on a user-defined `--ipv6` network ping each other over
+  `fd00:9::/64` with 0% loss both ways. The bridge is `state DOWN` at
+  `docker network create` time — which is when dockerd logs its
+  `Could not add route … network is down` error — and comes UP when the first
+  container attaches, which is when addresses are handed out. The daemon
+  error is cosmetic.
+- Stability soak (evidence `20261026-soak-20261026.json`): 60 minutes with
+  dockerd up, 43 container cycles, 87 guest samples and 121 phone-side
+  samples, **zero `BUG:`/`Oops`/`WARNING:` lines in guest dmesg**, guest
+  `MemAvailable` ≈ 0.9 GB at the end, phone memory in a stable band.
 
 ### Not verified — never repeat these as fact
 
 - **Any other device or Android version.** Everything above is one phone. No
   other SoC, Android release, page size or kernel has been tested here.
-- **Long-run stability.** No soak test, no multi-hour run, no restart loop, no
-  memory-leak measurement was performed for this documentation.
+- **Long-run stability beyond one hour.** A 60-minute soak (43 container
+  cycles, 0 kernel bug lines) is now verified; multi-hour runs, restart loops
+  over days and memory-leak measurement beyond that window are still not
+  performed.
 - **USB passthrough** (e.g. a RTL8811AU dongle over USB/IP) — community-reported,
   not measured here.
 - **Benchmarks on this device** for the ptrace-vs-seccomp and 1-vs-4-CPU
   comparisons: only the in-app ~2.0 µs/syscall seccomp figure was measured. The
   upstream ratios are quoted, not re-measured.
-- **Docker feature completeness.** Compose, BuildKit, swarm, `--cpuset-cpus`,
-  swap limits, 32-bit images and anything requiring the cgroup cpuset controller
-  were not exercised.
+- **Docker feature completeness.** swarm, `--cpuset-cpus`, swap limits and
+  anything requiring the cgroup cpuset controller remain unexercised. Compose,
+  BuildKit, 32-bit-via-qemu and the memory-limit OOM path *are* now verified
+  (see capability round 2); io limits and tmpfs charging are verified gaps.
 - **Any performance claim against proot or QEMU.** Comparative micro-benchmarks
   used for this device were not run by this project; community numbers exist and
   are not reproduced here.

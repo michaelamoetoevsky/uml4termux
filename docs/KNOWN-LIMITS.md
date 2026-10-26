@@ -20,7 +20,12 @@ share these.
 |---|---|---|
 | **No cpuset controller** | `CONFIG_CPUSETS` unset | `docker info` warns "No cpuset support"; `--cpuset-cpus` is not available. Also impossible without SMP, per the upstream author. |
 | **No swap limit support** | — | `docker info` warns; `--memory-swap`, swap accounting and OOM-kill-by-swap behaviour are absent. |
-| **No 32-bit userspace** | `CONFIG_COMPAT` off | i386 / armv7 images do not run. Multi-arch images that need a 32-bit layer need qemu-user + binfmt **inside** the guest — i.e. emulation on top of an already-emulated syscall path. |
+| **No 32-bit userspace natively** | `CONFIG_COMPAT` off | i386 / armv7 images do
+  not run natively. They **do** run through user-mode emulation: install
+  `qemu-user-static` in the guest and register the handler in binfmt_misc
+  (mountable in the guest kernel), after which `docker run --platform linux/386
+  i386/alpine` works (`uname -m` → `i686`). Emulation on top of an already
+  emulated syscall path — expect it to be slow. |
 | **No cgroup v1** | — | cgroup v2 only. Old tooling that expects `/sys/fs/cgroup/<controller>` v1 layouts will not find it. |
 | **No kernel modules** | `CONFIG_MODULES` unset (released bionic build) | `modprobe`/`rmmod`, out-of-tree drivers and firmware loading do not work with that binary. The downstream source supports modules — this build does not enable them, so check your own kernel before assuming. |
 | **Guest vDSO time not merged** | — | Flagged as unmerged by the upstream author; guest time-related paths are not the same as a native kernel's. |
@@ -78,16 +83,34 @@ this project.
   `proot -b $PREFIX/etc:/etc` or DNS resolution is dead.
 - **Handover is untested.** WiFi↔cellular roaming was not exercised; do not assume
   a NAT'd connection survives it ([MOBILITY.md §6](MOBILITY.md#6-network-handover-and-why-gvproxys-exit-is-the-real-mobility-hazard)).
+- **IPv6 container networking works** (this corrects the earlier claim that it
+  does not, from the 0.1.0 evidence). Two containers on a user-defined
+  `--ipv6` network ping each other over `fd00:9::/64` with 0% packet loss in
+  both directions (avg 1.8 ms and 3.8 ms). The confusion came from dockerd
+  logging `Could not add route to IPv6 network … network is down` at
+  `docker network create` time: at that moment the bridge really is DOWN, and
+  it comes UP when the first container attaches — which is when addresses and
+  the default route are handed out. The daemon error is cosmetic. The guest
+  kernel has `CONFIG_IPV6`, `CONFIG_IP6_NF_IPTABLES` and `CONFIG_IP6_NF_NAT`.
+- **Cgroup io limits are absent.** The guest's cgroup v2 io controller exposes
+  `io.stat` but not `io.max`, so `docker run --device-*-bps` cannot be
+  enforced (verified: `io_limit_run=fail`, `io_files=io.stat`).
+- **Memory limits cap anonymous RSS only.** The guest kernel has
+  `CONFIG_MEMCG=y` but no `CONFIG_MEMCG_KMEM`, so tmpfs and page-cache pages
+  are not charged to the container's cgroup: a 200 MB tmpfs write inside a
+  64 MB-limited container left `memory.current` at ~5 MB. Anonymous memory IS
+  enforced — the same container workload grown in awk RAM is OOM-killed at the
+  64 MB limit (`OOMKilled=true`, exit 137) and survives when unlimited
+  (peak 146 MB).
 - **hostfs exposes host storage.** Never mount it for untrusted guest code. This
   was verified, not assumed: `mount -t hostfs none /mnt/host -o <host-dir>` inside
   the guest listed and read the host's files as the app user.
-- **IPv6 container networking does not work.** `docker network create --ipv6`
-  creates the network object, but `dockerd` logs
-  `Could not add route to IPv6 network fd00:1::1/64 via device br-…: network is down`
-  (reproduced on two different subnets). The guest kernel *does* have
-  `CONFIG_IPV6`, `CONFIG_NF_TABLES_IPV6`, `CONFIG_IP6_NF_IPTABLES` and
-  `CONFIG_IP6_NF_NAT`, so this is a bridge/daemon-level gap, not a missing symbol.
-  IPv4 container networking (bridge, embedded DNS, published ports) is verified.
+- **IPv6: works, with a cosmetic daemon error at network creation.** The 0.1.0
+  evidence recorded "IPv6 container networking does not work"; capability round
+  2 refuted that. Two containers on `--ipv6` ping each other over `fd00:9::/64`
+  with 0% loss both ways. dockerd's `Could not add route … network is down`
+  log line fires only while the bridge is still DOWN (before the first
+  container attaches) and does not prevent addressing or routing.
 
 ## Guest and container runtime
 
@@ -103,9 +126,12 @@ this project.
 - **Restarting `dockerd` in a live guest requires cleanup** (`/run/containerd`,
   `/run/docker`, `/var/run/docker.pid`), or the second start trips over stale
   state.
-- **Untested Docker surface:** Compose, BuildKit, swarm, volumes with unusual
-  drivers, user-defined networks beyond the basics, rootless-in-guest mode,
-  Kubernetes. Do not assume they work because `docker run` does.
+- **Docker surface verified so far:** Compose v2.29.7 (two-service stack,
+  `depends_on`, `up`/`down -v`), BuildKit builds, 32-bit images via qemu-user.
+- **Still untested Docker surface:** swarm, volumes with unusual
+  drivers, user-defined networks beyond the basics (IPv6 user-defined networks
+  are verified), rootless-in-guest mode, Kubernetes. Do not assume they work
+  because `docker run` does.
 
 ## Host and Android
 

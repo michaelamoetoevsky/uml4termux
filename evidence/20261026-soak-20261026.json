@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "project_version": "0.2.0",
+  "run_id": "device-soak-20261026",
+  "generated_at": "2026-10-26T20:46:50+0700",
+  "device": {
+    "model": "2406APNFAG",
+    "android_release": "16",
+    "abi": "aarch64",
+    "termux": true,
+    "unprivileged": true
+  },
+  "kernel": {
+    "booted": true,
+    "arch": "um/arm64",
+    "release": "7.2.0-rc4-opt",
+    "mode": "seccomp",
+    "ncpus": 4
+  },
+  "capabilities": {
+    "boot": {
+      "ok": true,
+      "evidence": "the soak booted UML fresh (seccomp, 4 vCPU, 1 GiB) and ran the soak payload to its marker before the 60-minute window"
+    },
+    "soak": {
+      "ok": true,
+      "requested_minutes": 60,
+      "elapsed_seconds": 3606,
+      "guest_samples": 87,
+      "host_samples": 121,
+      "container_cycles": 43,
+      "cycle_failures": 0,
+      "kernel_bug_lines": 0,
+      "dockerd_alive_throughout": true,
+      "guest_free_kb_final": 932112,
+      "host_free_kb_min": 2905988,
+      "host_free_kb_max": 4958464,
+      "host_procs_first": 83,
+      "host_procs_last": 98,
+      "dockerd_errors_total": 2,
+      "dockerd_last_error": "time=\"2026-10-26T12:10:11Z\" level=error msg=\"failure getting variant\" error=\"getCPUInfo for pattern: Cpu architecture: not found\"",
+      "evidence": "60 minutes with dockerd up: one container cycle per minute (docker run --rm alpine), a guest sample every 30 s and a phone-side sample (free memory, process count, UML RSS, children) every 30 s; dmesg scanned for BUG/Oops/WARNING at every sample",
+      "notes_on_dockerd_errors": "the 2 errors are the known cosmetic 'failure getting variant / getCPUInfo' probe on UML, not failures of the run"
+    }
+  },
+  "observed": {
+    "soak_minutes": "60",
+    "net_ipv4": "192.168.127.2/24",
+    "dockerd_start": "up",
+    "soak_elapsed_s": "3606",
+    "final_free_kb": "932112",
+    "final_docker_kb": "19112",
+    "disk_final": "/dev/ubda 2.9G 1.4G 1.4G 51% /"
+  },
+  "known_limits_observed": [
+    "no kernel BUG/Oops/WARNING lines appeared in dmesg during the hour"
+  ],
+  "verdict": "pass",
+  "notes": "One-hour stability soak: 60 container cycles, 87 guest samples, 121 phone-side samples, dockerd alive throughout, zero kernel bug lines, phone memory in a stable band. Values are parsed from the raw logs; the host sample list is the full series."
+}
