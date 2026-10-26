@@ -108,19 +108,36 @@ fi
 tarball="$outdir/$pkg.tar.gz"
 rm -f "$tarball"
 
-mtime_args=()
+# Deterministic metadata, so the same commit yields the same tarball.
+#   epoch: SOURCE_DATE_EPOCH if given, else the commit time, else VERSION's
+#          mtime, else 0.
+#   --sort=name: readdir order differs between filesystems (and between a
+#          checkout on Termux and one on a runner).
+#   --format=gnu + numeric 0/0: pins the header layout and identity.
 if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
-  mtime_args=(--mtime="@$SOURCE_DATE_EPOCH" --clamp-mtime)
+  epoch="$SOURCE_DATE_EPOCH"
+elif command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
+  epoch=$(git log -1 --format=%ct 2>/dev/null || echo 0)
+else
+  epoch=$(stat -c %Y VERSION 2>/dev/null || echo 0)
 fi
+[ -n "$epoch" ] || epoch=0
 
-tar -czf "$tarball" \
+# gzip -n keeps the timestamp/name out of the gzip header; without it the
+# archive changes on every build even when the tar stream is identical.
+tar --sort=name --format=gnu \
+  --mtime="@$epoch" \
   --owner=0 --group=0 --numeric-owner \
-  ${mtime_args[@]+"${mtime_args[@]}"} \
-  -C "$stage" "$pkg" || {
-    echo "make-dist: tar failed" >&2
+  -cf - -C "$stage" "$pkg" | gzip -9n > "$tarball" || {
+    echo "make-dist: tar/gzip failed" >&2
     rm -rf "$stage"
     exit 1
   }
+[ -s "$tarball" ] || {
+  echo "make-dist: tarball is empty" >&2
+  rm -rf "$stage"
+  exit 1
+}
 
 rm -rf "$stage"
 
