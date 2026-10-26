@@ -1,0 +1,129 @@
+{
+  "schema_version": "1.0",
+  "project_version": "0.2.0",
+  "run_id": "device-20261026-repeatboot",
+  "generated_at": "2026-10-26T21:58:48+0700",
+  "device": {
+    "model": "2406APNFAG",
+    "android_release": "16",
+    "abi": "aarch64",
+    "termux": true,
+    "unprivileged": true
+  },
+  "kernel": {
+    "booted": true,
+    "arch": "um/arm64",
+    "release": "7.2.0-rc4-opt",
+    "mode": "seccomp",
+    "ncpus": 4
+  },
+  "capabilities": {
+    "boot": {
+      "ok": true,
+      "evidence": "each iteration booted UML fresh (seccomp, 4 vCPU, 1 GiB, fresh gvproxy + fresh sockets) and reached GATE_OK"
+    },
+    "repeat_boot": {
+      "ok": true,
+      "iterations": 10,
+      "passed": 10,
+      "failed": 0,
+      "boot_seconds_min": 1,
+      "boot_seconds_median": 2,
+      "boot_seconds_max": 7,
+      "boot_seconds_mean": 2.8,
+      "kernel_bug_lines_total": 0,
+      "evidence": "10 independent boots of the same kernel and image, each with a fresh gvproxy; every iteration reached GATE_OK and powered off cleanly ('reboot: Power down')",
+      "timing_note": "boot seconds measure kernel start -> gate marker (no dockerd). The 3 GiB image was page-cache-warm from the preceding soak, which is why these boots are fast; cold-cache boots with dockerd are measured elsewhere (112-538 s depending on payload).",
+      "samples": [
+        {
+          "iteration": 1,
+          "boot_seconds": 2,
+          "verdict": "pass",
+          "kernel_bug_lines": 0,
+          "uml_host_tempdir_warning": 1,
+          "sha256": "d47ac71aa389ea3f0c496dbbf07c673fc3e94de760d49756a13bba7f648d92a0"
+        },
+        {
+          "iteration": 2,
+          "boot_seconds": 2,
+          "verdict": "pass",
+          "kernel_bug_lines": 0,
+          "uml_host_tempdir_warning": 1,
+          "sha256": "83ebf74046afa4a6fbbcdb116cc721e13f45ad71f94c3b8dd01bcabc67de1cba"
+        },
+        {
+          "iteration": 3,
+          "boot_seconds": 3,
+          "verdict": "pass",
+          "kernel_bug_lines": 0,
+          "uml_host_tempdir_warning": 1,
+          "sha256": "96be583f0b640988f8a6f4a6f2d7a634260e95f89461a427bcd825fd4112e489"
+        },
+        {
+          "iteration": 4,
+          "boot_seconds": 3,
+          "verdict": "pass",
+          "kernel_bug_lines": 0,
+          "uml_host_tempdir_warning": 1,
+          "sha256": "fb1ef3227a460765a628b87df1a2c71f2489a58c8dc6100a6366fea7536c7d06"
+        },
+        {
+          "iteration": 5,
+          "boot_seconds": 4,
+          "verdict": "pass",
+          "kernel_bug_lines": 0,
+          "uml_host_tempdir_warning": 1,
+          "sha256": "288d0aff0d3216ca22b16dc9c43bdf03f2e2cd0380ebe0116b2f219b97439b6d"
+        },
+        {
+          "iteration": 6,
+          "boot_seconds": 2,
+          "verdict": "pass",
+          "kernel_bug_lines": 0,
+          "uml_host_tempdir_warning": 1,
+          "sha256": "2eed9c3b8f0bc94ad47beda97b2f68933262a7b793b9c3cd45347c28f07a5526"
+        },
+        {
+          "iteration": 7,
+          "boot_seconds": 2,
+          "verdict": "pass",
+          "kernel_bug_lines": 0,
+          "uml_host_tempdir_warning": 1,
+          "sha256": "f3b0d5343a2e965fa2a4045bab33714e7003144c0277c8715bb5d9c69e061085"
+        },
+        {
+          "iteration": 8,
+          "boot_seconds": 2,
+          "verdict": "pass",
+          "kernel_bug_lines": 0,
+          "uml_host_tempdir_warning": 1,
+          "sha256": "f17a6b0711c002e475366bf526f572392c3098b7caf5650beee2fc5ca724222a"
+        },
+        {
+          "iteration": 9,
+          "boot_seconds": 7,
+          "verdict": "pass",
+          "kernel_bug_lines": 0,
+          "uml_host_tempdir_warning": 1,
+          "sha256": "4086feccd1854a64ac07e41527d708cf7ca39910da320d00e7308e8574dcbcd6"
+        },
+        {
+          "iteration": 10,
+          "boot_seconds": 1,
+          "verdict": "pass",
+          "kernel_bug_lines": 0,
+          "uml_host_tempdir_warning": 1,
+          "sha256": "f70e23ba0afda48fae6c9341ea3cd700d11025b998e47c81899bf547bfbfcecf"
+        }
+      ]
+    }
+  },
+  "observed": {
+    "boot_pattern": "10/10 GATE_OK, 10/10 clean poweroff"
+  },
+  "known_limits_observed": [
+    "the only line matching a BUG-pattern in every boot log is UML's own host-side 'Warning: tempdir ... is not on tmpfs', not a guest-kernel bug"
+  ],
+  "verdict": "pass",
+  "notes": "Boot reliability: 10 independent boots, 10 clean reaches of the gate marker and 10 clean power-offs with fresh gvproxy sockets each time. Per-boot sample table with sha256 of each raw log is in capabilities.repeat_boot.samples."
+}

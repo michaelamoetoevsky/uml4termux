@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cgroup cpu limit**: `--cpus 0.5` yields `cpu.max` = `50000 100000` read from inside the container.
 - **IPv6 container networking works** (corrects 0.1.0): two containers on a user-defined `--ipv6` network ping each other over `fd00:9::/64` with 0% packet loss both ways (avg 1.8 / 3.8 ms). The bridge is DOWN at `docker network create` time — when dockerd logs its `network is down` route error — and comes UP when the first container attaches; the daemon error is cosmetic.
 - **60-minute stability soak**: dockerd up the whole hour, 43 container cycles, 87 guest samples + 121 phone-side samples, **zero `BUG:`/`Oops`/`WARNING:` lines in guest dmesg**, guest `MemAvailable` ≈ 0.9 GB at the end.
+- **10/10 repeat-boot reliability**: ten independent boots (fresh gvproxy + fresh sockets each) all reached the gate marker and powered off cleanly, 1–7 s per boot with a page-cache-warm image, zero guest-kernel bug lines (the only pattern match is UML's own host-side "tempdir not on tmpfs" warning).
 - **gvproxy supervisor + persistent port exposures**: gvproxy is restarted automatically for the lifetime of the UML instance and every recorded forward is re-applied after a restart (previously each BESS EOF dropped all forwards until they were re-issued by hand).
 - **`--wake-lock` flag**: `uml4termux boot|docker --wake-lock` holds a Termux wake lock for the lifetime of the instance (released by `uml4termux stop`) so the screen being off does not freeze the VM.
 

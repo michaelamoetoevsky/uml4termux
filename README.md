@@ -292,6 +292,10 @@ filter active, `/proc/sys` not readable.
   dockerd up, 43 container cycles, 87 guest samples and 121 phone-side
   samples, **zero `BUG:`/`Oops`/`WARNING:` lines in guest dmesg**, guest
   `MemAvailable` ≈ 0.9 GB at the end, phone memory in a stable band.
+- Repeat-boot reliability (evidence `20261026-repeatboot-20261026.json`):
+  10/10 independent boots (fresh gvproxy and sockets each time) reached the
+  gate marker and powered off cleanly, 1–7 s per boot on a page-cache-warm
+  image.
 
 ### Not verified — never repeat these as fact
 
