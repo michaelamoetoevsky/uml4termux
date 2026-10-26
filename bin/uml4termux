@@ -40,6 +40,8 @@ unset _uml4_self _uml4_link 2>/dev/null || true
 . "${UML4TERMUX_ROOT}/lib/guest.sh"
 # shellcheck source=../lib/mobility.sh
 . "${UML4TERMUX_ROOT}/lib/mobility.sh"
+# shellcheck source=../lib/service.sh
+. "${UML4TERMUX_ROOT}/lib/service.sh"
 # shellcheck source=../lib/doctor.sh
 . "${UML4TERMUX_ROOT}/lib/doctor.sh"
 
@@ -167,7 +169,7 @@ cmd_help() {
   local topic="${1:-}"
   if [ -z "${topic}" ]; then usage; return 0; fi
   case "${topic}" in
-    doctor|fetch|init-image|boot|docker|expose|stop|version|dist-info|help)
+    doctor|fetch|init-image|boot|docker|expose|stop|service|version|dist-info|help)
       case "${topic}" in
         doctor)     doctor_usage ;;
         fetch)      cmd_fetch_usage ;;
@@ -176,6 +178,7 @@ cmd_help() {
         docker)     usage_docker ;;
         expose)     usage_expose ;;
         stop)       usage_stop ;;
+        service)    usage_service ;;
         version)    printf 'uml4termux version — print the version and where the tree lives.\n' ;;
         dist-info)  printf 'uml4termux dist-info — machine-readable paths, assets and configuration.\n' ;;
         help)       usage ;;
@@ -420,6 +423,51 @@ cmd_docker() {
   return 0
 }
 
+usage_service() {
+  cat <<'EOF'
+uml4termux service install|remove|status|start|stop|logs [N]
+
+Installs the guest as a runit service ($PREFIX/var/service/uml4termux):
+  - auto-starts when Termux boots
+  - runit restarts the run script whenever it exits, so the guest self-heals
+  - a Termux wake lock is held for the lifetime of the service (screen-off
+    survival) and released in the finish script
+  - logs go to svlogd (service logs [N] prints the last N lines)
+
+Requires runit (pkg install runit) and already-fetched assets. Mitigate the
+Android phantom process killer before backgrounding many containers: see
+docs/MOBILITY.md §2 (also printed by 'uml4termux doctor').
+EOF
+}
+
+# cmd_service install|remove|status|start|stop|logs
+cmd_service() {
+  local sub="${1:-}"
+  [ -n "${sub}" ] || { usage_service; return 0; }
+  shift
+  case "${sub}" in
+    -h|--help) usage_service; return 0 ;;
+    install)   svc_install ;;
+    remove)    svc_remove ;;
+    status)    svc_status ;;
+    start)     svc_start ;;
+    stop)      svc_stop ;;
+    logs)      svc_logs "${1:-100}" ;;
+    *)         die "service: unknown subcommand '${sub}' (try 'uml4termux help service')" ;;
+  esac
+}
+
+# cmd_wakelock on|off -- hidden helper for the service scripts (and scripts
+# that want the bookkeeping to match the real lock).
+cmd_wakelock() {
+  local what="${1:-}"
+  case "${what}" in
+    on)  uml4termux_wakelock_acquire ;;
+    off) uml4termux_wakelock_release ;;
+    *)   die "wakelock: expected 'on' or 'off'" ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # dispatch
 # ---------------------------------------------------------------------------
@@ -454,6 +502,8 @@ main() {
     docker)         cmd_docker "${argv[@]}" ;;
     expose)         cmd_expose "${argv[@]}" ;;
     stop)           cmd_stop "${argv[@]}" ;;
+    service)        cmd_service "${argv[@]}" ;;
+    wakelock)       cmd_wakelock "${argv[@]}" ;;
     dist-info)      cmd_dist_info "${argv[@]}" ;;
     version|--version) cmd_version ;;
     help)           cmd_help "${argv[@]}" ;;

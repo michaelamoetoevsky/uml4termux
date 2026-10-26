@@ -52,6 +52,9 @@ net_start_gvproxy() {
   # sockets, always start a fresh process for this run.
   if ! uml4termux_is_dry_run; then
     rm -f "${UML4TERMUX_GVNET_SOCK}" "${UML4TERMUX_BESS_SOCK}"
+    # The log directory may not exist in a fresh service context (runit runs
+    # the service before any interactive command has created it).
+    mkdir -p "$(dirname "${UML4TERMUX_GVPROXY_LOG}")"
     : > "${UML4TERMUX_GVPROXY_LOG}"
   else
     printf '+ rm -f %s %s\n' "$(uml4termux_quote "${UML4TERMUX_GVNET_SOCK}" "${UML4TERMUX_BESS_SOCK}")" ""
