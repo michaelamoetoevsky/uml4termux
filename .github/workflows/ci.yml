@@ -311,6 +311,13 @@ jobs:
           bash ci/changelog-extract.sh "$version" > /tmp/release-notes.md
           echo "CHANGELOG has a $version section, $(wc -l < /tmp/release-notes.md) line(s)"
 
+      - name: Pin SOURCE_DATE_EPOCH to the commit time
+        run: |
+          # Both the device and the runner must derive the same epoch, or the
+          # tarball is only reproducible within one machine.
+          echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
+          cat "$GITHUB_ENV"
+
       - name: make dist
         run: bash ci/make-dist.sh
 

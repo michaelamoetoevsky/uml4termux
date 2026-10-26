@@ -108,25 +108,29 @@ fi
 tarball="$outdir/$pkg.tar.gz"
 rm -f "$tarball"
 
-# Deterministic metadata, so the same commit yields the same tarball.
-#   epoch: SOURCE_DATE_EPOCH if given, else the commit time, else VERSION's
-#          mtime, else 0.
-#   --sort=name: readdir order differs between filesystems (and between a
-#          checkout on Termux and one on a runner).
+# Deterministic metadata, so the same commit yields the same tarball
+# everywhere (Termux device and GitHub runner alike).
+#   epoch: SOURCE_DATE_EPOCH, else the commit time, else 0. Never a file mtime:
+#          a fresh checkout stamps "now", which made the two builds differ.
+#   --sort=name: readdir order differs between filesystems.
+#   --mode: a checkout under umask 077 yields 600/700 members while a runner
+#          checkout yields 644/755, and tar records the mode bits.
 #   --format=gnu + numeric 0/0: pins the header layout and identity.
 if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
   epoch="$SOURCE_DATE_EPOCH"
 elif command -v git >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
   epoch=$(git log -1 --format=%ct 2>/dev/null || echo 0)
 else
-  epoch=$(stat -c %Y VERSION 2>/dev/null || echo 0)
+  epoch=0
 fi
 [ -n "$epoch" ] || epoch=0
+echo "make-dist: SOURCE_DATE_EPOCH=$epoch"
 
 # gzip -n keeps the timestamp/name out of the gzip header; without it the
 # archive changes on every build even when the tar stream is identical.
 tar --sort=name --format=gnu \
   --mtime="@$epoch" \
+  --mode='u+rw,go=rX' \
   --owner=0 --group=0 --numeric-owner \
   -cf - -C "$stage" "$pkg" | gzip -9n > "$tarball" || {
     echo "make-dist: tar/gzip failed" >&2
