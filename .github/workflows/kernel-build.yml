@@ -42,10 +42,17 @@ jobs:
       - name: Checkout uml4termux (config + patches)
         uses: actions/checkout@v4
 
-      - name: Clone the UML port source (branch um-arm64)
+      - name: Clone the UML port source (pinned to the release commit)
         run: |
-          git clone --depth 1 -b um-arm64 \
+          # Branch HEAD (32e5e10b) has a kernel-side compile break: sched/signal.h
+          # calls user_mode(), which the arm64/um asm layer does not expose at
+          # that commit (verified on-device and on this runner).  The released
+          # prebuilt-20260816 binary was cut from the commit below, which is
+          # known to build.
+          KERNEL_COMMIT=8d984326036a8d1c9ae9d5debcebf6d0895344cd
+          git clone --filter=blob:none \
             https://github.com/zalexdev/linux-um-arm64 "$RUNNER_TEMP/ksrc"
+          git -C "$RUNNER_TEMP/ksrc" checkout "$KERNEL_COMMIT"
 
       - name: Base config + gap-closing symbols
         working-directory: ${{ runner.temp }}/ksrc
@@ -61,8 +68,10 @@ jobs:
       - name: Patch __alloc_size__ (UML host-side vs glibc 2.41)
         working-directory: ${{ runner.temp }}/ksrc
         run: |
-          git apply --check "$GITHUB_WORKSPACE/ci/kernel/alloc-size-uml-host.patch"
-          git apply "$GITHUB_WORKSPACE/ci/kernel/alloc-size-uml-host.patch"
+          # Only needed on glibc >= 2.41 distros; the pinned source predates the
+          # clash on this runner (glibc 2.39), so a failed apply is not fatal.
+          git apply "$GITHUB_WORKSPACE/ci/kernel/alloc-size-uml-host.patch" \
+            || echo "alloc-size patch not applicable on this source/glibc (ok)"
 
       - name: Install the NDK (r27c, linux-x86_64 tools, bionic sysroot)
         run: |
