@@ -57,11 +57,24 @@ on:
 
   push:
     branches: [main, master]
+    # The record set AND the workflow that judges it: a change to either side
+    # (new record, tighter schema, fixed checker) must re-run the gate. Without
+    # the workflow path a change to the checker could go untested until someone
+    # remembered to dispatch it by hand.
     paths:
       - 'evidence/**.json'
+      - 'ci/check-evidence.py'
+      - 'evidence/schema.json'
+      - '.github/workflows/device-evidence.yml'
+      - 'tests/test-check-evidence.sh'
   pull_request:
     paths:
       - 'evidence/**.json'
+  # Schedule as a backstop: if evidence changes through another path (a merge,
+  # a force-push that rewrites a record) the gate still runs daily instead of
+  # only when someone pushes a .json file.
+  schedule:
+    - cron: '23 3 * * *'
 
 permissions:
   contents: read

@@ -79,6 +79,7 @@ required=(
   ci/make-dist.sh
   ci/local-ci.sh
   tests/ci-checks.sh
+  tests/test-check-evidence.sh
   tests/test_build_initramfs.py
   evidence/schema.json
   .github/workflows/ci.yml
@@ -160,6 +161,13 @@ run_check "make dist script help" bash -c 'bash ci/make-dist.sh --help >/dev/nul
 # 10. ci/local-ci.sh runs (just the help / dry-run path)
 # ---------------------------------------------------------------------------
 run_check "ci/local-ci.sh --help" bash -c 'bash ci/local-ci.sh --help >/dev/null'
+
+# ---------------------------------------------------------------------------
+# 11. check-evidence.py contract: --dir versus a positional directory.
+#     Regression test for the device-evidence.yml invocation bug that failed
+#     the first GitHub run.
+# ---------------------------------------------------------------------------
+run_check "evidence checker contract (dir vs --dir)" bash -c 'bash tests/test-check-evidence.sh'
 
 # ---------------------------------------------------------------------------
 # Summary
