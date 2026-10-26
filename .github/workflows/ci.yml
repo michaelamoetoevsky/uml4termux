@@ -326,11 +326,15 @@ jobs:
           set -euo pipefail
           tarball=$(ls dist/uml4termux-*.tar.gz)
           echo "tarball: $tarball ($(wc -c < "$tarball") bytes)"
-          tar -tzf "$tarball" | head -40
-          echo "... $(tar -tzf "$tarball" | wc -l) entries total"
+          # List once into a file: `tar | head` closes the pipe early, tar dies
+          # with a broken-pipe error and `set -o pipefail` turns that into a
+          # failed step (exit 2) even though the tarball is fine.
+          tar -tzf "$tarball" > /tmp/tar-list.txt
+          head -40 /tmp/tar-list.txt
+          echo "... $(wc -l < /tmp/tar-list.txt) entries total"
           # A dist tarball must never carry a large binary asset: those are
           # fetched by the CLI. Fail loudly if one sneaks in.
-          messy=$(tar -tzf "$tarball" | grep -E '\.(cpio|cpio\.gz|ext4|raw\.log|tar\.gz)$|(^|/)gvproxy$|(^|/)linux-[0-9]' || true)
+          messy=$(grep -E '\.(cpio|cpio\.gz|ext4|raw\.log|tar\.gz)$|(^|/)gvproxy$|(^|/)linux-[0-9]' /tmp/tar-list.txt || true)
           if [ -n "$messy" ]; then
             echo "::error title=FAIL::binary assets leaked into the dist tarball:"
             printf '%s\n' "$messy"

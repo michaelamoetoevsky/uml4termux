@@ -188,8 +188,16 @@ jobs:
             exit 0
           fi
 
-          python3 ci/check-evidence.py --schema evidence/schema.json "$target" 2>&1 | tee /tmp/evidence-check.txt
-          rc=${PIPESTATUS[0]}
+          # $target may be a directory (the default) or a single record file.
+          # Passing a directory as a file argument makes the checker fail with
+          # "[Errno 21] Is a directory", so route it through --dir instead.
+          if [ -d "$target" ]; then
+            python3 ci/check-evidence.py --schema evidence/schema.json --dir "$target" 2>&1 | tee /tmp/evidence-check.txt
+            rc=${PIPESTATUS[0]}
+          else
+            python3 ci/check-evidence.py --schema evidence/schema.json "$target" 2>&1 | tee /tmp/evidence-check.txt
+            rc=${PIPESTATUS[0]}
+          fi
 
           case "$rc" in
             0)
