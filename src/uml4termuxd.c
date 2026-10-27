@@ -30,6 +30,7 @@
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <libgen.h>
+#include <pty.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -51,8 +52,15 @@ static char g_consolelog[512];
    daemon stays free of device-specific paths. */
 static char g_kernel[512], g_stub[512], g_image[512], g_initrd[512];
 static char g_mem[32], g_ncpus[8];
+static char g_gvproxy[512], g_bess[512];
 static time_t g_started_at;
 static int g_completed; /* last guest session ended cleanly (exit 0) */
+
+/* A2b/A3 runtime state */
+static int g_ptym = -1;        /* PTY master: guest console lives here */
+static int g_logfd = -1;       /* console log file fd */
+static pid_t g_gvproxy_pid = -1;
+static int g_exec_seq;
 
 static const char *env_or(const char *name, const char *def)
 {
@@ -73,6 +81,8 @@ static int load_guest_config(char *err, size_t errn)
 	snprintf(g_initrd, sizeof(g_initrd), "%s", env_or("UML4TERMUXD_INITRAMFS", ""));
 	snprintf(g_mem, sizeof(g_mem), "%s", env_or("UML4TERMUXD_MEM", "1024M"));
 	snprintf(g_ncpus, sizeof(g_ncpus), "%s", env_or("UML4TERMUXD_NCPUS", "4"));
+	snprintf(g_gvproxy, sizeof(g_gvproxy), "%s", env_or("UML4TERMUXD_GVPROXY", ""));
+	snprintf(g_bess, sizeof(g_bess), "%s", env_or("UML4TERMUXD_BESS", ""));
 
 	for (i = 0; i < 4; i++) {
 		if (!parts[i][0]) {
@@ -142,54 +152,139 @@ static void state_json(const char *phase, const char *detail)
 	write_state(buf);
 }
 
-static int spawn_child(void)
+static void stop_gvproxy(void)
 {
-	pid_t pid = fork();
+	if (g_gvproxy_pid > 0) {
+		kill(g_gvproxy_pid, SIGTERM);
+		waitpid(g_gvproxy_pid, NULL, 0);
+		logf_("gvproxy stopped");
+		g_gvproxy_pid = -1;
+	}
+}
 
-	if (pid < 0) {
-		logf_("fork failed: %s", strerror(errno));
+/* spawn gvproxy (A3) when configured; wait for the bess socket. */
+static int spawn_gvproxy(void)
+{
+	pid_t pid;
+	int i;
+
+	if (!g_gvproxy[0])
+		return 0; /* not configured: guest runs without networking */
+	if (!g_bess[0]) {
+		logf_("UML4TERMUXD_GVPROXY set but no UML4TERMUXD_BESS");
 		return -1;
 	}
+	pid = fork();
+	if (pid < 0)
+		return -1;
 	if (pid == 0) {
-		if (g_kernel[0]) {
-			/* real guest (A2): console -> log file, no controlling tty */
-			char memopt[64], cpusopt[32], ubdopt[600], rdopt[600], stubopt[600];
-			char *argv[16];
-			int logfd = open(g_consolelog, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-			int i = 0;
+		char largs[600], bargs[600], fargs[600];
+		char *argv[12];
+		int i = 0;
+		int need_proot;
 
-			if (logfd < 0)
-				_exit(126);
-			snprintf(memopt, sizeof(memopt), "mem=%s", g_mem);
-			snprintf(cpusopt, sizeof(cpusopt), "ncpus=%s", g_ncpus);
-			snprintf(ubdopt, sizeof(ubdopt), "ubd0=%s", g_image);
-			snprintf(rdopt, sizeof(rdopt), "initrd=%s", g_initrd);
-			snprintf(stubopt, sizeof(stubopt), "stub_exe=%s", g_stub);
-			setsid();
-			dup2(logfd, 1);
-			dup2(logfd, 2);
-			close(logfd);
-			argv[i++] = g_kernel;
-			argv[i++] = memopt;
-			argv[i++] = cpusopt;
-			argv[i++] = "seccomp=on";
-			argv[i++] = ubdopt;
-			argv[i++] = "root=/dev/ubda";
-			argv[i++] = "rw";
-			argv[i++] = rdopt;
-			argv[i++] = stubopt;
-			argv[i++] = "panic=-1";
-			argv[i++] = "con=null";
-			argv[i++] = "con0=null,fd:1";
-			argv[i] = NULL;
+		snprintf(largs, sizeof(largs), "-listen=unix://%s.gv.sock", g_bess);
+		snprintf(bargs, sizeof(bargs), "-listen-bess=unixpacket://%s", g_bess);
+		snprintf(fargs, sizeof(fargs), "-log-file=%s.gv.log", g_bess);
+		/* Termux has no /etc; gvproxy wants /etc/resolv.conf -> bind the
+		   Termux etc over it with proot (skipped elsewhere). */
+		need_proot = access("/etc/resolv.conf", R_OK) != 0 &&
+			     access("/data/data/com.termux", F_OK) == 0;
+		if (need_proot) {
+			static char pb[600];
+
+			snprintf(pb, sizeof(pb), "%s/etc:/etc",
+				 env_or("PREFIX", "/data/data/com.termux/files/usr"));
+			argv[i++] = "proot";
+			argv[i++] = "-b";
+			argv[i++] = pb;
+		}
+		argv[i++] = (char *)g_gvproxy;
+		argv[i++] = "-debug";
+		argv[i++] = largs;
+		argv[i++] = bargs;
+		argv[i++] = fargs;
+		argv[i] = NULL;
+		setsid();
+		execvp(argv[0], argv);
+		logf_("exec gvproxy failed: %s", strerror(errno));
+		_exit(127);
+	}
+	g_gvproxy_pid = pid;
+	for (i = 0; i < 50; i++) { /* up to 5 s for the bess socket */
+		struct stat st;
+
+		if (stat(g_bess, &st) == 0 && S_ISSOCK(st.st_mode)) {
+			logf_("gvproxy up pid=%d bess=%s", (int)pid, g_bess);
+			return 0;
+		}
+		usleep(100000);
+	}
+	logf_("gvproxy did not create %s", g_bess);
+	g_gvproxy_pid = -1;
+	return -1;
+}
+
+static int spawn_child(void)
+{
+	pid_t pid;
+
+	if (g_kernel[0]) {
+		/* real guest (A2/A2b): console on a PTY, output -> console log */
+		char memopt[64], cpusopt[32], ubdopt[600], rdopt[600], stubopt[600];
+		char vecopt[600];
+		char *argv[16];
+		int m = -1, i = 0;
+
+		snprintf(memopt, sizeof(memopt), "mem=%s", g_mem);
+		snprintf(cpusopt, sizeof(cpusopt), "ncpus=%s", g_ncpus);
+		snprintf(ubdopt, sizeof(ubdopt), "ubd0=%s", g_image);
+		snprintf(rdopt, sizeof(rdopt), "initrd=%s", g_initrd);
+		snprintf(stubopt, sizeof(stubopt), "stub_exe=%s", g_stub);
+		argv[i++] = g_kernel;
+		argv[i++] = memopt;
+		argv[i++] = cpusopt;
+		argv[i++] = "seccomp=on";
+		argv[i++] = ubdopt;
+		argv[i++] = "root=/dev/ubda";
+		argv[i++] = "rw";
+		argv[i++] = rdopt;
+		argv[i++] = stubopt;
+		argv[i++] = "panic=-1";
+		argv[i++] = "con=null";
+		argv[i++] = "con0=fd:0,fd:1";
+		if (g_gvproxy_pid > 0) {
+			snprintf(vecopt, sizeof(vecopt),
+				 "vec0:transport=bess,dst=%s,depth=128,gro=1,mac=5a:94:ef:e4:0c:ee",
+				 g_bess);
+			argv[i++] = vecopt;
+		}
+		argv[i] = NULL;
+
+		/* A2b: the console is a PTY slave -- the daemon writes to the
+		   master (exec channel) and drains the master into the log. */
+		pid = forkpty(&m, NULL, NULL, NULL);
+		if (pid < 0) {
+			logf_("forkpty failed: %s", strerror(errno));
+			return -1;
+		}
+		if (pid == 0) {
 			execv(g_kernel, argv);
-			logf_("exec %s failed: %s", g_kernel, strerror(errno));
 			_exit(127);
 		}
-		{
+		g_ptym = m;
+		fcntl(g_ptym, F_SETFL, fcntl(g_ptym, F_GETFL) | O_NONBLOCK);
+		g_logfd = open(g_consolelog, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	} else {
+		pid = fork();
+		if (pid < 0) {
+			logf_("fork failed: %s", strerror(errno));
+			return -1;
+		}
+		if (pid == 0) {
 			char *argv[] = { g_child_argv0, "30", NULL };
+
 			execv(argv[0], argv);
-			logf_("exec %s failed: %s", g_child_argv0, strerror(errno));
 			_exit(127);
 		}
 	}
@@ -244,6 +339,15 @@ static void reap_child(void)
 				state_json("completed", detail);
 				g_completed = 1;
 				logf_("guest session completed; not restarting");
+				if (g_ptym >= 0) {
+					close(g_ptym);
+					g_ptym = -1;
+				}
+				if (g_logfd >= 0) {
+					close(g_logfd);
+					g_logfd = -1;
+				}
+				stop_gvproxy();
 				return;
 			}
 			/* exec failure (126/127) is a configuration error, not a
@@ -309,6 +413,29 @@ static void handle_client(int fd)
 			logf_("stop requested: SIGTERM -> %d", (int)g_child);
 		respond(fd, "{\"state\":\"stopping\"}\n");
 		g_stop = 1;
+	} else if (strncmp(req, "exec ", 5) == 0) {
+		char line[1024];
+		int seq;
+
+		if (g_ptym < 0 || g_child <= 0) {
+			respond(fd, "{\"error\":\"guest not running\"}\n");
+		} else {
+			seq = ++g_exec_seq;
+			snprintf(line, sizeof(line),
+				 "exec:echo __EXEC_%d_BEGIN__; %s; echo __EXEC_%d_DONE_$?\n",
+				 seq, req + 5, seq);
+			if (write(g_ptym, line, strlen(line)) < 0) {
+				snprintf(resp, sizeof(resp),
+					 "{\"error\":\"pty write failed: %s\"}\n",
+					 strerror(errno));
+				respond(fd, resp);
+			} else {
+				snprintf(resp, sizeof(resp),
+					 "{\"started\":true,\"seq\":%d,\"console\":\"%s\"}\n",
+					 seq, g_consolelog);
+				respond(fd, resp);
+			}
+		}
 	} else {
 		respond(fd, "{\"error\":\"unknown command\"}\n");
 	}
@@ -316,23 +443,55 @@ static void handle_client(int fd)
 
 static int serve_loop(int lfd)
 {
-	struct pollfd pfd = { .fd = lfd, .events = POLLIN };
+	struct pollfd pfds[2];
 
 	while (!g_stop) {
-		int rc = poll(&pfd, 1, 500);
+		int npfd = 1;
+		int rc;
+
+		pfds[0].fd = lfd;
+		pfds[0].events = POLLIN;
+		if (g_ptym >= 0) {
+			pfds[1].fd = g_ptym;
+			pfds[1].events = POLLIN;
+			npfd = 2;
+		}
+		rc = poll(pfds, npfd, 500);
 		if (g_child_exited)
 			reap_child();
-		if (rc > 0 && (pfd.revents & POLLIN)) {
-			int cfd = accept(lfd, NULL, NULL);
-			if (cfd >= 0) {
-				handle_client(cfd);
-				close(cfd);
+		if (rc > 0) {
+			/* A2b: drain the guest console into the log */
+			if (npfd == 2 && (pfds[1].revents & (POLLIN | POLLHUP))) {
+				char buf[4096];
+				ssize_t n;
+
+				while ((n = read(g_ptym, buf, sizeof(buf))) > 0) {
+					if (g_logfd >= 0)
+						write(g_logfd, buf, (size_t)n);
+				}
+			}
+			if (pfds[0].revents & POLLIN) {
+				int cfd = accept(lfd, NULL, NULL);
+
+				if (cfd >= 0) {
+					handle_client(cfd);
+					close(cfd);
+				}
 			}
 		}
 	}
 	if (g_child > 0) {
 		stop_child(5);
 	}
+	if (g_ptym >= 0) {
+		close(g_ptym);
+		g_ptym = -1;
+	}
+	if (g_logfd >= 0) {
+		close(g_logfd);
+		g_logfd = -1;
+	}
+	stop_gvproxy();
 	logf_("daemon exit");
 	state_json("stopped", "daemon-exit");
 	return 0;
@@ -381,6 +540,11 @@ static int daemon_main(int selftest)
 		snprintf(g_child_argv0, sizeof(g_child_argv0), "%s", g_kernel);
 		logf_("guest: kernel=%s mem=%s ncpus=%s console=%s",
 		      g_kernel, g_mem, g_ncpus, g_consolelog);
+		if (spawn_gvproxy() != 0) {
+			fprintf(stderr,
+				"uml4termuxd: gvproxy failed to start (see log)\n");
+			return 2;
+		}
 	}
 
 	sock_path(g_sockpath, sizeof(g_sockpath));
@@ -424,11 +588,11 @@ static int daemon_main(int selftest)
 	return serve_loop(lfd);
 }
 
-static int client_main(const char *cmd)
+static int client_line(const char *what, const char *prefix)
 {
 	struct sockaddr_un addr;
-	int fd, rc;
-	char buf[512];
+	int fd;
+	char buf[1024];
 	ssize_t n;
 
 	sock_path(g_sockpath, sizeof(g_sockpath));
@@ -445,8 +609,8 @@ static int client_main(const char *cmd)
 		close(fd);
 		return 3;
 	}
-	rc = snprintf(buf, sizeof(buf), "%s\n", cmd);
-	if (write(fd, buf, (size_t)rc) < 0) {
+	snprintf(buf, sizeof(buf), "%s%s\n", prefix, what);
+	if (write(fd, buf, strlen(buf)) < 0) {
 		fprintf(stderr, "write: %s\n", strerror(errno));
 		close(fd);
 		return 1;
@@ -460,14 +624,87 @@ static int client_main(const char *cmd)
 	return 0;
 }
 
+static int client_main(const char *cmd)
+{
+	return client_line(cmd, "");
+}
+
 int main(int argc, char **argv)
 {
 	if (argc >= 2 && strcmp(argv[1], "daemon") == 0)
 		return daemon_main(argc >= 3 && strcmp(argv[2], "--selftest") == 0);
 	if (argc >= 2 && (strcmp(argv[1], "status") == 0 || strcmp(argv[1], "stop") == 0))
 		return client_main(argv[1]);
+	if (argc >= 3 && strcmp(argv[1], "exec") == 0) {
+		/* join argv[2..] into one command line for the console agent */
+		char joined[900];
+		size_t used = 0;
+		int i;
+
+		joined[0] = '\0';
+		for (i = 2; i < argc && used < sizeof(joined) - 2; i++) {
+			size_t len = strlen(argv[i]);
+
+			if (used)
+				joined[used++] = ' ';
+			memcpy(joined + used, argv[i], len);
+			used += len;
+			joined[used] = '\0';
+		}
+		return client_line(joined, "exec ");
+	}
+	if (argc >= 2 && strcmp(argv[1], "console") == 0) {
+		char sockbuf[512];
+		char logbuf[520];
+		char line[1024];
+		int want = argc >= 3 ? atoi(argv[2]) : 40;
+		int shown = 0;
+		off_t *offs = NULL, off_n = 0, off_cap = 0;
+		FILE *f;
+
+		if (want <= 0)
+			want = 40;
+		sock_path(sockbuf, sizeof(sockbuf));
+		snprintf(logbuf, sizeof(logbuf), "%s/uml-console.log",
+			 dirname(sockbuf));
+		f = fopen(logbuf, "r");
+		if (!f) {
+			fprintf(stderr, "no console log yet: %s\n", logbuf);
+			return 3;
+		}
+		/* index line offsets, keep the last `want` */
+		{
+			char offbuf[600];
+
+			snprintf(offbuf, sizeof(offbuf), "%s", logbuf);
+			(void)offbuf;
+		}
+		while (fgets(line, sizeof(line), f)) {
+			if (off_n == off_cap) {
+				off_cap = off_cap ? off_cap * 2 : 256;
+				offs = realloc(offs, off_cap * sizeof(*offs));
+			}
+			offs[off_n++] = ftello(f);
+		}
+		{
+			size_t start = off_n > (off_t)want ? (size_t)(off_n - (off_t)want) : 0;
+
+			fseeko(f, offs ? offs[start] : 0, SEEK_SET);
+			while (fgets(line, sizeof(line), f)) {
+				fputs(line, stdout);
+				shown++;
+			}
+		}
+		free(offs);
+		fclose(f);
+		if (!shown)
+			printf("(console log empty)\n");
+		return 0;
+	}
 	fprintf(stderr,
 		"usage: uml4termuxd daemon [--selftest]\n"
-		"       uml4termuxd status|stop\n");
+		"       uml4termuxd status|stop\n"
+		"       uml4termuxd exec <command...>   run inside the guest console\n"
+		"       uml4termuxd console [lines]     tail the guest console log\n");
 	return 64;
 }

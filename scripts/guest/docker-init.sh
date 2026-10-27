@@ -80,6 +80,16 @@ docker ps --format '{{.Names}} | {{.Status}} | {{.Ports}}' 2>&1 | head -4
 
 echo "WEB_UP_MARKER"
 
+# A2b console agent: lines the daemon writes to the console in the form
+#   exec:<command>
+# are evaluated here; output lands on the console (= the daemon's PTY log).
+( while IFS= read -r aline; do
+    case "$aline" in
+      exec:*) echo "__AGENT_GOT__: ${aline#exec:}"; eval "${aline#exec:}" ;;
+    esac
+  done ) < /dev/console &
+
+
 # Lifetime: 0 = run forever with heartbeat; >0 = power off after N seconds
 if [ "${GUEST_LIFETIME}" -gt 0 ] 2>/dev/null; then
   echo "guest lifetime ${GUEST_LIFETIME}s, then poweroff"
