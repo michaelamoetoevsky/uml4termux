@@ -21,9 +21,9 @@ TERMUX_PKG_VERSION="0.3.0"
 
 # GitHub release tarball (update owner/repo if the canonical location changes)
 TERMUX_PKG_SRCURL=https://github.com/michaelamoetoevsky/uml4termux/archive/refs/tags/v${TERMUX_PKG_VERSION}.tar.gz
-# SHA256 placeholder — MUST be filled after the first release!
-# Run: sha256sum <tarball> after creating the GitHub release, then update this line.
-TERMUX_PKG_SHA256=PLACEHOLDER_FILL_AFTER_FIRST_RELEASE
+# SHA256 of the v0.3.0 release tarball (from the release's digest field;
+# make-dist is byte-reproducible across toolchains).
+TERMUX_PKG_SHA256=f7ac1d2ada17ad9963b92bf3d6316f3e4c55d6b855bd530471730bdacc092f1c
 
 # Architecture: aarch64 only (UML arm64 + bionic stub requires arm64 host)
 TERMUX_PKG_EXCLUDED_ARCHES="arm, i686, x86_64"
