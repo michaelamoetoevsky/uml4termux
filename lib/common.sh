@@ -48,11 +48,17 @@ export UML4TERMUX_INITRAMFS_DIR
 UML4TERMUX_UPSTREAM_BASE_URL="${UML4TERMUX_UPSTREAM_BASE_URL:-https://github.com/zalexdev/linux-um-arm64/releases/download/prebuilt-20260816}"
 UML4TERMUX_FORK_BASE_URL="${UML4TERMUX_FORK_BASE_URL:-https://github.com/Raymer8639/linux-um-arm64/releases/download/um-arm64-v0.3.0}"
 UML4TERMUX_GVPROXY_BASE_URL="${UML4TERMUX_GVPROXY_BASE_URL:-https://github.com/containers/gvisor-tap-vsock/releases/download/v0.9.0}"
+# The project's own release: the CI-built kernel adopted in 0.3.0 (gap-closed
+# config: CPUSETS/BLK_CGROUP/THROTTLING/MODULES; stub byte-identical to the
+# released one). Until the repo is public, downloads need GITHUB_TOKEN.
+UML4TERMUX_RELEASE_BASE_URL="${UML4TERMUX_RELEASE_BASE_URL:-https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.3.0}"
 
 # The docker-capable kernel of the fork is the one verified on-device:
 # `uname -r` == 7.2.0-rc4-opt, OVERLAY_FS/VETH/BRIDGE/PID_NS/MEMCG on.
-UML4TERMUX_KERNEL_URL="${UML4TERMUX_KERNEL_URL:-${UML4TERMUX_FORK_BASE_URL}/linux-bionic-smp}"
-UML4TERMUX_STUB_URL="${UML4TERMUX_STUB_URL:-${UML4TERMUX_FORK_BASE_URL}/stub_exe}"
+# Default now = our own 0.3.0 CI kernel (same base + the four gap-closing
+# symbols; device-validated in evidence/20261027-ci-kernel-round3.json).
+UML4TERMUX_KERNEL_URL="${UML4TERMUX_KERNEL_URL:-${UML4TERMUX_RELEASE_BASE_URL}/linux-bionic}"
+UML4TERMUX_STUB_URL="${UML4TERMUX_STUB_URL:-${UML4TERMUX_RELEASE_BASE_URL}/stub_exe}"
 UML4TERMUX_DISK_URL="${UML4TERMUX_DISK_URL:-${UML4TERMUX_UPSTREAM_BASE_URL}/debian-docker.ext4.gz}"
 UML4TERMUX_BASE_INITRAMFS_URL="${UML4TERMUX_BASE_INITRAMFS_URL:-${UML4TERMUX_UPSTREAM_BASE_URL}/initramfs-alpine.cpio.gz}"
 UML4TERMUX_GVPROXY_URL="${UML4TERMUX_GVPROXY_URL:-${UML4TERMUX_GVPROXY_BASE_URL}/gvproxy-linux-arm64}"
@@ -61,13 +67,15 @@ UML4TERMUX_FORK_SHA256SUMS_URL="${UML4TERMUX_FORK_SHA256SUMS_URL:-${UML4TERMUX_F
 UML4TERMUX_GVPROXY_SHA256SUMS_URL="${UML4TERMUX_GVPROXY_SHA256SUMS_URL:-${UML4TERMUX_GVPROXY_BASE_URL}/sha256sums}"
 
 # Pinned digests (all re-measured with sha256sum on this device).
-UML4TERMUX_KERNEL_SHA256="${UML4TERMUX_KERNEL_SHA256:-b8ccc5f0d6327e2d3684ffe3d77c95835a66d277c5b6466c9452113272bdb360}"
+# Kernel = the 0.3.0 CI-built release asset; stub = byte-identical to the
+# fork's stub (NDK r29 toolchain parity, proven in CI run 40535091305).
+UML4TERMUX_KERNEL_SHA256="${UML4TERMUX_KERNEL_SHA256:-d2feb2e37928d59a838859d2893d0f6ed1ce908b474c683a686fa0ddff524f1d}"
 UML4TERMUX_STUB_SHA256="${UML4TERMUX_STUB_SHA256:-731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e}"
 UML4TERMUX_DISK_SHA256="${UML4TERMUX_DISK_SHA256:-2807979f76021fadf1f76f0c827fbe1eab4df51e33bfeca0c840c5181c610be3}"
 UML4TERMUX_GVPROXY_SHA256="${UML4TERMUX_GVPROXY_SHA256:-c1ea864636182a774235c8866c70f2a0223dfcd4f08d24e37a7e82d9882beb9c}"
 UML4TERMUX_BASE_INITRAMFS_SHA256="${UML4TERMUX_BASE_INITRAMFS_SHA256:-15238a37328b99b3206a58c7ab69b853139c40b8ca35f8acacf6226a4c1cf94f}"
 
-UML4TERMUX_KERNEL_FILE="${UML4TERMUX_KERNEL_FILE:-linux-bionic-smp}"
+UML4TERMUX_KERNEL_FILE="${UML4TERMUX_KERNEL_FILE:-linux-bionic}"
 UML4TERMUX_STUB_FILE="stub_exe"
 UML4TERMUX_DISK_GZ_FILE="debian-docker.ext4.gz"
 UML4TERMUX_DISK_FILE="debian-docker.ext4"

@@ -9,6 +9,12 @@
 # fetch_download <url> <dest>
 fetch_download() {
   local url="$1" dest="$2" tmp="${2}.part"
+  local -a auth=()
+  # Release assets on a private repo need a token; harmless (ignored) on
+  # public ones. GITHUB_TOKEN is never logged or echoed.
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  fi
   if uml4termux_is_dry_run; then
     uml4termux_print_cmd curl -fL --retry 3 --connect-timeout 20 -o "${tmp}" "${url}"
     printf '+ mv %s %s\n' "$(uml4termux_quote "${tmp}")" "$(uml4termux_quote "${dest}")"
@@ -17,7 +23,7 @@ fetch_download() {
   mkdir -p "$(dirname "${dest}")"
   rm -f "${tmp}"
   if command -v curl >/dev/null 2>&1; then
-    curl -fL --retry 3 --connect-timeout 20 --progress-bar -o "${tmp}" "${url}"
+    curl -fL --retry 3 --connect-timeout 20 --progress-bar -o "${tmp}" "${auth[@]}" "${url}"
   elif command -v wget >/dev/null 2>&1; then
     wget -O "${tmp}" "${url}"
   else
