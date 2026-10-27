@@ -45,6 +45,50 @@ static int g_restarts = 0;
 static char g_sockpath[512];
 static char g_statepath[512];
 static char g_child_argv0[512];
+static char g_consolelog[512];
+
+/* Real-mode guest config (A2): everything comes from the environment so the
+   daemon stays free of device-specific paths. */
+static char g_kernel[512], g_stub[512], g_image[512], g_initrd[512];
+static char g_mem[32], g_ncpus[8];
+static time_t g_started_at;
+static int g_completed; /* last guest session ended cleanly (exit 0) */
+
+static const char *env_or(const char *name, const char *def)
+{
+	const char *v = getenv(name);
+	return (v && *v) ? v : def;
+}
+
+static int load_guest_config(char *err, size_t errn)
+{
+	struct stat st;
+	const char *parts[] = { g_kernel, g_stub, g_image, g_initrd };
+	const char *names[] = { "kernel", "stub", "image", "initramfs" };
+	int i;
+
+	snprintf(g_kernel, sizeof(g_kernel), "%s", env_or("UML4TERMUXD_KERNEL", ""));
+	snprintf(g_stub, sizeof(g_stub), "%s", env_or("UML4TERMUXD_STUB", ""));
+	snprintf(g_image, sizeof(g_image), "%s", env_or("UML4TERMUXD_IMAGE", ""));
+	snprintf(g_initrd, sizeof(g_initrd), "%s", env_or("UML4TERMUXD_INITRAMFS", ""));
+	snprintf(g_mem, sizeof(g_mem), "%s", env_or("UML4TERMUXD_MEM", "1024M"));
+	snprintf(g_ncpus, sizeof(g_ncpus), "%s", env_or("UML4TERMUXD_NCPUS", "4"));
+
+	for (i = 0; i < 4; i++) {
+		if (!parts[i][0]) {
+			snprintf(err, errn, "UML4TERMUXD_%s is not set",
+				 names[i] == g_kernel ? (char *)"KERNEL" :
+				 names[i] == g_stub ? (char *)"STUB" :
+				 names[i] == g_image ? (char *)"IMAGE" : (char *)"INITRAMFS");
+			return -1;
+		}
+		if (stat(parts[i], &st) != 0) {
+			snprintf(err, errn, "%s not found: %s", names[i], parts[i]);
+			return -1;
+		}
+	}
+	return 0;
+}
 
 static void logf_(const char *fmt, ...)
 {
@@ -107,15 +151,75 @@ static int spawn_child(void)
 		return -1;
 	}
 	if (pid == 0) {
-		char *argv[] = { g_child_argv0, "30", NULL };
-		execv(argv[0], argv);
-		logf_("exec %s failed: %s", g_child_argv0, strerror(errno));
-		_exit(127);
+		if (g_kernel[0]) {
+			/* real guest (A2): console -> log file, no controlling tty */
+			char memopt[64], cpusopt[32], ubdopt[600], rdopt[600], stubopt[600];
+			char *argv[16];
+			int logfd = open(g_consolelog, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+			int i = 0;
+
+			if (logfd < 0)
+				_exit(126);
+			snprintf(memopt, sizeof(memopt), "mem=%s", g_mem);
+			snprintf(cpusopt, sizeof(cpusopt), "ncpus=%s", g_ncpus);
+			snprintf(ubdopt, sizeof(ubdopt), "ubd0=%s", g_image);
+			snprintf(rdopt, sizeof(rdopt), "initrd=%s", g_initrd);
+			snprintf(stubopt, sizeof(stubopt), "stub_exe=%s", g_stub);
+			setsid();
+			dup2(logfd, 1);
+			dup2(logfd, 2);
+			close(logfd);
+			argv[i++] = g_kernel;
+			argv[i++] = memopt;
+			argv[i++] = cpusopt;
+			argv[i++] = "seccomp=on";
+			argv[i++] = ubdopt;
+			argv[i++] = "root=/dev/ubda";
+			argv[i++] = "rw";
+			argv[i++] = rdopt;
+			argv[i++] = stubopt;
+			argv[i++] = "panic=-1";
+			argv[i++] = "con=null";
+			argv[i++] = "con0=null,fd:1";
+			argv[i] = NULL;
+			execv(g_kernel, argv);
+			logf_("exec %s failed: %s", g_kernel, strerror(errno));
+			_exit(127);
+		}
+		{
+			char *argv[] = { g_child_argv0, "30", NULL };
+			execv(argv[0], argv);
+			logf_("exec %s failed: %s", g_child_argv0, strerror(errno));
+			_exit(127);
+		}
 	}
 	g_child = pid;
-	logf_("child spawned pid=%d argv0=%s", (int)pid, g_child_argv0);
+	g_completed = 0;
+	g_started_at = time(NULL);
+	logf_("child spawned pid=%d argv0=%s", (int)pid,
+	      g_kernel[0] ? g_kernel : g_child_argv0);
 	state_json("running", "spawned");
 	return 0;
+}
+
+/* stop_child: SIGTERM, escalate to SIGKILL after timeout seconds. */
+static void stop_child(int timeout_s)
+{
+	int waited = 0;
+
+	if (g_child <= 0)
+		return;
+	kill(g_child, SIGTERM);
+	while (waitpid(g_child, NULL, WNOHANG) == 0 && waited < timeout_s) {
+		usleep(200000);
+		waited++;
+	}
+	if (waitpid(g_child, NULL, WNOHANG) == 0) {
+		logf_("SIGTERM ignored for %ds, sending SIGKILL", timeout_s);
+		kill(g_child, SIGKILL);
+		waitpid(g_child, NULL, 0);
+	}
+	g_child = -1;
 }
 
 static void reap_child(void)
@@ -129,9 +233,19 @@ static void reap_child(void)
 			char detail[128];
 			const char *how = WIFEXITED(st) ? "exit" : "signal";
 			int code = WIFEXITED(st) ? WEXITSTATUS(st) : WTERMSIG(st);
+
 			g_child = -1;
 			snprintf(detail, sizeof(detail), "%s=%d", how, code);
 			logf_("child %d died (%s %d)", (int)pid, how, code);
+			/* exit 0 = the guest powered itself off after completing
+			   its session (poweroff -f). That is a finished session,
+			   not a crash: stay stopped. Only crashes restart. */
+			if (WIFEXITED(st) && WEXITSTATUS(st) == 0) {
+				state_json("completed", detail);
+				g_completed = 1;
+				logf_("guest session completed; not restarting");
+				return;
+			}
 			state_json("exited", detail);
 			g_restarts++;
 			if (g_restarts > RESTART_MAX) {
@@ -167,15 +281,24 @@ static void handle_client(int fd)
 			req[i] = '\0';
 
 	if (strncmp(req, "status", 6) == 0) {
+		char info[192];
+
+		if (g_kernel[0]) {
+			snprintf(info, sizeof(info),
+				 ",\"kernel\":\"%s\",\"mem\":\"%s\",\"ncpus\":\"%s\",\"uptime_s\":%ld",
+				 g_kernel, g_mem, g_ncpus,
+				 g_child > 0 ? (long)(time(NULL) - g_started_at) : 0L);
+		} else {
+			snprintf(info, sizeof(info), ",\"mode\":\"selftest\"");
+		}
 		snprintf(resp, sizeof(resp),
-			 "{\"state\":\"%s\",\"child_pid\":%d,\"restarts\":%d}\n",
-			 g_child > 0 ? "running" : "idle", (int)g_child, g_restarts);
+			 "{\"state\":\"%s\",\"child_pid\":%d,\"restarts\":%d%s}\n",
+			 g_child > 0 ? "running" : (g_completed ? "completed" : "idle"),
+			 (int)g_child, g_restarts, info);
 		respond(fd, resp);
 	} else if (strncmp(req, "stop", 4) == 0) {
-		if (g_child > 0) {
-			kill(g_child, SIGTERM);
+		if (g_child > 0)
 			logf_("stop requested: SIGTERM -> %d", (int)g_child);
-		}
 		respond(fd, "{\"state\":\"stopping\"}\n");
 		g_stop = 1;
 	} else {
@@ -200,8 +323,7 @@ static int serve_loop(int lfd)
 		}
 	}
 	if (g_child > 0) {
-		kill(g_child, SIGTERM);
-		waitpid(g_child, NULL, 0);
+		stop_child(5);
 	}
 	logf_("daemon exit");
 	state_json("stopped", "daemon-exit");
@@ -224,14 +346,32 @@ static int daemon_main(int selftest)
 	struct sockaddr_un addr;
 	int lfd;
 
+	sock_path(g_sockpath, sizeof(g_sockpath));
+	snprintf(g_statepath, sizeof(g_statepath), "%s.state", g_sockpath);
+	{
+		char dirbuf[512];
+		snprintf(dirbuf, sizeof(dirbuf), "%s", g_sockpath);
+		mkdir(dirname(dirbuf), 0755);
+		snprintf(g_consolelog, sizeof(g_consolelog), "%s/uml-console.log",
+			 dirname(dirbuf));
+		snprintf(dirbuf, sizeof(dirbuf), "%s", g_sockpath);
+		dirname(dirbuf);
+	}
+
 	if (selftest) {
 		snprintf(g_child_argv0, sizeof(g_child_argv0), "%s", SELFTEST_CHILD);
 		logf_("selftest: supervising %s", g_child_argv0);
 	} else {
-		snprintf(g_child_argv0, sizeof(g_child_argv0), "%s", g_child_argv0);
-		/* A2 will replace this with the real UML command line. */
-		logf_("real guest spawn lands in A2; use --selftest for now");
-		return 2;
+		char err[256];
+
+		if (load_guest_config(err, sizeof(err)) != 0) {
+			logf_("guest config error: %s", err);
+			fprintf(stderr, "uml4termuxd: %s\n", err);
+			return 2;
+		}
+		snprintf(g_child_argv0, sizeof(g_child_argv0), "%s", g_kernel);
+		logf_("guest: kernel=%s mem=%s ncpus=%s console=%s",
+		      g_kernel, g_mem, g_ncpus, g_consolelog);
 	}
 
 	sock_path(g_sockpath, sizeof(g_sockpath));

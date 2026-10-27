@@ -1,8 +1,7 @@
 # Upstream findings for zalexdev/linux-um-arm64
 
-> DRAFT — internal working notes for an upstream issue/PR. **Not posted yet**;
-> posting waits for the owner's approval. Facts below are all device- or
-> CI-verified in this repository's sessions; see the cited evidence/paths.
+> **POSTED**: https://github.com/zalexdev/linux-um-arm64/issues/4 (28 Okt 2026,
+> dengan persetujuan owner). Teks di bawah = isi issue.
 
 Context: we package the UML arm64 port for Termux (rootless Docker) in
 [michaelamoetoevsky/uml4termux](https://github.com/michaelamoetoevsky/uml4termux).
