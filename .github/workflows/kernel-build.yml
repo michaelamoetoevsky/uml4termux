@@ -6,21 +6,23 @@ name: kernel-build
 #
 #   WHY: the released kernels are downstream builds with verified gaps
 #   (no CONFIG_CPUSETS, no cgroup io.max, tmpfs/page-cache not charged).
-#   This workflow builds the port's own source with those symbols enabled,
-#   producing a bionic binary that runs natively in Termux.
+#   This workflow builds Raymer's packaging fork (whose tree matches the
+#   config this project extracted from the running guest) with the
+#   gap-closing symbols enabled, producing a bionic binary that runs
+#   natively in Termux.
 #
-#   WHY ubuntu-24.04-arm: UML is a process OF ITS HOST, so the kernel must be
-#   built on (and for) aarch64.  Public repositories get GitHub's arm64
+#   WHY ubuntu-24.04-arm: UML is a process OF ITS HOST, so the kernel must
+#   be built on (and for) aarch64.  Public repositories get GitHub's arm64
 #   runners for free; private repos would need a paid plan or a self-hosted
 #   runner (the phone itself).
 #
-#   The config is the extracted config of the released Docker-capable kernel
-#   (ci/kernel/cfg-smp.txt) with the gap-closing symbols enabled:
-#   CONFIG_CPUSETS, CONFIG_BLK_CGROUP + CONFIG_BLK_DEV_THROTTLING (cgroup
-#   io.max), CONFIG_MODULES.  One upstream-port patch is applied
-#   (ci/kernel/alloc-size-uml-host.patch: glibc 2.41's
-#   __attribute_alloc_size__ expands to the kernel's __alloc_size__ name,
-#   which breaks every UML host-side compile on trixie-era distros).
+#   NOTES from the first two runs:
+#   * zalexdev's branch HEAD does not compile (sched/signal.h -> user_mode)
+#   * zalexdev's prebuilt-20260816 commitish lacks UML_SUBARCH_SUPPORTS_SMP,
+#     so SMP (and everything depending on it, e.g. CPUSETS) is dropped by
+#     olddefconfig.  Raymer's packaging fork carries the working wiring.
+#   * The base config (cfg-smp.txt) goes to $OUT/.config, never to the
+#     source tree: an out-of-tree build refuses a dirty srctree.
 # =============================================================================
 
 on:
@@ -34,44 +36,33 @@ on:
 permissions:
   contents: read
 
+env:
+  KSRC: https://github.com/Raymer8639/linux-um-arm64
+
 jobs:
   bionic:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 150
     steps:
-      - name: Checkout uml4termux (config + patches)
+      - name: Checkout uml4termux (config + scripts)
         uses: actions/checkout@v4
 
-      - name: Clone the UML port source (pinned to the release commit)
+      - name: Clone Raymer's packaging fork (matches cfg-smp.txt)
         run: |
-          # Branch HEAD (32e5e10b) has a kernel-side compile break: sched/signal.h
-          # calls user_mode(), which the arm64/um asm layer does not expose at
-          # that commit (verified on-device and on this runner).  The released
-          # prebuilt-20260816 binary was cut from the commit below, which is
-          # known to build.
-          KERNEL_COMMIT=8d984326036a8d1c9ae9d5debcebf6d0895344cd
-          git clone --filter=blob:none \
-            https://github.com/zalexdev/linux-um-arm64 "$RUNNER_TEMP/ksrc"
-          git -C "$RUNNER_TEMP/ksrc" checkout "$KERNEL_COMMIT"
+          git clone --depth 1 "$KSRC" "$RUNNER_TEMP/ksrc"
+          git -C "$RUNNER_TEMP/ksrc" log --oneline -1
 
-      - name: Base config + gap-closing symbols
+      - name: Base config + gap-closing symbols ($OUT/.config)
         working-directory: ${{ runner.temp }}/ksrc
         run: |
-          cp "$GITHUB_WORKSPACE/ci/kernel/cfg-smp.txt" .config
-          scripts/config -e CONFIG_CPUSETS -e CONFIG_BLK_CGROUP \
-            -e CONFIG_BLK_DEV_THROTTLING -e CONFIG_MODULES
-          make ARCH=um olddefconfig
-          for s in CPUSETS BLK_CGROUP BLK_DEV_THROTTLING MODULES; do
-            grep -E "^CONFIG_${s}=" .config || { echo "symbol $s missing after olddefconfig"; exit 1; }
-          done
-
-      - name: Patch __alloc_size__ (UML host-side vs glibc 2.41)
-        working-directory: ${{ runner.temp }}/ksrc
-        run: |
-          # Only needed on glibc >= 2.41 distros; the pinned source predates the
-          # clash on this runner (glibc 2.39), so a failed apply is not fatal.
-          git apply "$GITHUB_WORKSPACE/ci/kernel/alloc-size-uml-host.patch" \
-            || echo "alloc-size patch not applicable on this source/glibc (ok)"
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/out"
+          cp "$GITHUB_WORKSPACE/ci/kernel/cfg-smp.txt" "$RUNNER_TEMP/out/.config"
+          scripts/config --file "$RUNNER_TEMP/out/.config" \
+            -e CONFIG_CPUSETS -e CONFIG_BLK_CGROUP \
+            -e CONFIG_BLK_DEV_THROTTLING -e CONFIG_MODULES \
+            -e CONFIG_STATIC_LINK -e CONFIG_UML_NET_VECTOR \
+            -e CONFIG_NET_9P -e CONFIG_9P_FS
 
       - name: Install the NDK (r27c, linux-x86_64 tools, bionic sysroot)
         run: |
@@ -84,7 +75,19 @@ jobs:
         working-directory: ${{ runner.temp }}/ksrc
         run: |
           set -euo pipefail
-          make ARCH=um SUBARCH=arm64 \
+          make ARCH=um SUBARCH=arm64 O="$RUNNER_TEMP/out" \
+            HOSTCC=gcc HOSTCXX=g++ \
+            CC="$NDK/bin/clang --target=aarch64-linux-android30" \
+            LD="$NDK/bin/ld.lld" AR="$NDK/bin/llvm-ar" NM="$NDK/bin/llvm-nm" \
+            OBJCOPY="$NDK/bin/llvm-objcopy" OBJDUMP="$NDK/bin/llvm-objdump" \
+            READELF="$NDK/bin/llvm-readelf" STRIP="$NDK/bin/llvm-strip" \
+            LLVM_IAS=1 CLANG_TARGET_FLAGS=aarch64-linux-android30 \
+            olddefconfig
+          for s in CPUSETS BLK_CGROUP BLK_DEV_THROTTLING MODULES SMP; do
+            grep -E "^CONFIG_${s}=" "$RUNNER_TEMP/out/.config" \
+              || { echo "symbol $s missing after olddefconfig"; exit 1; }
+          done
+          make ARCH=um SUBARCH=arm64 O="$RUNNER_TEMP/out" \
             HOSTCC=gcc HOSTCXX=g++ \
             CC="$NDK/bin/clang --target=aarch64-linux-android30" \
             LD="$NDK/bin/ld.lld" AR="$NDK/bin/llvm-ar" NM="$NDK/bin/llvm-nm" \
@@ -92,23 +95,22 @@ jobs:
             READELF="$NDK/bin/llvm-readelf" STRIP="$NDK/bin/llvm-strip" \
             LLVM_IAS=1 CLANG_TARGET_FLAGS=aarch64-linux-android30 \
             -j"$(nproc)" 2>&1 | tee build.log
-          test -x linux
+          test -f "$RUNNER_TEMP/out/linux"
 
       - name: Collect artifacts
         if: always()
-        working-directory: ${{ runner.temp }}/ksrc
+        working-directory: ${{ runner.temp }}
         run: |
-          mkdir -p "$RUNNER_TEMP/artifacts"
-          if [ -f linux ]; then
-            cp linux "$RUNNER_TEMP/artifacts/linux-bionic"
-            "$NDK/bin/llvm-strip" --strip-debug "$RUNNER_TEMP/artifacts/linux-bionic" || true
+          mkdir -p artifacts
+          if [ -f out/linux ]; then
+            cp out/linux artifacts/linux-bionic
+            "$NDK/bin/llvm-strip" --strip-debug artifacts/linux-bionic || true
           fi
-          if [ -f arch/um/kernel/skas/stub_exe ]; then
-            cp arch/um/kernel/skas/stub_exe "$RUNNER_TEMP/artifacts/stub_exe"
-          fi
-          cp build.log "$RUNNER_TEMP/artifacts/" 2>/dev/null || true
-          (cd "$RUNNER_TEMP/artifacts" && sha256sum * > SHA256SUMS || true)
-          ls -la "$RUNNER_TEMP/artifacts"
+          STUB=$(find "$RUNNER_TEMP/out" ksrc -name stub_exe -type f 2>/dev/null | head -1)
+          [ -n "$STUB" ] && cp "$STUB" artifacts/stub_exe
+          cp ksrc/build.log artifacts/ 2>/dev/null || true
+          (cd artifacts && sha256sum * > SHA256SUMS || true)
+          ls -la artifacts
 
       - name: Upload artifacts
         if: always()
