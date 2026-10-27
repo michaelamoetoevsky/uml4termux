@@ -19,11 +19,16 @@ bukan lagi kumpulan shell exec:
   payload) = `completed`, TIDAK di-restart; crash = restart backoff (cap 5);
   exec gagal (126/127) = fatal. CI job `daemon-c` hijau (compile -Werror +
   selftest runner).
-- [ ] A2b **Guest exec via control socket** (`exec <cmd>`): kanal eksekusi ke
-  dalam guest (kandidat: mconsole `config ubdN=` pasang disk perintah, atau
-  konsol PTY) + `follow` log konsol.
-- [ ] A3 **Integrasi gvproxy**: lifecycle gvproxy dikelola daemon (spawn/stop,
-  registry expose port persisten — pindahkan logika supervisor shell ke C).
+- [ ] A2b ✔ **Guest exec via console PTY**: `exec <cmd...>` menulis baris
+  `exec:` yang dievaluasi agen console guest (docker-init.sh), output ke log
+  konsol dengan marker `__EXEC_<n>_BEGIN__/DONE_$?`; `console [n]` tail log.
+  Teruji device: `uname -a` (kernel aarch64 CI) dan `docker ps` (listing
+  container web) dari dalam guest.
+- [ ] A3 ✔ **Integrasi gvproxy (lifecycle)**: `UML4TERMUXD_GVPROXY`(+`_BESS`)
+  → daemon spawn gvproxy (proot /etc bind auto-di Termux), tunggu socket bess,
+  pasang `vec0:transport=bess` di cmdline kernel, stop saat guest selesai /
+  daemon berhenti. Teruji: boot docker penuh ~70 s di bawah daemon, shutdown
+  bersih tanpa proses yatim. Sisa: registry expose port persisten (A3b).
 - [ ] A4 **Runit**: `$PREFIX/var/service/uml4termux/run` → `exec uml4termuxd
   daemon`; `uml4termux service` CLI bicara ke daemon, bukan lagi ke shell.
 - [ ] A5 **Packaging**: binary di release 0.4.0 + dibangun di CI (runner
