@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-10-27
+### Verified
+- **CI-built kernel adopted** (`.github/workflows/kernel-build.yml`): the project now builds
+  its own UML arm64 bionic kernel on GitHub's x86_64 runners (cross-compile with NDK r29,
+  source pinned to Raymer's packaging fork, config = extracted guest config + gap-closing
+  symbols). The built kernel+stub pair boots and runs Docker on the device — first kernel
+  produced entirely in CI, no device build required. Evidence:
+  `evidence/20261027-ci-kernel-round3.json`.
+- **Config gaps closed in the adopted kernel**: `CONFIG_CPUSETS`, `CONFIG_BLK_CGROUP`,
+  `CONFIG_BLK_DEV_THROTTLING`, `CONFIG_MODULES` — the Docker daemon's "no cpuset support"
+  warning is gone and `cgroup.controllers` now exposes `cpuset cpu io memory pids`.
+- **Toolchain parity proven**: the CI stub built with NDK 29.0.14206865 is byte-identical
+  to the released `stub_exe`; a stub built with NDK r27c lacks `.rela.dyn`, differs in 156
+  disassembly lines and SIGSEGVs the first exec'd guest process — the stub is
+  toolchain-sensitive and must be built with the same NDK as the kernel.
+- **Docker end-to-end on the new kernel**: dockerd `20.10.24` / `overlay2` / cgroup v2,
+  fresh `busybox` pull through gvproxy NAT/DNS, `docker run` (`BUSYBOX_RUN_OK`), and an
+  inbound published port reachable from the phone's loopback (`curl 127.0.0.1:8123` →
+  `gvproxy-bess-ok`).
+- **Repo initramfs flow validated on-device**: `scripts/build-initramfs.py --base
+  initramfs-alpine.cpio.gz` + the repo's `docker-init.sh` runs the full docker path
+  (DHCP → dockerd → pull → containers). The stale `switch8` initramfs from the forensics
+  suite reproduces a dockerd graphdriver failure that is NOT a kernel issue.
+### Known limits (unchanged)
+- No `CONFIG_MEMCG_KMEM`: tmpfs/page cache stays uncharged (80 MB tmpfs write inside a
+  64 MB memory.max group keeps `memory.current` at 0). Next candidate symbol for the CI
+  config.
+- `io.max` needs a child-cgroup retest (the root-cgroup probe is inconclusive).
+
 ## [0.2.0] - 2026-10-26
 ### Verified
 - **32-bit (i386) container images**: `qemu-user-static` + binfmt_misc inside the guest runs `i386/alpine` (`uname -m` → `i686`); binfmt_misc is mountable in the guest kernel, the handler registers with `PF` flags. The kernel still has no native 32-bit support (`CONFIG_COMPAT` off) — this is user-mode emulation.

@@ -9,18 +9,18 @@
 #   TERMUX_PKG_DEPENDS="linux-kernel-um, passt"
 # Once linux-kernel-um and passt are merged and published, uncomment the above.
 
-TERMUX_PKG_HOMEPAGE=https://github.com/Raymer8639/uml4termux
+TERMUX_PKG_HOMEPAGE=https://github.com/michaelamoetoevsky/uml4termux
 TERMUX_PKG_DESCRIPTION="Run UML (User-Mode Linux) arm64 + rootless Docker on Termux/Android"
 TERMUX_PKG_LICENSE="GPL-2.0-only"
-TERMUX_PKG_MAINTAINER="Raymer <raymer@example.com>"
-TERMUX_PKG_VERSION="0.1.0"
+TERMUX_PKG_MAINTAINER="uml4termux maintainers <michaelamoetoevsky@users.noreply.github.com>"
+TERMUX_PKG_VERSION="0.3.0"
 # TERMUX_PKG_VERSION is normally a literal for the package index.
 # The source of truth is the VERSION file in the repo root.
 # When submitting to termux-packages, update this to match the release tag.
 # The SRCURL uses this version for the GitHub release tarball.
 
 # GitHub release tarball (update owner/repo if the canonical location changes)
-TERMUX_PKG_SRCURL=https://github.com/Raymer8639/uml4termux/archive/refs/tags/v${TERMUX_PKG_VERSION}.tar.gz
+TERMUX_PKG_SRCURL=https://github.com/michaelamoetoevsky/uml4termux/archive/refs/tags/v${TERMUX_PKG_VERSION}.tar.gz
 # SHA256 placeholder — MUST be filled after the first release!
 # Run: sha256sum <tarball> after creating the GitHub release, then update this line.
 TERMUX_PKG_SHA256=PLACEHOLDER_FILL_AFTER_FIRST_RELEASE
