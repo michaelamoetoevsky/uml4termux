@@ -12,10 +12,16 @@ bukan lagi kumpulan shell exec:
   control socket unix (`$UML4TERMUX_RUNTIME/daemon.sock`, protokol line-JSON),
   client `status|stop`, fork/exec/waitpid supervisor dengan restart policy +
   backoff, `--selftest` (supervise `/bin/sleep` — tanpa boot UML).
-- [ ] A2 **Integrasi UML nyata**: spawn kernel+stub dengan konfigurasi guest
-  (mem/ncpus/seccomp/image), sambungkan console ke log ring, health = proses
-  hidup + heartbeat guest; `guest exec` via control socket (jembatan ke
-  initramfs entry / mconsole).
+- [ ] A2 ✔ **Spawn UML nyata** (inti): config via `UML4TERMUXD_{KERNEL,STUB,
+  IMAGE,INITRAMFS,MEM,NCPUS}`, console guest → `$UML4TERMUX_RUNTIME/
+  uml-console.log`, `status` + kernel/mem/ncpus/uptime, stop SIGTERM→SIGKILL
+  (5 s). Semantik sesi teruji di device: exit 0 (guest `poweroff` setelah
+  payload) = `completed`, TIDAK di-restart; crash = restart backoff (cap 5);
+  exec gagal (126/127) = fatal. CI job `daemon-c` hijau (compile -Werror +
+  selftest runner).
+- [ ] A2b **Guest exec via control socket** (`exec <cmd>`): kanal eksekusi ke
+  dalam guest (kandidat: mconsole `config ubdN=` pasang disk perintah, atau
+  konsol PTY) + `follow` log konsol.
 - [ ] A3 **Integrasi gvproxy**: lifecycle gvproxy dikelola daemon (spawn/stop,
   registry expose port persisten — pindahkan logika supervisor shell ke C).
 - [ ] A4 **Runit**: `$PREFIX/var/service/uml4termux/run` → `exec uml4termuxd
