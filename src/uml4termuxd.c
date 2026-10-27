@@ -34,7 +34,7 @@
 #include <unistd.h>
 
 #define SOCK_PATH_DEFAULT "/data/data/com.termux/files/home/.uml4termux/daemon.sock"
-#define SELFTEST_CHILD "/data/data/com.termux/files/usr/bin/sleep"
+#define SELFTEST_CHILD_DEFAULT "/data/data/com.termux/files/usr/bin/sleep"
 #define RESTART_BACKOFF_S 2
 #define RESTART_MAX 5
 
@@ -246,6 +246,14 @@ static void reap_child(void)
 				logf_("guest session completed; not restarting");
 				return;
 			}
+			/* exec failure (126/127) is a configuration error, not a
+			   guest crash: restarting would loop forever. Give up. */
+			if (WIFEXITED(st) && (WEXITSTATUS(st) == 126 || WEXITSTATUS(st) == 127)) {
+				state_json("failed", detail);
+				logf_("exec/config failure (%s); giving up", detail);
+				g_stop = 1;
+				return;
+			}
 			state_json("exited", detail);
 			g_restarts++;
 			if (g_restarts > RESTART_MAX) {
@@ -359,7 +367,8 @@ static int daemon_main(int selftest)
 	}
 
 	if (selftest) {
-		snprintf(g_child_argv0, sizeof(g_child_argv0), "%s", SELFTEST_CHILD);
+		snprintf(g_child_argv0, sizeof(g_child_argv0), "%s",
+			 env_or("UML4TERMUXD_SELFTEST_CHILD", SELFTEST_CHILD_DEFAULT));
 		logf_("selftest: supervising %s", g_child_argv0);
 	} else {
 		char err[256];

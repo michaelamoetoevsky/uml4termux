@@ -241,6 +241,7 @@ jobs:
             exit 0
           fi
           clang -O2 -Wall -Wextra -Werror -o /tmp/uml4termuxd src/uml4termuxd.c
+          export UML4TERMUXD_SELFTEST_CHILD=/bin/sleep
           /tmp/uml4termuxd daemon --selftest > /tmp/selftest.log 2>&1 &
           dp=$!
           for _ in $(seq 1 20); do
@@ -248,10 +249,12 @@ jobs:
             sleep 0.5
           done
           cat /tmp/status.json
-          /tmp/uml4termuxd stop
+          /tmp/uml4termuxd stop || true
           wait "$dp" || true
-          grep -q '"state":"running"' /tmp/status.json || {
-            echo "status did not report a running child"; exit 1; }
+          if ! grep -q '"state":"running"' /tmp/status.json; then
+            echo "--- selftest.log (daemon) ---"; cat /tmp/selftest.log
+            echo "status did not report a running child"; exit 1
+          fi
           echo "uml4termuxd: compile + selftest OK"
 
   # ---------------------------------------------------------------------------
