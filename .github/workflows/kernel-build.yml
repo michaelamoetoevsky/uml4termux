@@ -87,6 +87,17 @@ jobs:
               || { echo "symbol $s missing after olddefconfig"; exit 1; }
           done
 
+      - name: syncconfig (kconfig-only stage, host gcc)
+        working-directory: ${{ runner.temp }}/ksrc
+        run: |
+          # The build's implicit syncconfig would re-run the kconfig CC check
+          # with the NDK clang (which scripts/cc-version.sh cannot parse), so
+          # regenerate include/config/auto.conf here with the host gcc: the
+          # build then sees it as up to date and never invokes kconfig again.
+          make ARCH=um SUBARCH=arm64 O="$RUNNER_TEMP/out" \
+            HOSTCC=gcc HOSTCXX=g++ CC=gcc \
+            syncconfig
+
       - name: Build (bionic)
         working-directory: ${{ runner.temp }}/ksrc
         run: |
