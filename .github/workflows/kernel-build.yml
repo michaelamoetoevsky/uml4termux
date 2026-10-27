@@ -68,12 +68,18 @@ jobs:
             -e CONFIG_STATIC_LINK -e CONFIG_UML_NET_VECTOR \
             -e CONFIG_NET_9P -e CONFIG_9P_FS
 
-      - name: Install the NDK (r27c, linux-x86_64 tools, bionic sysroot)
+      - name: Install the NDK (r29 = the released harness's toolchain)
         run: |
+          # Toolchain parity matters for the stub: the CI stub built with
+          # r27c lacked .rela.dyn and its codegen differs (156 disasm lines)
+          # from the released stub_exe, and a guest process SIGSEGVs on the
+          # first exec when the r27c stub is used with the CI kernel.  The
+          # released binaries were built with NDK 29.0.14206865, so build
+          # with exactly that toolchain.
           curl -fsSL -o "$RUNNER_TEMP/ndk.zip" \
-            https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
+            https://dl.google.com/android/repository/android-ndk-r29-linux.zip
           unzip -q "$RUNNER_TEMP/ndk.zip" -d "$RUNNER_TEMP/ndk"
-          echo "NDK=$RUNNER_TEMP/ndk/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64" >> "$GITHUB_ENV"
+          echo "NDK=$RUNNER_TEMP/ndk/android-ndk-r29/toolchains/llvm/prebuilt/linux-x86_64" >> "$GITHUB_ENV"
 
       - name: olddefconfig (kconfig-only stage, host gcc)
         working-directory: ${{ runner.temp }}/ksrc
@@ -142,8 +148,14 @@ jobs:
             cp out/linux artifacts/linux-bionic
             "$NDK/bin/llvm-strip" --strip-debug artifacts/linux-bionic || true
           fi
-          STUB=$(find "$RUNNER_TEMP/out" ksrc -name stub_exe -type f 2>/dev/null | head -1)
-          [ -n "$STUB" ] && cp "$STUB" artifacts/stub_exe
+          STUB="$RUNNER_TEMP/out/arch/um/kernel/skas/stub_exe"
+          if [ -f "$STUB" ]; then
+            cp "$STUB" artifacts/stub_exe
+          else
+            echo "WARNING: stub_exe not at the pinned path" >&2
+            find "$RUNNER_TEMP/out" ksrc -name stub_exe -type f 2>/dev/null | head -1 \
+              | { read -r f; [ -n "$f" ] && cp "$f" artifacts/stub_exe; }
+          fi
           cp ksrc/build.log artifacts/ 2>/dev/null || true
           (cd artifacts && sha256sum * > SHA256SUMS || true)
           ls -la artifacts
