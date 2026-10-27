@@ -208,6 +208,17 @@ static int serve_loop(int lfd)
 	return 0;
 }
 
+static const char *sock_path(char *buf, size_t n)
+{
+	const char *rt = getenv("UML4TERMUX_RUNTIME");
+
+	if (rt && *rt)
+		snprintf(buf, n, "%s/daemon.sock", rt);
+	else
+		snprintf(buf, n, "%s", SOCK_PATH_DEFAULT);
+	return buf;
+}
+
 static int daemon_main(int selftest)
 {
 	struct sockaddr_un addr;
@@ -223,7 +234,7 @@ static int daemon_main(int selftest)
 		return 2;
 	}
 
-	snprintf(g_sockpath, sizeof(g_sockpath), "%s", SOCK_PATH_DEFAULT);
+	sock_path(g_sockpath, sizeof(g_sockpath));
 	snprintf(g_statepath, sizeof(g_statepath), "%s.state", g_sockpath);
 	{
 		char dirbuf[512];
@@ -271,7 +282,7 @@ static int client_main(const char *cmd)
 	char buf[512];
 	ssize_t n;
 
-	snprintf(g_sockpath, sizeof(g_sockpath), "%s", SOCK_PATH_DEFAULT);
+	sock_path(g_sockpath, sizeof(g_sockpath));
 	fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (fd < 0) {
 		fprintf(stderr, "socket: %s\n", strerror(errno));

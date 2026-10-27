@@ -232,6 +232,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Compile src/uml4termuxd.c with warnings as errors
+        env:
+          UML4TERMUX_RUNTIME: ${{ runner.temp }}
         run: |
           set -euo pipefail
           if [ ! -f src/uml4termuxd.c ]; then
@@ -241,12 +243,15 @@ jobs:
           clang -O2 -Wall -Wextra -Werror -o /tmp/uml4termuxd src/uml4termuxd.c
           /tmp/uml4termuxd daemon --selftest > /tmp/selftest.log 2>&1 &
           dp=$!
-          sleep 1
-          /tmp/uml4termuxd status
+          for _ in $(seq 1 20); do
+            /tmp/uml4termuxd status >/tmp/status.json 2>/dev/null && break
+            sleep 0.5
+          done
+          cat /tmp/status.json
           /tmp/uml4termuxd stop
           wait "$dp" || true
-          grep -q '"state":"running"' /tmp/selftest.log || {
-            echo "selftest log did not show a running state"; exit 1; }
+          grep -q '"state":"running"' /tmp/status.json || {
+            echo "status did not report a running child"; exit 1; }
           echo "uml4termuxd: compile + selftest OK"
 
   # ---------------------------------------------------------------------------
