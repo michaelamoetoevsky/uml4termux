@@ -71,22 +71,26 @@ jobs:
           unzip -q "$RUNNER_TEMP/ndk.zip" -d "$RUNNER_TEMP/ndk"
           echo "NDK=$RUNNER_TEMP/ndk/android-ndk-r27c/toolchains/llvm/prebuilt/linux-x86_64" >> "$GITHUB_ENV"
 
-      - name: Build (bionic)
+      - name: olddefconfig (kconfig-only stage, host gcc)
         working-directory: ${{ runner.temp }}/ksrc
         run: |
-          set -euo pipefail
+          # scripts/cc-version.sh cannot parse the NDK clang's Android version
+          # string ("Android (...based on clang r...) clang version ..."), so
+          # the kconfig stage runs with the host gcc.  The options we need
+          # (CPUSETS, BLK_CGROUP, THROTTLING, MODULES) are compiler-
+          # independent; the build below uses the NDK clang.
           make ARCH=um SUBARCH=arm64 O="$RUNNER_TEMP/out" \
-            HOSTCC=gcc HOSTCXX=g++ \
-            CC="$NDK/bin/clang --target=aarch64-linux-android30" \
-            LD="$NDK/bin/ld.lld" AR="$NDK/bin/llvm-ar" NM="$NDK/bin/llvm-nm" \
-            OBJCOPY="$NDK/bin/llvm-objcopy" OBJDUMP="$NDK/bin/llvm-objdump" \
-            READELF="$NDK/bin/llvm-readelf" STRIP="$NDK/bin/llvm-strip" \
-            LLVM_IAS=1 CLANG_TARGET_FLAGS=aarch64-linux-android30 \
+            HOSTCC=gcc HOSTCXX=g++ CC=gcc \
             olddefconfig
           for s in CPUSETS BLK_CGROUP BLK_DEV_THROTTLING MODULES SMP; do
             grep -E "^CONFIG_${s}=" "$RUNNER_TEMP/out/.config" \
               || { echo "symbol $s missing after olddefconfig"; exit 1; }
           done
+
+      - name: Build (bionic)
+        working-directory: ${{ runner.temp }}/ksrc
+        run: |
+          set -euo pipefail
           make ARCH=um SUBARCH=arm64 O="$RUNNER_TEMP/out" \
             HOSTCC=gcc HOSTCXX=g++ \
             CC="$NDK/bin/clang --target=aarch64-linux-android30" \
