@@ -41,7 +41,11 @@ env:
 
 jobs:
   bionic:
-    runs-on: ubuntu-24.04-arm
+    # x86_64 runner: the official NDK only ships linux-x86_64 host tools, and
+    # this is a CROSS-compile -- the build never executes the aarch64-bionic
+    # output.  (An arm64 runner cannot run the x86_64 NDK clang: "clang: 1:
+    # Syntax error" from sh trying to interpret the ELF.)
+    runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:
       - name: Checkout uml4termux (config + scripts)
