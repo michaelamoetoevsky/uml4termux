@@ -87,6 +87,23 @@ jobs:
               || { echo "symbol $s missing after olddefconfig"; exit 1; }
           done
 
+      - name: Make the kconfig version checks NDK-tolerant
+        working-directory: ${{ runner.temp }}/ksrc
+        run: |
+          # scripts/cc-version.sh (and its as/ld siblings) parse `$CC --version`
+          # with regexes that miss the NDK clang's "Android (...) based on
+          # clang r... clang version 18.0.3" string, which kills every
+          # kconfig invocation (olddefconfig AND implicit syncconfig).
+          # Replace them with stubs reporting clang 18: the kconfig gates only
+          # need a parseable name+version; the real compile flags are passed
+          # explicitly below.  CI-only: the stubs live in the runner clone.
+          for f in scripts/cc-version.sh scripts/as-version.sh scripts/ld-version.sh; do
+            if [ -f "$f" ]; then
+              printf '#!/bin/sh\necho clang 18 0 3\n' > "$f"
+              chmod +x "$f"
+            fi
+          done
+
       - name: syncconfig (kconfig-only stage, host gcc)
         working-directory: ${{ runner.temp }}/ksrc
         run: |
