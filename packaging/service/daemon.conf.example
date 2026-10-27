@@ -1,0 +1,20 @@
+# uml4termuxd service configuration (KEY=VALUE, sourced by the runit run
+# script with auto-export). Copy to ~/.uml4termux/daemon.conf and edit.
+
+# Guest assets (required). The 0.3.0 kernel + stub come from the project
+# release; the disk image + alpine base initramfs from the upstream release.
+UML4TERMUXD_KERNEL="$HOME/.uml4termux/assets/linux-bionic"
+UML4TERMUXD_STUB="$HOME/.uml4termux/assets/stub_exe"
+UML4TERMUXD_IMAGE="$HOME/.uml4termux/assets/debian-docker.ext4"
+UML4TERMUXD_INITRAMFS="$HOME/.uml4termux/assets/initramfs-docker.cpio.gz"
+
+# Guest sizing
+UML4TERMUXD_MEM="1024M"
+UML4TERMUXD_NCPUS="4"
+
+# Networking (gvproxy spawned and supervised by the daemon)
+UML4TERMUXD_GVPROXY="$HOME/.uml4termux/assets/gvproxy"
+UML4TERMUXD_BESS="$HOME/.uml4termux/runtime/bess.sock"
+
+# Daemon runtime dir (control socket, console log, exposures registry)
+UML4TERMUX_RUNTIME="$HOME/.uml4termux/runtime"

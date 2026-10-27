@@ -1,0 +1,33 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# uml4termuxd — runit run script (roadmap A4).
+#
+# The UML guest as a supervised binary service: runit restarts this run file,
+# the run file execs the daemon, the daemon supervises kernel + gvproxy.
+#
+# Configuration lives in ~/.uml4termux/daemon.conf (KEY=VALUE, auto-exported):
+#   UML4TERMUXD_KERNEL, UML4TERMUXD_STUB, UML4TERMUXD_IMAGE,
+#   UML4TERMUXD_INITRAMFS, UML4TERMUXD_MEM, UML4TERMUXD_NCPUS,
+#   UML4TERMUXD_GVPROXY, UML4TERMUXD_BESS, UML4TERMUX_RUNTIME
+#
+# SPDX-License-Identifier: GPL-2.0-only
+set -u
+
+DAEMON_BIN="${UML4TERMUXD_BIN:-$HOME/.uml4termux/bin/uml4termuxd}"
+CONF="${UML4TERMUXD_CONF:-$HOME/.uml4termux/daemon.conf}"
+
+[ -x "$DAEMON_BIN" ] || { echo "uml4termuxd not found: $DAEMON_BIN" >&2; exit 1; }
+
+if [ -f "$CONF" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$CONF"
+    set +a
+fi
+
+export UML4TERMUX_RUNTIME="${UML4TERMUX_RUNTIME:-$HOME/.uml4termux/runtime}"
+mkdir -p "$UML4TERMUX_RUNTIME"
+
+# keep the CPU awake while the guest runs (dropped automatically on exit)
+command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock
+
+exec "$DAEMON_BIN" daemon

@@ -61,6 +61,11 @@ static int g_ptym = -1;        /* PTY master: guest console lives here */
 static int g_logfd = -1;       /* console log file fd */
 static pid_t g_gvproxy_pid = -1;
 static int g_exec_seq;
+static char g_exposures[512];  /* A3b: registry file (JSONL) */
+static char g_gvapi[512];      /* gvproxy unix API socket path */
+
+/* fixed gvproxy DHCP topology (verified across all runs) */
+#define GUEST_IP "192.168.127.2"
 
 static const char *env_or(const char *name, const char *def)
 {
@@ -154,13 +159,155 @@ static void state_json(const char *phase, const char *detail)
 
 static void stop_gvproxy(void)
 {
-	if (g_gvproxy_pid > 0) {
-		kill(g_gvproxy_pid, SIGTERM);
-		waitpid(g_gvproxy_pid, NULL, 0);
-		logf_("gvproxy stopped");
-		g_gvproxy_pid = -1;
+	int i;
+
+	if (g_gvproxy_pid <= 0)
+		return;
+	/* The child called setsid() before exec'ing (possibly via proot, whose
+	   tracee would survive a bare kill of the proot pid): signal the whole
+	   process GROUP, then escalate to SIGKILL for the group too. */
+	kill(-g_gvproxy_pid, SIGTERM);
+	for (i = 0; i < 10; i++) {
+		if (waitpid(g_gvproxy_pid, NULL, WNOHANG) != 0)
+			break;
+		usleep(200000);
 	}
+	if (waitpid(g_gvproxy_pid, NULL, WNOHANG) == 0) {
+		logf_("gvproxy group ignored SIGTERM, SIGKILL");
+		kill(-g_gvproxy_pid, SIGKILL);
+		waitpid(g_gvproxy_pid, NULL, 0);
+	}
+	logf_("gvproxy stopped");
+	g_gvproxy_pid = -1;
 }
+
+/* ---- A3b: port exposure registry (JSONL) + gvproxy unix-HTTP client ---- */
+
+static int unix_http(const char *sockpath, const char *req,
+		     char *resp, size_t rlen)
+{
+	struct sockaddr_un addr;
+	int fd, rc;
+	ssize_t n;
+	size_t got = 0;
+	struct pollfd pfd;
+
+	fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0)
+		return -1;
+	memset(&addr, 0, sizeof(addr));
+	addr.sun_family = AF_UNIX;
+	strncpy(addr.sun_path, sockpath, sizeof(addr.sun_path) - 1);
+	if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+		close(fd);
+		return -1;
+	}
+	if (write(fd, req, strlen(req)) < 0) {
+		close(fd);
+		return -1;
+	}
+	pfd.fd = fd;
+	pfd.events = POLLIN;
+	for (;;) {
+		rc = poll(&pfd, 1, 4000);
+		if (rc <= 0)
+			break;
+		n = read(fd, resp + got, rlen - 1 - got);
+		if (n <= 0)
+			break;
+		got += (size_t)n;
+		if (got >= rlen - 1)
+			break;
+	}
+	close(fd);
+	resp[got] = '\0';
+	return got > 0 ? 0 : -1;
+}
+
+static int do_expose(const char *hport, const char *gport, char *err, size_t errn)
+{
+	char local[64], remote[64], json[256], req[512], resp[1024];
+
+	snprintf(local, sizeof(local), "127.0.0.1:%s", hport);
+	snprintf(remote, sizeof(remote), "%s:%s", GUEST_IP, gport);
+	snprintf(json, sizeof(json),
+		 "{\"local\":\"%s\",\"remote\":\"%s\"}", local, remote);
+	snprintf(req, sizeof(req),
+		 "POST /services/forwarder/expose HTTP/1.1\r\n"
+		 "Host: unix\r\nContent-Type: application/json\r\n"
+		 "Content-Length: %zu\r\nConnection: close\r\n\r\n%s",
+		 strlen(json), json);
+	if (unix_http(g_gvapi, req, resp, sizeof(resp)) != 0) {
+		snprintf(err, errn, "gvproxy API unreachable");
+		return -1;
+	}
+	if (!strstr(resp, "200")) {
+		snprintf(err, errn, "gvproxy rejected: %.80s", resp);
+		return -1;
+	}
+	logf_("exposed %s -> %s", local, remote);
+	return 0;
+}
+
+static void save_exposure(const char *hport, const char *gport)
+{
+	char line[192], tmp[600];
+	FILE *f;
+
+	/* de-dup: drop an existing entry for the same host port */
+	snprintf(line, sizeof(line), "\"local\":\"127.0.0.1:%s\"", hport);
+	snprintf(tmp, sizeof(tmp), "%s.tmp", g_exposures);
+	{
+		FILE *in = fopen(g_exposures, "r");
+		FILE *out = fopen(tmp, "w");
+		char buf[256];
+
+		if (out) {
+			if (in) {
+				while (fgets(buf, sizeof(buf), in))
+					if (!strstr(buf, line))
+						fputs(buf, out);
+				fclose(in);
+			}
+			fprintf(out, "{\"local\":\"127.0.0.1:%s\",\"remote\":\"%s:%s\"}\n",
+				hport, GUEST_IP, gport);
+			fclose(out);
+			rename(tmp, g_exposures);
+		}
+	}
+	f = fopen(g_exposures, "a");
+	(void)f; /* entry appended via the tmp+rename above */
+}
+
+static void reapply_exposures(void)
+{
+	FILE *f;
+	char buf[256];
+	int n = 0;
+
+	f = fopen(g_exposures, "r");
+	if (!f)
+		return;
+	while (fgets(buf, sizeof(buf), f)) {
+		char *lp = strstr(buf, "\"local\":\"127.0.0.1:");
+		char *rp = strstr(buf, "\"remote\":\"" GUEST_IP ":");
+		char hport[32] = "", gport[32] = "";
+		char err[128];
+
+		if (!lp || !rp)
+			continue;
+		sscanf(lp + strlen("\"local\":\"127.0.0.1:"), "%31[^\":]", hport);
+		sscanf(rp + strlen("\"remote\":\"" GUEST_IP ":"), "%31[^\":]", gport);
+		if (do_expose(hport, gport, err, sizeof(err)) == 0)
+			n++;
+		else
+			logf_("re-expose %s->%s failed: %s", hport, gport, err);
+	}
+	fclose(f);
+	if (n)
+		logf_("re-applied %d exposure(s) from the registry", n);
+}
+/* ---- end A3b ---- */
 
 /* spawn gvproxy (A3) when configured; wait for the bess socket. */
 static int spawn_gvproxy(void)
@@ -216,6 +363,7 @@ static int spawn_gvproxy(void)
 
 		if (stat(g_bess, &st) == 0 && S_ISSOCK(st.st_mode)) {
 			logf_("gvproxy up pid=%d bess=%s", (int)pid, g_bess);
+			snprintf(g_gvapi, sizeof(g_gvapi), "%s.gv.sock", g_bess);
 			return 0;
 		}
 		usleep(100000);
@@ -436,6 +584,48 @@ static void handle_client(int fd)
 				respond(fd, resp);
 			}
 		}
+	} else if (strncmp(req, "expose ", 7) == 0) {
+		char hport[32] = "", gport[32] = "";
+		char err[128];
+
+		if (g_gvproxy_pid <= 0) {
+			respond(fd, "{\"error\":\"gvproxy not running\"}\n");
+		} else if (sscanf(req + 7, "%31s %31s", hport, gport) != 2) {
+			respond(fd, "{\"error\":\"usage: expose <host-port> <guest-port>\"}\n");
+		} else if (do_expose(hport, gport, err, sizeof(err)) != 0) {
+			snprintf(resp, sizeof(resp), "{\"error\":\"%s\"}\n", err);
+			respond(fd, resp);
+		} else {
+			save_exposure(hport, gport);
+			snprintf(resp, sizeof(resp),
+				 "{\"exposed\":\"127.0.0.1:%s -> %s:%s\"}\n",
+				 hport, GUEST_IP, gport);
+			respond(fd, resp);
+		}
+	} else if (strncmp(req, "ports", 5) == 0) {
+		char list[2048] = "";
+		FILE *in = fopen(g_exposures, "r");
+		char buf[256];
+
+		if (in) {
+			while (fgets(buf, sizeof(buf), in)) {
+				if (strlen(list) + strlen(buf) >= sizeof(list) - 1)
+					break;
+				strncat(list, buf, strlen(buf));
+			}
+			fclose(in);
+		}
+		{
+			size_t l = strlen(list);
+
+			while (l > 0 && (list[l - 1] == '\n' || list[l - 1] == '\r' ||
+					 list[l - 1] == ' ' || list[l - 1] == ',')) {
+				list[--l] = '\0';
+			}
+		}
+		snprintf(resp, sizeof(resp), "{\"exposures\":[%s]}\n",
+			 strlen(list) ? list : "");
+		respond(fd, resp);
 	} else {
 		respond(fd, "{\"error\":\"unknown command\"}\n");
 	}
@@ -545,6 +735,9 @@ static int daemon_main(int selftest)
 				"uml4termuxd: gvproxy failed to start (see log)\n");
 			return 2;
 		}
+		snprintf(g_exposures, sizeof(g_exposures), "%s/exposures.jsonl",
+			 dirname(g_statepath));
+		reapply_exposures();
 	}
 
 	sock_path(g_sockpath, sizeof(g_sockpath));
@@ -635,6 +828,14 @@ int main(int argc, char **argv)
 		return daemon_main(argc >= 3 && strcmp(argv[2], "--selftest") == 0);
 	if (argc >= 2 && (strcmp(argv[1], "status") == 0 || strcmp(argv[1], "stop") == 0))
 		return client_main(argv[1]);
+	if (argc >= 2 && strcmp(argv[1], "ports") == 0)
+		return client_main("ports");
+	if (argc >= 4 && strcmp(argv[1], "expose") == 0) {
+		char pair[128];
+
+		snprintf(pair, sizeof(pair), "%s %s", argv[2], argv[3]);
+		return client_line(pair, "expose ");
+	}
 	if (argc >= 3 && strcmp(argv[1], "exec") == 0) {
 		/* join argv[2..] into one command line for the console agent */
 		char joined[900];
@@ -705,6 +906,8 @@ int main(int argc, char **argv)
 		"usage: uml4termuxd daemon [--selftest]\n"
 		"       uml4termuxd status|stop\n"
 		"       uml4termuxd exec <command...>   run inside the guest console\n"
-		"       uml4termuxd console [lines]     tail the guest console log\n");
+		"       uml4termuxd console [lines]     tail the guest console log\n"
+		"       uml4termuxd expose <hport> <gport>  publish a guest port on the phone loopback\n"
+		"       uml4termuxd ports               list persistent port exposures\n");
 	return 64;
 }

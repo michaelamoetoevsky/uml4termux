@@ -31,6 +31,20 @@ bukan lagi kumpulan shell exec:
   bersih tanpa proses yatim. Sisa: registry expose port persisten (A3b).
 - [ ] A4 **Runit**: `$PREFIX/var/service/uml4termux/run` → `exec uml4termuxd
   daemon`; `uml4termux service` CLI bicara ke daemon, bukan lagi ke shell.
+- [ ] A3b ✔ **Registry expose port persisten**: `expose <hport> <gport>` /
+  `ports` via control socket; daemon memanggil API unix gvproxy langsung
+  (HTTP-over-unix di C, tanpa libcurl), registry JSONL di runtime dir,
+  **re-applied otomatis saat daemon restart** — teruji: expose → curl loopback
+  `gvproxy-bess-ok` → restart daemon → `re-applied 1 exposure(s)` → curl
+  langsung jalan lagi tanpa intervensi.
+- [x] A4 ✔ **Runit**: `packaging/service/{run.uml4termuxd,log.run,
+  daemon.conf.example,README.md}` — run script exec daemon (conf
+  `~/.uml4termux/daemon.conf` auto-export, wake-lock, runtime dir). Teruji di
+  device dengan service uji `uml4d-test`: boot guest di bawah runit, `sv down`
+  → daemon exit 1 s + **0 proses yatim**. Bug ditemukan & diperbaiki: gvproxy
+  via proot selamat dari kill pid tunggal (tracee proot jadi yatim) →
+  shutdown kini mem-bunuh **process group** (`setsid()` + `kill(-pid)`,
+  eskalasi SIGKILL berbatas waktu).
 - [ ] A5 **Packaging**: binary di release 0.4.0 + dibangun di CI (runner
   ubuntu + NDK clang, target bionic — pola sama dengan kernel-build).
 

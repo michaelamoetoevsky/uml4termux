@@ -1,0 +1,3 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# uml4termuxd log service: pipe the daemon's stderr into svlogd.
+exec svlogd -ttt @PREFIX@/var/log/sv/uml4termuxd
