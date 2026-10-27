@@ -224,6 +224,32 @@ jobs:
           echo "::notice title=SKIP::no shell files present yet -- bash -n and shellcheck skipped"
 
   # ---------------------------------------------------------------------------
+  daemon-c:
+    name: c (uml4termuxd compile check)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile src/uml4termuxd.c with warnings as errors
+        run: |
+          set -euo pipefail
+          if [ ! -f src/uml4termuxd.c ]; then
+            echo "::notice title=SKIP::src/uml4termuxd.c not present yet"
+            exit 0
+          fi
+          clang -O2 -Wall -Wextra -Werror -o /tmp/uml4termuxd src/uml4termuxd.c
+          /tmp/uml4termuxd daemon --selftest > /tmp/selftest.log 2>&1 &
+          dp=$!
+          sleep 1
+          /tmp/uml4termuxd status
+          /tmp/uml4termuxd stop
+          wait "$dp" || true
+          grep -q '"state":"running"' /tmp/selftest.log || {
+            echo "selftest log did not show a running state"; exit 1; }
+          echo "uml4termuxd: compile + selftest OK"
+
+  # ---------------------------------------------------------------------------
   python:
     name: python (compile + initramfs generator test)
     runs-on: ubuntu-latest
