@@ -71,8 +71,14 @@ bukan lagi kumpulan shell exec:
     port ini tidak membuat header sendiri. Teruji: boot matrix + boot docker
     penuh (dockerd/pull/containers) dengan hash image 3 GB **identik
     sebelum/sesudah** — semua tulisan tamu hanya menyentuh COW.
-- [ ] B3 **Multi-guest**: daemon mengelola >1 guest dengan label (matriks:
-  memori HP vs mem=256M per guest; batas phantom-killer Android).
+- [x] B3 ✔ **Multi-guest**: tanpa perubahan kode — seluruh state sudah
+  per-instance via env (`UML4TERMUX_RUNTIME` = socket kontrol + state,
+  `UML4TERMUXD_BESS` = data plane, `UML4TERMUXD_COW`, `UML4TERMUXD_MEM`);
+  semua socket data plane = unix sehingga tak ada bentrok TCP. Teruji di
+  device: 2 daemon × guest 256M menjalankan matriks 27 poin **simultan**
+  (27/27 masing-masing), stop bersih, 0 proses yatim. Pola terdokumentasi
+  di `packaging/service/daemon.conf.example`; batasan anggaran (RAM + port
+  host loopback) di `docs/KNOWN-LIMITS.md`.
 
 ## C. Kapabilitas
 

@@ -18,3 +18,12 @@ UML4TERMUXD_BESS="$HOME/.uml4termux/runtime/bess.sock"
 
 # Daemon runtime dir (control socket, console log, exposures registry)
 UML4TERMUX_RUNTIME="$HOME/.uml4termux/runtime"
+
+# --- Multi-guest (B3): every knob above is per-instance.  A second guest =
+# a second daemon process with its own runtime dir, BESS socket and COW:
+#   UML4TERMUX_RUNTIME="$HOME/.uml4termux/runtime-b" \
+#   UML4TERMUXD_BESS="$HOME/.uml4termux/runtime-b/bess.sock" \
+#   UML4TERMUXD_COW="$HOME/.uml4termux/runtime-b/g.cow" \
+#   UML4TERMUXD_MEM=256M ./bin/uml4termuxd daemon
+# All data-plane sockets are unix (no TCP conflicts); keep exposed HOST ports
+# distinct per instance when both publish to the phone loopback.

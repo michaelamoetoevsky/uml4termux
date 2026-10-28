@@ -38,6 +38,13 @@ permissions:
 
 env:
   KSRC: https://github.com/Raymer8639/linux-um-arm64
+  # C5b: pin every clock/identity input the kernel embeds in its version
+  # string.  Without these the kernel hash changes on every build (the only
+  # reason the v0.4.0 CI kernel differs from v0.3.0's).  With them, two
+  # builds from the same pinned commit are byte-identical.
+  KBUILD_BUILD_TIMESTAMP: "Thu Oct 23 23:21:58 UTC 2026"
+  KBUILD_BUILD_USER: uml4termux
+  KBUILD_BUILD_HOST: pinned-source
 
 jobs:
   bionic:

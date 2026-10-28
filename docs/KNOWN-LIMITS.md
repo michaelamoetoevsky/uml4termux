@@ -74,11 +74,18 @@ this project.
   [FORENSICS.md §8](FORENSICS.md#8-the-solution-gvproxy-over-the-bess-transport).
 - **gvproxy must be restarted for every guest run.** It exits when the BESS peer
   disconnects (`cannot receive packets from @ ... EOF`). Not a daemon.
+  (The daemon supervises this automatically: it spawns gvproxy per guest
+  session and re-applies the persisted exposures from `exposures.jsonl`.)
 - **Port forwards do not persist.** After each gvproxy restart, every
   `POST /services/forwarder/expose` must be re-issued.
 - **Forwards are one-to-one, by hand.** Expose the exact guest port a container
   published. There is no "expose all published ports" and no port-range syntax in
   this workflow.
+- **Multi-guest works as N daemon instances (B3, device-verified).** All
+  data-plane sockets are unix (BESS + control + gvproxy API), so two guests
+  never collide on TCP; verified with 2 × 256M guests completing the 27-point
+  matrix simultaneously. Budgets stay per-instance: RAM (kernel `mem=` +
+  dockerd), and exposed HOST loopback ports must be distinct across instances.
 - **gvproxy needs `/etc/resolv.conf`**, which Android lacks; it must run under
   `proot -b $PREFIX/etc:/etc` or DNS resolution is dead.
 - **Handover is untested.** WiFi↔cellular roaming was not exercised; do not assume
