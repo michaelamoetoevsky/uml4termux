@@ -13,7 +13,7 @@ TERMUX_PKG_HOMEPAGE=https://github.com/michaelamoetoevsky/uml4termux
 TERMUX_PKG_DESCRIPTION="Run UML (User-Mode Linux) arm64 + rootless Docker on Termux/Android"
 TERMUX_PKG_LICENSE="GPL-2.0-only"
 TERMUX_PKG_MAINTAINER="uml4termux maintainers <michaelamoetoevsky@users.noreply.github.com>"
-TERMUX_PKG_VERSION="0.3.0"
+TERMUX_PKG_VERSION="0.4.0"
 # TERMUX_PKG_VERSION is normally a literal for the package index.
 # The source of truth is the VERSION file in the repo root.
 # When submitting to termux-packages, update this to match the release tag.
@@ -21,9 +21,9 @@ TERMUX_PKG_VERSION="0.3.0"
 
 # GitHub release tarball (update owner/repo if the canonical location changes)
 TERMUX_PKG_SRCURL=https://github.com/michaelamoetoevsky/uml4termux/archive/refs/tags/v${TERMUX_PKG_VERSION}.tar.gz
-# SHA256 of the v0.3.0 release tarball (from the release's digest field;
+# SHA256 of the v0.4.0 release tarball (from the release's digest field;
 # make-dist is byte-reproducible across toolchains).
-TERMUX_PKG_SHA256=f7ac1d2ada17ad9963b92bf3d6316f3e4c55d6b855bd530471730bdacc092f1c
+TERMUX_PKG_SHA256=da948df28805e44c535d66b7346fe63ab93d19f86d51b16c50356630cc7fd1e6
 
 # Architecture: aarch64 only (UML arm64 + bionic stub requires arm64 host)
 TERMUX_PKG_EXCLUDED_ARCHES="arm, i686, x86_64"

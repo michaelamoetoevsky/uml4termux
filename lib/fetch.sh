@@ -152,7 +152,7 @@ EOF
 }
 
 cmd_fetch() {
-  local only="kernel,stub,disk,base,gvproxy,sums" no_sums=0
+  local only="kernel,stub,daemon,disk,base,gvproxy,sums" no_sums=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --force)        UML4TERMUX_FORCE=1 ;;
@@ -207,6 +207,9 @@ cmd_fetch() {
   esac
   case "${wanted}" in
     *,stub,*)    fetch_one stub           "${UML4TERMUX_STUB_FILE}"            "${UML4TERMUX_STUB_URL}"            "${sums}" || rc=1 ;;
+  esac
+  case "${wanted}" in
+    *,daemon,*)  fetch_one daemon         "${UML4TERMUXD_FILE}"                "${UML4TERMUXD_URL}"                "${sums}" || rc=1 ;;
   esac
   case "${wanted}" in
     *,disk,*)    fetch_one disk-gz        "${UML4TERMUX_DISK_GZ_FILE}"         "${UML4TERMUX_DISK_URL}"            "${sums}" || rc=1 ;;
