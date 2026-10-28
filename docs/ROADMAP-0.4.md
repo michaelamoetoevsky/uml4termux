@@ -119,11 +119,13 @@ bukan lagi kumpulan shell exec:
 - [x] D3 ✔ **Dokumentasi pengguna baru**: "Daemon quickstart" di README
   (install → daemon → docker run + tabel knob) + pola multi-guest;
   raw quickstart lama dipertahankan sebagai "verified mechanics".
-- [ ] C3 **Akselerasi jaringan** (dibuka ulang sebagai *baseline + isu*):
-  baseline pull pertama tercatat (alpine 29–33 s fresh, manifest-only 10 s;
-  `evidence/20261029-cap12-c3-network.json`) — namun **path exposure inbound
-  gagal di boot ini** (tiap koneksi baru menerima banner `gvproxy-bess-ok`
-  15 byte dan ditutup; outbound NAT baik-baik saja). Kontradiktif dengan
-  sukses inbound cap8 (27 Okt) → isu terbuka dengan hipotesis (semantik
-  banner-backend-tak-terjangkau vs regresi boot COW/bess-path); langkah
-  berikut: `ip neigh` tamu + capture stream bess + bandingkan config boot.
+- [x] C3 ✔ **Akselerasi jaringan — baseline dua arah terukur, isu "banner"
+  larut**: baseline pull pertama di-repo (alpine:3.19 29 s, :3.20 33 s,
+  manifest-only busybox 10 s — `evidence/20261029-cap12-c3-network.json`);
+  throughput path exposure **phone→gvproxy→bess→guest→docker→container**:
+  24 MB dalam 3 s (≈8 MB/s) dan 2 s (≈12 MB/s floor) —
+  `evidence/20261029-cap13-c3-resolved.json`. **Akar "isu" cap12**: tabrakan
+  port dengan container demo milik `docker-init.sh` (`web` menempati guest
+  8123 tiap boot; konten halamannya persis string `gvproxy-bess-ok`, 15 byte
+  — string itu TIDAK ada di binary gvproxy). Inbound tidak pernah rusak;
+  catatan batasan: tes port-forward wajib memakai port selain 8123.

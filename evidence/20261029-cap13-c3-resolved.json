@@ -1,0 +1,57 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261029-cap13-c3-resolved",
+ "project_version": "0.4.0",
+ "generated_at": "2026-10-29T05:30:00+07:00",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "7.2.0-rc4-g169b17ff3f66",
+  "pinned_commit": "169b17ff3f66d507cb137b770ceb1fd9f4547a32",
+  "build": "GitHub Actions release v0.4.0 asset linux-bionic",
+  "mode": "seccomp",
+  "ncpus": 4
+ },
+ "capabilities": {
+  "boot": {
+   "ok": true,
+   "evidence": "CI kernel+stub boots the docker flow via the daemon to WEB_UP_MARKER in ~40 s (COW boot, clean poweroff at stop)."
+  },
+  "c3_inbound_throughput": {
+   "ok": true,
+   "evidence": "RESOLVED -- the 20261029-cap12 'gvproxy-bess-ok banner' anomaly was a port collision with the image's own demo web container (docker-init.sh starts it on guest 8123; its page content is literally 'gvproxy-bess-ok', 15 bytes; the binary gvproxy does not contain the string). With the test container on a DISTINCT published port (8124:80), the inbound path phone->gvproxy->bess->guest->dockerDNAT->container transferred 25165824 bytes twice: 3 s (~8.0 MB/s) and 2 s (~12 MB/s floor). Pull baseline from cap12 stands (alpine 29-33 s fresh)."
+  },
+  "c3_pull_baseline": {
+   "ok": true,
+   "evidence": "See 20261029-cap12-c3-network.json: fresh alpine:3.19 29 s, alpine:3.20 33 s, manifest-only busybox:1.36 10 s (bess path, registry latency included)."
+  }
+ },
+ "observed": {
+  "throughput_MBps": [
+   8.0,
+   12.0
+  ],
+  "payload_bytes": 25165824,
+  "web_container_port": "0.0.0.0:8123->80/tcp (docker-init.sh demo, restart policy 'no', started by init script)",
+  "resolution": "port 8123 collision; inbound exposure path never broken"
+ },
+ "artifacts": [
+  {
+   "kind": "console-log",
+   "path": "logs/20261029-cap13-c3-resolved.log",
+   "sha256": "ae8c5d159565ae10593a80ce68b5b4c322cdfd8832988ba1a27b083ba32bb48a"
+  }
+ ],
+ "known_limits_observed": [
+  "the docker-init.sh demo web container owns guest port 8123 on every boot -- tests must use other ports"
+ ],
+ "notes": "C3 closed: throughput measured on both directions of interest; the earlier open issue was a self-inflicted test collision, not a gvproxy regression. Cross-check: 'strings' on the gvproxy binary contains no 'gvproxy-bess-ok'.",
+ "verdict": "pass"
+}
