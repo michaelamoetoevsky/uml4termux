@@ -35,6 +35,11 @@ tmp/
 .DS_Store
 *.swp
 *.swo
-*~ci-kernel-artifact*/
+*~
+
+# CI kernel artifacts: never track the binaries; releases carry them
+ci-kernel-artifact*/
+
+# curated evidence logs (C5) — must come after any *.log rule
 !evidence/logs/
 !evidence/logs/*.log
