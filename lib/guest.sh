@@ -184,7 +184,7 @@ guest_boot() {
   for i in 1 2 3 4 5; do
     sleep 1
     pid="$(uml4termux_read_pid uml)"
-    if ! uml4termux_pid_alive "${pid}"; then
+    if ! uml4termux_pid_alive "${pid}" "linux-bionic"; then
       err "the UML kernel exited within ${i}s of start"
       uml4termux_tail "${log}" 25
       return 1
@@ -208,7 +208,7 @@ guest_wait_marker() {
       return 0
     fi
     pid="$(uml4termux_read_pid uml)"
-    if ! uml4termux_pid_alive "${pid}"; then
+    if ! uml4termux_pid_alive "${pid}" "linux-bionic"; then
       err "the UML kernel exited before '${marker}' appeared"
       uml4termux_tail "${log}" 25
       return 1

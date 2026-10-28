@@ -6,9 +6,8 @@
 Send the details to the project maintainer privately:
 
 - **GitHub Security Advisories**: use the "Report a vulnerability" button on the
-  repository's Security tab.
-- **Email**: security@uml4termux.example (placeholder — replace when a real
-  address is configured).
+  repository's Security tab (private disclosure; no email channel is offered
+  for security reports).
 
 Include:
 

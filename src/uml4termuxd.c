@@ -773,6 +773,17 @@ static int daemon_main(int selftest)
 	signal(SIGINT, on_sigint);
 	signal(SIGTERM, on_sigterm);
 	signal(SIGCHLD, on_sigchld);
+	/* SIGCHLD handler uses a flag + 500 ms poll timeout (no lost wakeup);
+	   SA_NOCLDSTOP keeps stop notifications from setting the flag. */
+	{
+		struct sigaction sa;
+
+		memset(&sa, 0, sizeof(sa));
+		sa.sa_handler = on_sigchld;
+		sa.sa_flags = SA_NOCLDSTOP | SA_RESTART;
+		sigaction(SIGCHLD, &sa, NULL);
+	}
+	umask(0077); /* socket + state files: owner-only, before bind() */
 
 	if (spawn_child() != 0) {
 		close(lfd);

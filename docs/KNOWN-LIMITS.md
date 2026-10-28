@@ -114,6 +114,11 @@ this project.
 
 ## Guest and container runtime
 
+- **Docker runs as root INSIDE the guest.** This is not Docker "Rootless
+  Mode": `dockerd` runs as guest-root, and the guest kernel is the isolation
+  layer. That never grants Android host root (the UML process runs as the
+  Termux app uid), but it is a different threat model from a rootless Docker
+  daemon — do not describe it as rootless Docker to users.
 - **systemd / OpenRC as PID 1 are out.** OpenRC as PID 1 hangs under this port.
   Distributions that require a systemd PID 1 (Fedora/RHEL-family defaults, many
   desktop-oriented images) need their own init or are simply not usable. A minimal

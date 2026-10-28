@@ -68,7 +68,10 @@ bukan lagi kumpulan shell exec:
 - [ ] C3 **Akselerasi jaringan**: evaluasi path vector bess vs passthrough;
   ukur throughput pull/run (baseline 0.3.0 ada).
 - [ ] C4 **Kernel lebih baru**: coba HEAD port setelah fix upstream `user_mode`
-  (temuan #1 UPSTREAM-FINDINGS) — dengan config gap-closed yang sama.
+  (temuan #1 UPSTREAM-FINDINGS) — dengan config gap-closing yang sama.
+- [ ] C5 **Evidence checker diperkuat** (temuan review GPT #2): wajibkan path
+  artefak pada tiap record, gag bila log hilang/kosong, simpan + verifikasi
+  SHA-256 log mentah, dan cek marker spesifik-kapabilitas terhadap verdict.
 
 ## D. Aksesibilitas
 

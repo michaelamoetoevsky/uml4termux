@@ -182,7 +182,19 @@ uml4termux_spawn() {
 
 uml4termux_pidfile()   { printf '%s/%s.pid' "${UML4TERMUX_RUNTIME}" "$1"; }
 uml4termux_read_pid()  { local f; f="$(uml4termux_pidfile "$1")"; [ -r "${f}" ] && tr -d ' \n' < "${f}" || true; }
-uml4termux_pid_alive() { local p="${1:-}"; [ -n "${p}" ] || return 1; kill -0 "${p}" 2>/dev/null; }
+uml4termux_pid_alive() {
+	local p="${1:-}"
+	[ -n "${p}" ] || return 1
+	kill -0 "${p}" 2>/dev/null || return 1
+	# PID-reuse guard: a recycled PID may now belong to an unrelated process.
+	# When an expected identity fragment is given, require the live process's
+	# cmdline to match it before trusting the PID.
+	local want="${2:-}"
+	if [ -n "${want}" ] && [ -r "/proc/${p}/cmdline" ]; then
+		tr '\0' ' ' < "/proc/${p}/cmdline" 2>/dev/null | grep -qF -- "${want}" || return 1
+	fi
+	return 0
+}
 
 # Kill a process recorded in <label>.pid; SIGTERM then SIGKILL.
 uml4termux_kill_label() {

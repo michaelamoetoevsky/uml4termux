@@ -60,29 +60,22 @@ fetch_lookup_sum() {
 }
 
 # fetch_verify <asset> <file> [sumsfile names...]
-# Verifies against the sums file first (when the asset name is listed), then
-# against the pinned digest.  Prints NOT VERIFIED when neither is available.
+# The PINNED digest (lib/common.sh) is the authority: the downloaded bytes
+# must match it, fail closed otherwise.  An upstream SHA256SUMS entry is an
+# ADDITIONAL cross-check only -- a compromised upstream could replace both a
+# binary and its sums file, so the sums file can never override the pin.
 fetch_verify() {
   local asset="$1" file="$2" lettername="$3"
   shift 3
-  local want="" actual sums name
+  local want="" sums_name="" sums actual
+  want="$(uml4termux_asset_sha "${asset}")"
   for sums in "$@"; do
     [ -n "${sums}" ] || continue
-    if [ -f "${sums}" ]; then
-      want="$(fetch_lookup_sum "${sums}" "${lettername}" || true)"
-      if [ -n "${want}" ]; then
-        info "sha256 source: $(basename "${sums}")"
-        break
-      fi
-      want=""
+    if [ -f "${sums}" ] && [ -n "$(fetch_lookup_sum "${sums}" "${lettername}" || true)" ]; then
+      sums_name="$(basename "${sums}")"
+      break
     fi
   done
-  if [ -z "${want}" ]; then
-    want="$(uml4termux_asset_sha "${asset}")"
-    if [ -n "${want}" ]; then
-      warn "no SHA256SUMS entry for ${lettername}: falling back to the pinned digest"
-    fi
-  fi
   if uml4termux_is_dry_run; then
     uml4termux_print_cmd sha256sum "${file}"
     [ -n "${want}" ] && printf '# expected %s  (%s)\n' "${want}" "${lettername}"
@@ -90,9 +83,18 @@ fetch_verify() {
   fi
   actual="$(uml4termux_sha256 "${file}")" || die "cannot hash ${file}"
   if [ -z "${want}" ]; then
-    warn "NOT VERIFIED: no SHA256SUMS entry and no pinned digest for ${lettername}"
-    warn "  sha256(${lettername}) = ${actual}"
-    return 0
+    if [ -n "${sums_name}" ]; then
+      warn "NO PINNED DIGEST for ${lettername}: verified against ${sums_name} only"
+      want="$(fetch_lookup_sum "${sums_name}" "${lettername}")"
+    else
+      warn "NOT VERIFIED: no pinned digest and no SHA256SUMS entry for ${lettername}"
+      warn "  sha256(${lettername}) = ${actual}"
+      return 0
+    fi
+  elif [ -n "${sums_name}" ]; then
+    info "sha256: pinned digest + cross-check ${sums_name}"
+  else
+    info "sha256 source: pinned digest (${asset})"
   fi
   if [ "${actual}" = "${want}" ]; then
     ok "sha256 ok  ${lettername}  ${actual}"

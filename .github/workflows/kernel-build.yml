@@ -51,9 +51,15 @@ jobs:
       - name: Checkout uml4termux (config + scripts)
         uses: actions/checkout@v4
 
-      - name: Clone Raymer's packaging fork (matches cfg-smp.txt)
+      - name: Clone Raymer's packaging fork (pinned to the released commit)
         run: |
-          git clone --depth 1 "$KSRC" "$RUNNER_TEMP/ksrc"
+          # The pin is not arbitrary: the released linux-bionic's uname -r is
+          # 7.2.0-rc4-g169b17ff3f66-dirty, i.e. this exact commit produced the
+          # device-validated kernel. Pinning keeps every future build
+          # traceable to the same source.
+          KERNEL_COMMIT=169b17ff3f66d507cb137b770ceb1fd9f4547a32
+          git clone --filter=blob:none "$KSRC" "$RUNNER_TEMP/ksrc"
+          git -C "$RUNNER_TEMP/ksrc" checkout "$KERNEL_COMMIT"
           git -C "$RUNNER_TEMP/ksrc" log --oneline -1
 
       - name: Base config + gap-closing symbols ($OUT/.config)

@@ -10,12 +10,12 @@ This document describes the three ways to install `uml4termux`:
 
 ## 1. Install from a GitHub release (one command)
 
-Pick the latest release from: https://github.com/Raymer8639/uml4termux/releases
+Pick the latest release from: https://github.com/michaelamoetoevsky/uml4termux/releases
 
 ```sh
 # Download the release tarball + checksums
-curl -L -O https://github.com/Raymer8639/uml4termux/releases/download/v0.1.0/uml4termux-0.1.0.tar.gz
-curl -L -O https://github.com/Raymer8639/uml4termux/releases/download/v0.1.0/SHA256SUMS
+curl -L -O https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.1.0/uml4termux-0.1.0.tar.gz
+curl -L -O https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.1.0/SHA256SUMS
 
 # Verify the tarball
 sha256sum -c SHA256SUMS 2>&1 | grep uml4termux-0.1.0.tar.gz
@@ -40,7 +40,7 @@ uml4termux doctor --no-assets
 ## 2. Install from source (git clone)
 
 ```sh
-git clone https://github.com/Raymer8639/uml4termux
+git clone https://github.com/michaelamoetoevsky/uml4termux
 cd uml4termux
 
 # Development install (symlinks into the repo — edits take effect immediately)

@@ -328,10 +328,12 @@ filter active, `/proc/sys` not readable.
 ## Links
 
 - Downstream port (upstream of the arm64 work you are running):
-  <https://github.com/zalexdev/linux-um-arm64> — branch `um-arm64`, 38 commits on
-  Linux 7.2-rc4, 103 stars.
+  <https://github.com/zalexdev/linux-um-arm64> — branch `um-arm64`,
+  Linux 7.2-rc4.
 - Packaging fork with bionic builds and a harness:
-  <https://github.com/Raymer8639/linux-um-arm64>.
+  <https://github.com/Raymer8639/linux-um-arm64> — the CI kernel source
+  (pinned at commit `169b17ff3f66`, which is exactly what the released
+  `linux-bionic` reports in `uname -r`).
 - Termux packaging PR (open): <https://github.com/termux/termux-packages/pull/32700>
   — adds `linux-kernel-um` (56 aarch64 patches + `docker.config`) and `passt`
   (13 Android patches), API level 30.
