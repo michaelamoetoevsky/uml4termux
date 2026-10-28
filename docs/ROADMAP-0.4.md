@@ -45,8 +45,15 @@ bukan lagi kumpulan shell exec:
   via proot selamat dari kill pid tunggal (tracee proot jadi yatim) →
   shutdown kini mem-bunuh **process group** (`setsid()` + `kill(-pid)`,
   eskalasi SIGKILL berbatas waktu).
-- [ ] A5 **Packaging**: binary di release 0.4.0 + dibangun di CI (runner
-  ubuntu + NDK clang, target bionic — pola sama dengan kernel-build).
+- [x] A5 ✔ **Packaging 0.4.0**: daemon bionic dibangun di `kernel-build.yml`
+  (NDK clang, `-Werror`) dan ikut artifact; rilis **v0.4.0** menerbitkan
+  5 asset (tarball 207 KB, `uml4termuxd`, `linux-bionic`, `stub_exe`,
+  SHA256SUMS); `fetch` mengunduh daemon sebagai asset kelas satu
+  (kernel,stub,daemon,disk,base); digest pin diperbarui (kernel v0.4.0
+  `29180d95…`, stub byte-identical, daemon `2b13fad0…`); binary CI lulus
+  selftest di device. Catatan reproducibility: hash kernel berubah antar
+  build (timestamp tertanam di version string) → kandidat
+  `KBUILD_BUILD_TIMESTAMP` (C5b).
 
 ## B. Mobilitas
 
