@@ -57,12 +57,20 @@ bukan lagi kumpulan shell exec:
 
 ## B. Mobilitas
 
-- [ ] B1 **Persistensi state lintas boot**: registry expose port + konfigurasi
-  guest dalam satu state file yang daemon baca saat start ulang (sudah
-  setengah ada di supervisor shell — pindah ke daemon).
-- [ ] B2 **Guest snapshot/lifecycle**: stop bersih via mconsole (`halt`),
-  start ulang tanpa kehilangan image state; opsi `--ephemeral` (image sementara,
-  overlay copy-on-write per boot) untuk uji tanpa menyentuh image utama.
+- [x] B1 ✔ **Persistensi state lintas boot**: tercukupi oleh desain —
+  konfigurasi guest = `~/.uml4termux/daemon.conf` (runit menjalankan daemon
+  dengannya setiap boot), registry expose = `exposures.jsonl` yang di-reapply
+  daemon saat start; `daemon.state.json` mencatat fase terakhir.
+- [x] B2 ✔ **Lifecycle guest bersih + ephemeral (COW native UML)**:
+  * `stop` kini menulis `sync; poweroff -f` lewat kanal console PTY (budget
+    20 s) sebelum fallback SIGTERM/SIGKILL — image tetap konsisten;
+    teruji: `clean poweroff landed after 1.5s`.
+  * `UML4TERMUXD_COW=<path>`: boot **ephemeral** memakai COW native UML
+    (`ubd0=<cow>,<backing>` — COW di depan!). Daemon menulis header COW v3
+    sendiri (magic `MOOO` be, v3 packed 4128 B, bitmap reset per boot) karena
+    port ini tidak membuat header sendiri. Teruji: boot matrix + boot docker
+    penuh (dockerd/pull/containers) dengan hash image 3 GB **identik
+    sebelum/sesudah** — semua tulisan tamu hanya menyentuh COW.
 - [ ] B3 **Multi-guest**: daemon mengelola >1 guest dengan label (matriks:
   memori HP vs mem=256M per guest; batas phantom-killer Android).
 
