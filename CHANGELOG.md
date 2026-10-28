@@ -4,6 +4,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-28
+### Added
+- **`uml4termuxd` — the UML runtime as a binary daemon** (roadmap A1-A4, all
+  device-verified): a C/bionic supervisor (`src/uml4termuxd.c`) that runs the
+  UML kernel + gvproxy as supervised children with restart-with-backoff
+  (crash) / completed-session (exit 0) / fatal (exec failure) semantics, a
+  newline-JSON control socket (`status | stop | exec <cmd> | console [n] |
+  expose <h> <g> | ports`), a persistent port-exposure registry re-applied on
+  daemon restart, and a runit service (`packaging/service/`) with wake lock.
+  The guest console lives on a PTY; `exec` writes `exec:` lines evaluated by
+  the in-guest console agent. Built for bionic in CI (kernel-build workflow)
+  and shipped as a release asset.
+### Changed
+- **Review hardening** (three external reviews — claude/gemini/gpt — all
+  findings verified against the repo before acting):
+  - `lib/fetch.sh`: the PINNED digest is now the authority (fail closed);
+    upstream SHA256SUMS entries are a cross-check only.
+  - `lib/common.sh`: `uml4termux_pid_alive` verifies `/proc/<pid>/cmdline`
+    against an expected identity before signalling (PID-reuse guard).
+  - `uml4termuxd`: `umask(0077)` before `bind()` (socket/state 0600) and
+    `SIGCHLD` via `sigaction(SA_NOCLDSTOP|SA_RESTART)`.
+  - `kernel-build.yml`: the kernel source is pinned to the fork commit
+    `169b17ff3f66d507cb137b770ceb1fd9f4547a32` — the exact commit the
+    released `linux-bionic` reports in `uname -r`.
+  - Binary kernel artifacts are no longer tracked in git; distribution goes
+    through Releases only.
+  - `SECURITY.md`: private disclosure via GitHub Security Advisories only.
+  - KNOWN-LIMITS now states explicitly that dockerd runs as root INSIDE the
+    guest (not Docker Rootless Mode) and never grants Android host root.
+- **Evidence schema 1.1 + checker artifact validation** (roadmap C5, review
+  finding GPT #2): records declaring `artifacts` now get them validated by
+  `ci/check-evidence.py` (exists, non-empty, sha256 match, no path
+  traversal); schema 1.1 records MUST declare artifacts — legacy 1.0 records
+  only WARN on artifact problems (their CI-attached files often outlive the
+  runner). The 0.3.0 CI-kernel record is backfilled to 1.1 with committed
+  console-log artifacts. Contract tests: 8/8.
+
 ## [0.3.0] - 2026-10-27
 ### Verified
 - **CI-built kernel adopted** (`.github/workflows/kernel-build.yml`): the project now builds

@@ -289,6 +289,59 @@ def schema_summary(schema: dict, prefix: str = "$", seen=None, depth: int = 0):
         yield from schema_summary(schema["items"], "%s[]" % prefix, seen, depth + 1)
 
 
+def _artifact_problems(record: dict, record_dir: str) -> tuple:
+    """C5 (review hardening): validate the artifacts a record declares.
+
+    A schema-valid record is not evidence by itself; every declared artifact
+    must exist, be non-empty, and match its sha256 when one is given.
+    Returns (problems, fatal): schema 1.1+ records FAIL on any problem;
+    legacy 1.0 records only WARN (their artifacts often pointed at
+    CI-run-attached files that outlive the runner) -- but the warnings stay
+    visible in the CI log either way.
+    """
+    problems: list = []
+    fatal = True
+    try:
+        major, minor = (int(x) for x in str(record.get("schema_version", "1.0")).split(".")[:2])
+    except ValueError:
+        return problems, fatal  # schema itself flags a malformed version
+    fatal = (major, minor) >= (1, 1)
+    artifacts = record.get("artifacts")
+    if fatal and not artifacts:
+        problems.append("schema_version >= 1.1 requires a non-empty 'artifacts' array")
+        return problems, fatal
+    if not artifacts:
+        return problems, fatal
+    if not isinstance(artifacts, list):
+        return problems, fatal  # schema flags the type
+    for idx, art in enumerate(artifacts):
+        if not isinstance(art, dict):
+            continue
+        loc = "artifacts[%d]" % idx
+        raw_path = art.get("path", "")
+        if not raw_path:
+            continue  # schema flags the missing path
+        if os.path.isabs(raw_path) or ".." in raw_path.split(os.sep):
+            problems.append("%s: path must be relative to the record's directory "
+                            "and must not traverse up: %s" % (loc, raw_path))
+            continue
+        apath = os.path.normpath(os.path.join(record_dir, raw_path))
+        if not os.path.exists(apath):
+            problems.append("%s: artifact missing: %s" % (loc, raw_path))
+            continue
+        if os.path.getsize(apath) == 0:
+            problems.append("%s: artifact is empty: %s" % (loc, raw_path))
+            continue
+        want = art.get("sha256")
+        if want:
+            import hashlib
+            digest = hashlib.sha256(open(apath, "rb").read()).hexdigest()
+            if digest != want:
+                problems.append("%s: sha256 mismatch for %s (declared %s, actual %s)"
+                                % (loc, raw_path, want, digest))
+    return problems, fatal
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Validate uml4termux evidence records.")
     ap.add_argument("files", nargs="*", help="evidence JSON files")
@@ -398,7 +451,28 @@ def main(argv=None) -> int:
             for m in msgs:
                 print("  - %s" % m)
             print("  required fields are listed by: ci/check-evidence.py --list-fields")
-        elif not args.quiet:
+            continue
+
+        # C5: declared artifacts must exist, be non-empty, and hash-match.
+        # Schema 1.1+ records FAIL on artifact problems; legacy 1.0 records
+        # WARN (their CI-attached files often outlive the runner) but stay
+        # visible either way.
+        art_msgs, art_fatal = _artifact_problems(
+            record, os.path.dirname(os.path.abspath(path)))
+        if art_msgs and art_fatal:
+            failed += 1
+            print("check-evidence: FAIL %s (artifact problems: %d)"
+                  % (path, len(art_msgs)))
+            for m in art_msgs:
+                print("  - %s" % m)
+            continue
+        if art_msgs:
+            print("check-evidence: WARN %s (artifact problems, legacy schema: %d)"
+                  % (path, len(art_msgs)))
+            for m in art_msgs:
+                print("  - %s" % m)
+
+        if not args.quiet:
             version = record.get("project_version", "?")
             verdict = record.get("verdict", "?")
             print("check-evidence: OK   %s (version=%s verdict=%s)"

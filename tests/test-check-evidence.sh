@@ -71,6 +71,69 @@ else
   no "--list-fields failed"
 fi
 
+# ---------------------------------------------------------------------------
+# 5. C5: declared artifacts are validated (exist, non-empty, sha256 match),
+#    and schema_version >= 1.1 records must declare them.
+# ---------------------------------------------------------------------------
+tmpdir="$(mktemp -d)"
+cp evidence/schema.json "$tmpdir/schema.json"
+mkdir -p "$tmpdir/logs"
+printf 'raw log body\n' > "$tmpdir/logs/sample.log"
+GOODSUM="$(sha256sum "$tmpdir/logs/sample.log" | cut -d' ' -f1)"
+
+mkrec() { # $1 = target file, $2 = artifacts json (or empty)
+  python3 - "$1" "$2" "$tmpdir" <<'PY'
+import json, sys
+target, arts, tmp = sys.argv[1], sys.argv[2], sys.argv[3]
+rec = {
+    "schema_version": "1.1", "project_version": "0.4.0", "run_id": "test-run",
+    "generated_at": "2026-10-28T00:00:00+0700",
+    "device": {"model": "m", "android_release": "16", "abi": "aarch64",
+                "unprivileged": True},
+    "kernel": {"booted": True, "arch": "um/arm64", "release": "r"},
+    "capabilities": {"boot": {"ok": True, "evidence": "e"}},
+    "verdict": "pass",
+}
+if arts:
+    rec["artifacts"] = json.loads(arts.replace("@TMP@", tmp))
+with open(target, "w") as f:
+    json.dump(rec, f)
+PY
+}
+
+mkrec "$tmpdir/good.json" "[{\"kind\":\"console-log\",\"path\":\"logs/sample.log\",\"sha256\":\"$GOODSUM\"}]"
+if python3 ci/check-evidence.py --schema "$tmpdir/schema.json" --quiet "$tmpdir/good.json" 2>/dev/null; then
+  ok "declared artifact present + hash match passes"
+else
+  no "declared artifact present + hash match should pass"
+fi
+
+mkrec "$tmpdir/missing.json" "[{\"kind\":\"console-log\",\"path\":\"logs/gone.log\"}]"
+out="$(python3 ci/check-evidence.py --schema "$tmpdir/schema.json" --quiet "$tmpdir/missing.json" 2>&1)"
+if [ "$?" -ne 0 ] && printf '%s' "$out" | grep -q 'artifact missing'; then
+  ok "missing artifact is rejected"
+else
+  no "missing artifact should be rejected: $out"
+fi
+
+mkrec "$tmpdir/badsum.json" "[{\"kind\":\"console-log\",\"path\":\"logs/sample.log\",\"sha256\":\"$(printf '0%.0s' $(seq 1 64))\"}]"
+out="$(python3 ci/check-evidence.py --schema "$tmpdir/schema.json" --quiet "$tmpdir/badsum.json" 2>&1)"
+if [ "$?" -ne 0 ] && printf '%s' "$out" | grep -q 'sha256 mismatch'; then
+  ok "sha256 mismatch is rejected"
+else
+  no "sha256 mismatch should be rejected: $out"
+fi
+
+mkrec "$tmpdir/noarts.json" ""
+out="$(python3 ci/check-evidence.py --schema "$tmpdir/schema.json" --quiet "$tmpdir/noarts.json" 2>&1)"
+if [ "$?" -ne 0 ] && printf '%s' "$out" | grep -q "requires a non-empty 'artifacts'"; then
+  ok "schema 1.1 record without artifacts is rejected"
+else
+  no "schema 1.1 record without artifacts should be rejected: $out"
+fi
+
+rm -rf "$tmpdir"
+
 echo ""
 echo "passed: $passed  failed: $failed"
 [ "$failed" -eq 0 ]

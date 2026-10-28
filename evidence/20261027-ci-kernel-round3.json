@@ -60,6 +60,19 @@
   "notes": "First kernel built entirely in CI (no device build needed) that boots and runs Docker on the device. Adopted as the 0.3.0 kernel. Build recipe: .github/workflows/kernel-build.yml; diagnostics in cap7-cap10 boot logs under workspace/uml-forensics/.",
   "project_version": "0.3.0",
   "run_id": "device-ci-kernel-round3-20261027",
-  "schema_version": "1.0",
-  "verdict": "pass"
+  "schema_version": "1.1",
+  "verdict": "pass",
+  "artifacts": [
+    {
+      "kind": "console-log",
+      "path": "logs/20261027-cap7-capability-matrix.log",
+      "sha256": "6a2d7905cbcd021c6f7af2651b6bd593e4ce4ebdae0a0804c07fc3a6d2d84e07"
+    },
+    {
+      "kind": "console-log",
+      "path": "logs/20261027-docker-end-to-end.excerpt.log",
+      "sha256": "ee693c3ff776f63233887253407584d5c5a4f5904a259323b4c524ec4d66246f",
+      "description": "curated excerpt (no TICK heartbeats); full log attached to the CI run"
+    }
+  ]
 }

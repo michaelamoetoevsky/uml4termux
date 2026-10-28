@@ -145,6 +145,16 @@ jobs:
             -j"$(nproc)" 2>&1 | tee build.log
           test -f "$RUNNER_TEMP/out/linux"
 
+      - name: Build the uml4termuxd daemon (bionic, from the repo's src/)
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/artifacts"
+          "$NDK/bin/clang" -O2 -Wall -Wextra -Werror \
+            --target=aarch64-linux-android30 \
+            -o "$RUNNER_TEMP/artifacts/uml4termuxd" src/uml4termuxd.c
+          file "$RUNNER_TEMP/artifacts/uml4termuxd"
+
       - name: Collect artifacts
         if: always()
         working-directory: ${{ runner.temp }}
