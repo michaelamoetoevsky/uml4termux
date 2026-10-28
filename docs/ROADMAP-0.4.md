@@ -82,15 +82,25 @@ bukan lagi kumpulan shell exec:
 
 ## C. Kapabilitas
 
-- [ ] C1 **CONFIG_MEMCG_KMEM=y** di config CI (gap sisa 0.3.0: tmpfs/page-cache
-  tak tercharge) → boot-test matrix ulang + evidence baru.
-- [ ] C2 **io.max retest** child-cgroup (subtree_control +io) — tutup pertanyaan
-  throttle blok.
+- [x] C1 ✔ **Charging memcg**: gap 0.3.0 ("tmpfs tak tercharge") **tidak ada
+  di kernel CI** — tulis 20 MiB tmpfs dalam child cgroup ter-charge penuh
+  (`memory.current` +20384K; `memory.stat` file 21577728, slab 79384).
+  Catatan: `CONFIG_MEMCG_KMEM` dihapus upstream sejak v5.14 (charging kmem
+  melebur ke MEMCG) — di kernel 7.2 charging bersifat mutlak; diverifikasi
+  lewat perilaku, tanpa rebuild config. Evidence:
+  `evidence/20261029-cap11-c1-c2.json` (schema 1.1, lulus checker).
+- [x] C2 ✔ **io.max retest**: node `io.max` ADA dan **diterima** pada kernel
+  CI — `echo 98:0 rbps=1048576 > t2/io.max` dibaca balik
+  `98:0 rbps=1048576 wbps=max riops=max wiops=max`. Jebakan sintaks
+  tercatat: io.max berkunci per-device `MAJ:MIN` — penulisan `rbps=`
+  telanjang ditolak EINVAL; itulah akar pengamatan "io.max ABSEN" era 0.3.0
+  (diulang dengan sintaks benar = jalan). Evidence yang sama dengan C1.
 - [ ] C3 **Akselerasi jaringan**: evaluasi path vector bess vs passthrough;
   ukur throughput pull/run (baseline 0.3.0 ada).
 - [ ] C4 **Kernel lebih baru**: coba HEAD port setelah fix upstream `user_mode`
   (temuan #1 UPSTREAM-FINDINGS) — dengan config gap-closing yang sama.
-- [ ] C5 **Evidence checker diperkuat** (temuan review GPT #2): wajibkan path
+  Status: menunggu perbaikan di repo upstream (issue #4 terkait).
+- [x] C5 ✔ **Evidence checker diperkuat** (temuan review GPT #2): wajibkan path
   artefak pada tiap record, gag bila log hilang/kosong, simpan + verifikasi
   SHA-256 log mentah, dan cek marker spesifik-kapabilitas terhadap verdict.
 

@@ -1,0 +1,54 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261029-cap11-c1-c2",
+ "project_version": "0.4.0",
+ "generated_at": "2026-10-29T03:35:00+07:00",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "7.2.0-rc4-g169b17ff3f66",
+  "pinned_commit": "169b17ff3f66d507cb137b770ceb1fd9f4547a32",
+  "build": "GitHub Actions release v0.4.0 asset linux-bionic (sha256 29180d954de13857...)",
+  "mode": "seccomp",
+  "ncpus": 4
+ },
+ "capabilities": {
+  "c1_memcg_charging": {
+   "ok": true,
+   "evidence": "20 MiB tmpfs write inside a child cgroup charged to memory.current (before=2899968 after=23773184, delta=20384K); memory.stat shows file 21577728, slab 79384. The 0.3.0-era 'tmpfs not charged' gap does not exist on the CI kernel. Note: CONFIG_MEMCG_KMEM was removed upstream in v5.14 (kmem charging folded into MEMCG); on kernel 7.2 charging is unconditional, verified by behavior."
+  },
+  "c2_io_max_throttle": {
+   "ok": true,
+   "evidence": "io.max node exists; 'echo 98:0 rbps=1048576 > t2/io.max' accepted and read back as '98:0 rbps=1048576 wbps=max riops=max wiops=max'. Syntax trap recorded: io.max is keyed per MAJ:MIN device -- a bare 'rbps=...' write is rejected (EINVAL), which is how the 0.3.0-era 'io.max ABSENT' observation must be re-read."
+  },
+  "boot": {
+   "ok": true,
+   "evidence": "CI-built kernel+stub pair boots the cap11 gate-mode initramfs (build-initramfs.py --base bin/base.cpio) to C11_DONE; guest powers off cleanly via 'exec:sync; poweroff -f' console channel."
+  }
+ },
+ "observed": {
+  "cgroup2_controllers": "cpuset cpu io memory pids",
+  "subtree_control_after": "io memory",
+  "memory_current_delta_kb": 20384,
+  "memory_stat_file_bytes": 21577728,
+  "io_max_device": "98:0",
+  "io_max_readback": "98:0 rbps=1048576 wbps=max riops=max wiops=max"
+ },
+ "artifacts": [
+  {
+   "kind": "console-log",
+   "path": "logs/20261029-cap11-c1-c2.log",
+   "sha256": "2773e26684b137494832908ba474565dd66165a1cfb07f7cd4677eceaa1c7331"
+  }
+ ],
+ "known_limits_observed": [],
+ "notes": "Both remaining 0.3.0 capability gaps (C1 charging, C2 io.max) close on the CI kernel without a config rebuild. C2's earlier 'absent' verdict was a test-syntax artifact (missing MAJ:MIN prefix).",
+ "verdict": "pass"
+}

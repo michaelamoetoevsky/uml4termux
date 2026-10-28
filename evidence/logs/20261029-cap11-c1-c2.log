@@ -1,0 +1,12 @@
+C11: cgroup2 mounted: yes
+C11: root controllers: cpuset cpu io memory pids
+C11: subtree_control now: io memory
+C11: C1 memory.current before=1851392 after=23822336 (delta=21456K)
+C11: C1 RESULT=CHARGED
+C11: C1 memory.stat file: file 21577728
+C11: C1 memory.stat slab: slab 41464
+C11: C2 io.max exists: yes
+C11: C2 ubda device: 98:0; partitions: 2
+C11: C2 write accepted, readback: 98:0 rbps=1048576 wbps=max riops=max wiops=max
+C11: C2 RESULT=IO_MAX_OK
+C11: C11_DONE
