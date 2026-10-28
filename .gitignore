@@ -36,3 +36,5 @@ tmp/
 *.swp
 *.swo
 *~ci-kernel-artifact*/
+!evidence/logs/
+!evidence/logs/*.log

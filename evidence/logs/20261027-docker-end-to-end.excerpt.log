@@ -1,0 +1,17 @@
+# EXCERPT of docker-full.log (234959 lines total, 15 kept; full log attached to the CI run)
+# TICK heartbeat lines are omitted; markers and results are verbatim.
+Linux version 7.2.0-rc4-g169b17ff3f66-dirty (runner@runnervmtai0g) (Android (13989888, +pgo, +bolt, +lto, +mlgo, based on r563880c) clang version 21.0.0 (https://android.googlesource.com/toolchain/llvm-project 5e96669f06077099aa41290cdb4c5e6fa0f59349), LLD 21.0.0 (/mnt/disks/build-disk/src/googleplex-android/llvm-r563880-release/out/llvm-project/llvm 5e96669f06077099aa41290cdb4c5e6fa0f59349)) #1 SMP Tue Oct 27 15:58:25 UTC 2026
+Kernel command line: ubd0=/data/data/com.termux/files/home/workspace/uml-forensics/cap8/debian-docker.ext4 root=/dev/ubda rw panic=-1 con=null con0=null,fd:1 vec0:transport=bess,dst=/data/data/com.termux/files/usr/tmp/bess8.sock,depth=128,gro=1,mac=5a:94:ef:e4:0c:ee console=tty0
+UML4TERMUX_INIT version=0.1.0 mode=docker entry=/docker-init.sh
+UML4TERMUX_INIT mounts_ok
+UML4TERMUX_INIT root_mounted /dev/ubda -> /newroot
+UML4TERMUX_INIT copied /docker-init.sh -> /newroot/docker-init.sh
+UML4TERMUX_INIT SWITCH_ROOT_NOW /docker-init.sh
+=== UML4TERMUX_DOCKER_BEGIN ===
+DHCPACK of 192.168.127.2 from 192.168.127.1
+RESOLV: nameserver 192.168.127.1 
+DNS_TEST: 2600:1f18:2148:bc00:c668:ad49:de3d:38ac registry-1.docker.io
+SERVER=20.10.24+dfsg1 DRIVER=overlay2 CGROUPV=2
+BUSYBOX_RUN_OK
+web | Up 13 seconds | 0.0.0.0:8123->80/tcp, :::8123->80/tcp
+WEB_UP_MARKER
