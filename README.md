@@ -150,6 +150,43 @@ The packaged entrypoint that automates steps 1–3 (launcher, gvproxy lifecycle,
 expose, verdict) lives in `bin/`; run it with `--help` for its flags. The raw
 sequence above is the verified mechanics that entrypoint wraps.
 
+## Daemon quickstart (v0.4.0: one binary, three commands)
+
+Since v0.4.0 the recommended user flow is the daemon, not the raw UML command
+line. One binary, `uml4termuxd`, is both supervisor and client; a runit service
+keeps it alive (see `packaging/service/`).
+
+```sh
+# 1. configure (once): paths to the release assets
+cp packaging/service/daemon.conf.example ~/.uml4termux/daemon.conf
+$EDITOR ~/.uml4termux/daemon.conf        # kernel/stub/image/initramfs/gvproxy
+
+# 2. run the daemon (runit runs this on boot; foreground here for a first try)
+UML4TERMUX_RUNTIME=~/.uml4termux/runtime ./bin/uml4termuxd daemon
+
+# 3. drive it from another shell (or via the runit service)
+./bin/uml4termuxd status                 # supervisor state (JSON)
+./bin/uml4termuxd exec "uname -a"        # run a command inside the guest
+./bin/uml4termuxd exec "docker run -d -p 8123:80 nginx"
+./bin/uml4termuxd expose 8123 8123       # guest port -> phone loopback
+./bin/uml4termuxd console 30             # tail the guest console
+./bin/uml4termuxd stop                   # clean poweroff via console channel
+```
+
+Useful daemon knobs (env, all per-instance):
+
+| knob | effect |
+| --- | --- |
+| `UML4TERMUXD_COW=<path>` | ephemeral boot: writes go to a UML copy-on-write file (reset per boot); the backing image stays pristine |
+| `UML4TERMUXD_HTTP=127.0.0.1:9110` | optional loopback HTTP health endpoint, `GET /status` → JSON |
+| `UML4TERMUXD_MEM=512M` / `UML4TERMUXD_NCPUS=4` | guest memory / vCPU budget |
+| `UML4TERMUX_RUNTIME=<dir>` | control socket + state + console log (one dir per guest instance) |
+
+Multi-guest: run one daemon per guest with distinct `UML4TERMUX_RUNTIME`,
+`UML4TERMUXD_BESS` and (optionally) `UML4TERMUXD_COW` — all data-plane sockets
+are unix, so instances cannot collide on TCP (verified with 2 × 256M guests;
+see `docs/ROADMAP-0.4.md` §B3 and `packaging/service/daemon.conf.example`).
+
 ## Verified capability table
 
 All rows were measured on the reference device (Android 16, host kernel

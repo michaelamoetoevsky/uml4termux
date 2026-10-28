@@ -28,6 +28,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <sys/wait.h>
 #include <libgen.h>
 #include <pty.h>
@@ -742,27 +744,130 @@ static void handle_client(int fd)
 	}
 }
 
+/* ---- D2: optional loopback HTTP health endpoint (UML4TERMUXD_HTTP) ---- */
+static int g_httpfd = -1;
+
+static int exposure_count(void)
+{
+	FILE *f;
+	char buf[256];
+	int n = 0;
+
+	f = fopen(g_exposures, "r");
+	if (!f)
+		return 0;
+	while (fgets(buf, sizeof(buf), f))
+		n++;
+	fclose(f);
+	return n;
+}
+
+static void http_serve(int cfd)
+{
+	char req[512] = {0};
+	char body[4096];
+	int n;
+
+	(void)!read(cfd, req, sizeof(req) - 1);
+	if (g_child > 0) {
+		/* mirror the unix-socket status payload (plus exposure count) */
+		n = snprintf(body, sizeof(body),
+			"HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n"
+			"{\"ok\":true,\"state\":\"running\",\"child_pid\":%d,"
+			"\"exposures\":%d,\"mode\":\"%s\"}\r\n",
+			g_child, exposure_count(), g_cow[0] ? "ephemeral-cow" : "persistent");
+	} else {
+		n = snprintf(body, sizeof(body),
+			"HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n"
+			"{\"ok\":true,\"state\":\"idle\",\"child_pid\":-1,"
+			"\"exposures\":%d,\"mode\":\"%s\"}\r\n",
+			exposure_count(), g_cow[0] ? "ephemeral-cow" : "persistent");
+	}
+	(void)!write(cfd, body, (size_t)n);
+}
+
+static int open_http_listener(void)
+{
+	const char *spec = getenv("UML4TERMUXD_HTTP");
+	struct sockaddr_in a;
+	int fd, yes = 1;
+	char host[128] = "127.0.0.1";
+	int port = 9110;
+
+	if (!spec || !*spec)
+		return 0;
+	{
+		char *c = strchr(spec, ':');
+
+		if (c) {
+			size_t hl = (size_t)(c - spec);
+
+			if (hl < sizeof(host)) {
+				memcpy(host, spec, hl);
+				host[hl] = 0;
+			}
+			port = atoi(c + 1);
+		} else {
+			port = atoi(spec);
+		}
+	}
+	if (port <= 0 || port > 65535) {
+		logf_("http: invalid port in UML4TERMUXD_HTTP, endpoint disabled");
+		return 0;
+	}
+	fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (fd < 0)
+		return -1;
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+	memset(&a, 0, sizeof(a));
+	a.sin_family = AF_INET;
+	a.sin_port = htons((unsigned short)port);
+	if (inet_pton(AF_INET, host, &a.sin_addr) != 1) {
+		logf_("http: bad host '%s', endpoint disabled", host);
+		close(fd);
+		return 0;
+	}
+	if (bind(fd, (struct sockaddr *)&a, sizeof(a)) < 0 || listen(fd, 4) < 0) {
+		logf_("http: bind/listen %s:%d failed: %s", host, port, strerror(errno));
+		close(fd);
+		return 0;
+	}
+	g_httpfd = fd;
+	logf_("http health endpoint on %s:%d (GET /status)", host, port);
+	return 0;
+}
+
 static int serve_loop(int lfd)
 {
-	struct pollfd pfds[2];
+	struct pollfd pfds[3];
+
+	(void)open_http_listener();
 
 	while (!g_stop) {
 		int npfd = 1;
 		int rc;
+		int pty_idx = -1, http_idx = -1;
 
 		pfds[0].fd = lfd;
 		pfds[0].events = POLLIN;
 		if (g_ptym >= 0) {
-			pfds[1].fd = g_ptym;
-			pfds[1].events = POLLIN;
-			npfd = 2;
+			pty_idx = npfd;
+			pfds[npfd].fd = g_ptym;
+			pfds[npfd].events = POLLIN;
+			npfd++;
+		}
+		if (g_httpfd >= 0) {
+			http_idx = npfd;
+			pfds[npfd].fd = g_httpfd;
+			pfds[npfd].events = POLLIN;
+			npfd++;
 		}
 		rc = poll(pfds, npfd, 500);
 		if (g_child_exited)
 			reap_child();
 		if (rc > 0) {
 			/* A2b: drain the guest console into the log */
-			if (npfd == 2 && (pfds[1].revents & (POLLIN | POLLHUP))) {
+			if (pty_idx >= 0 && (pfds[pty_idx].revents & (POLLIN | POLLHUP))) {
 				char buf[4096];
 				ssize_t n;
 
@@ -779,6 +884,14 @@ static int serve_loop(int lfd)
 					close(cfd);
 				}
 			}
+			if (http_idx >= 0 && (pfds[http_idx].revents & POLLIN)) {
+				int cfd = accept(g_httpfd, NULL, NULL);
+
+				if (cfd >= 0) {
+					http_serve(cfd);
+					close(cfd);
+				}
+			}
 		}
 	}
 	if (g_child > 0) {
@@ -787,6 +900,10 @@ static int serve_loop(int lfd)
 	if (g_ptym >= 0) {
 		close(g_ptym);
 		g_ptym = -1;
+	}
+	if (g_httpfd >= 0) {
+		close(g_httpfd);
+		g_httpfd = -1;
 	}
 	if (g_logfd >= 0) {
 		close(g_logfd);
@@ -1032,6 +1149,8 @@ int main(int argc, char **argv)
 		"       uml4termuxd expose <hport> <gport>  publish a guest port on the phone loopback\n"
 		"       uml4termuxd ports               list persistent port exposures\n"
 		"env:   UML4TERMUXD_COW=<path>  ephemeral boot: writes go to a UML copy-on-write\n"
-		"       file (reset per boot); the backing image stays pristine\n");
+		"       file (reset per boot); the backing image stays pristine\n"
+		"       UML4TERMUXD_HTTP=<ip:port>  optional loopback HTTP health endpoint\n"
+		"       (GET /status -> JSON: state, child_pid, exposures, mode)\n");
 	return 64;
 }

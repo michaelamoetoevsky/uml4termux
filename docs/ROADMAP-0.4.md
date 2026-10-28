@@ -106,9 +106,24 @@ bukan lagi kumpulan shell exec:
 
 ## D. Aksesibilitas
 
-- [ ] D1 **`uml4termuxd` CLI tunggal**: satu binary untuk daemon + client
-  (status/stop/exec/ports) — menggantikan urutan perintah shell di README.
-- [ ] D2 **WebUI hook**: endpoint status/health daemon untuk panel Hermes WebUI
-  (port yang sama dengan registry expose).
-- [ ] D3 **Dokumentasi pengguna baru**: quickstart 3 langkah (install →
-  `uml4termuxd daemon` via runit → docker run), diagram arsitektur daemon.
+- [x] D1 ✔ **`uml4termuxd` CLI tunggal**: sudah tercapai sejak A2 — satu binary
+  untuk daemon + client (`status|stop|exec|console|expose|ports`); quickstart
+  daemon kini seksi resmi README (lihat D3).
+- [x] D2 ✔ **WebUI hook**: endpoint health HTTP opsional di loopback —
+  `UML4TERMUXD_HTTP=127.0.0.1:9110` → `GET /status` JSON
+  (`{ok,state,child_pid,exposures,mode}`), shared poll loop dengan socket
+  kontrol. Teruji device (selftest + curl). Pelajaran implementasi: index
+  pollfd eksplisit per-sumber (`pty_idx`/`http_idx`) — pola `npfd > 2` lama
+  memakan event HTTP saat PTY absen (selftest); dan JANGAN uji di port
+  9119 (terpakai hermes-backend di device ini).
+- [x] D3 ✔ **Dokumentasi pengguna baru**: "Daemon quickstart" di README
+  (install → daemon → docker run + tabel knob) + pola multi-guest;
+  raw quickstart lama dipertahankan sebagai "verified mechanics".
+- [ ] C3 **Akselerasi jaringan** (dibuka ulang sebagai *baseline + isu*):
+  baseline pull pertama tercatat (alpine 29–33 s fresh, manifest-only 10 s;
+  `evidence/20261029-cap12-c3-network.json`) — namun **path exposure inbound
+  gagal di boot ini** (tiap koneksi baru menerima banner `gvproxy-bess-ok`
+  15 byte dan ditutup; outbound NAT baik-baik saja). Kontradiktif dengan
+  sukses inbound cap8 (27 Okt) → isu terbuka dengan hipotesis (semantik
+  banner-backend-tak-terjangkau vs regresi boot COW/bess-path); langkah
+  berikut: `ip neigh` tamu + capture stream bess + bandingkan config boot.

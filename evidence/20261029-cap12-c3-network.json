@@ -1,0 +1,58 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261029-cap12-c3-network",
+ "project_version": "0.4.0",
+ "generated_at": "2026-10-29T04:20:00+07:00",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "7.2.0-rc4-g169b17ff3f66",
+  "pinned_commit": "169b17ff3f66d507cb137b770ceb1fd9f4547a32",
+  "build": "GitHub Actions release v0.4.0 asset linux-bionic",
+  "mode": "seccomp",
+  "ncpus": 4
+ },
+ "capabilities": {
+  "c3_pull_baseline": {
+   "ok": true,
+   "evidence": "First numeric pull baseline on the bess path (0.3.0 recorded none in-repo), docker flow on the CI kernel via the daemon (WEB_UP ~60 s, COW boot): fresh alpine:3.19 pull 29 s, alpine:3.20 pull 33 s (approx 0.11 MB/s compressed incl. layer extract); manifest-only busybox:1.36 re-check 10 s. Registry path confirmed bidirectional (DNS, TLS, layer fetch)."
+  },
+  "c3_inbound_exposure": {
+   "ok": false,
+   "evidence": "OPEN ISSUE: with an exposure registered (expose 8123 8123 -> 127.0.0.1:8123 -> 192.168.127.2:8123) and a published container listener (-p 8123:80 busybox httpd), every fresh TCP connect from the phone receives gvproxy's 'gvproxy-bess-ok' banner (15 bytes) and closes -- the forwarder never hands the connection to the guest. Outbound NAT works in the same session (pulls). This contradicts the 2026-10-27 cap8 inbound success on port 8123. Suspects: banner-on-unreachable-backend semantics of this gvproxy build vs a regression (COW boot / bess socket path). Next: guest-side 'ip neigh' + packet capture on the bess stream, compare boot configs. NOT a merge-blocker: outbound paths (pull/run/logs) unaffected."
+  },
+  "boot": {
+   "ok": true,
+   "evidence": "CI kernel+stub boots the docker flow via the daemon to WEB_UP_MARKER in ~60 s (COW ephemeral boot); clean console poweroff landed after 1.0 s, 0 orphan processes."
+  }
+ },
+ "observed": {
+  "pulls_s": {
+   "alpine:3.19": 29,
+   "alpine:3.20": 33,
+   "busybox:1.36(manifest)": 10
+  },
+  "banner_bytes": 15,
+  "banner": "gvproxy-bess-ok",
+  "web_up_s": 60
+ },
+ "artifacts": [
+  {
+   "kind": "console-log",
+   "path": "logs/20261029-cap12-c3-pull.log",
+   "sha256": "b7369a1dbb2e5e7df016bbfed5b35f1e6be647276d226bfcd9092fef72772a71"
+  }
+ ],
+ "known_limits_observed": [
+  "c3_inbound_exposure anomaly recorded as an open issue"
+ ],
+ "notes": "Clean shutdown via console channel landed after 1.0s; 0 orphan processes.",
+ "verdict": "pass"
+}
