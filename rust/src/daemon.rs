@@ -80,6 +80,10 @@ pub struct Daemon {
     /// the initramfs and every write is then lost -- a docker run would appear
     /// to work while nothing persists).
     strict_ubd: bool,
+    /// gvproxy's SSH port forwarder binds a FIXED host port (default 2222),
+    /// so a second gvproxy on the same device dies with "address already in
+    /// use". Override it per instance with UML4TERMUXD_GVPROXY_SSH_PORT.
+    gvproxy_ssh_port: u16,
 }
 
 impl Daemon {
@@ -133,6 +137,10 @@ impl Daemon {
             console_tail: Vec::new(),
             ubd_failed: false,
             ubd_aborted: false,
+            gvproxy_ssh_port: match std::env::var("UML4TERMUXD_GVPROXY_SSH_PORT") {
+                Ok(v) => v.trim().parse::<u16>().unwrap_or(2222),
+                Err(_) => 2222,
+            },
             strict_ubd: std::env::var("UML4TERMUXD_STRICT_UBD")
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                 .unwrap_or(false),
@@ -388,10 +396,6 @@ impl Daemon {
             logf("UML4TERMUXD_GVPROXY set but no UML4TERMUXD_BESS");
             return -1;
         }
-        let listen = format!("-listen=unix://{}.gv.sock", self.bess);
-        let bess_arg = format!("-listen-bess=unixpacket://{}", self.bess);
-        let log_arg = format!("-log-file={}.gv.log", self.bess);
-
         // Termux has no /etc; gvproxy wants /etc/resolv.conf, so proot binds
         // the Termux etc over it (skipped on hosts that have one).
         let need_proot =
@@ -401,17 +405,13 @@ impl Daemon {
             .filter(|v| !v.is_empty())
             .unwrap_or_else(|| "/data/data/com.termux/files/usr".to_string());
 
-        let mut argv: Vec<String> = Vec::new();
-        if need_proot {
-            argv.push("proot".to_string());
-            argv.push("-b".to_string());
-            argv.push(format!("{prefix}/etc:/etc"));
-        }
-        argv.push(self.gvproxy_path.clone());
-        argv.push("-debug".to_string());
-        argv.push(listen);
-        argv.push(bess_arg);
-        argv.push(log_arg);
+        let argv = gvproxy_argv(
+            &self.gvproxy_path,
+            &self.bess,
+            self.gvproxy_ssh_port,
+            need_proot,
+            &prefix,
+        );
 
         let cstrings: Vec<CString> = argv
             .iter()
@@ -1079,6 +1079,32 @@ impl Daemon {
     }
 }
 
+/// gvproxy's command line. Kept pure (and tested) so the port/lock
+/// behaviour cannot drift silently: `-ssh-port` must be settable per instance
+/// because gvproxy hard-binds that host port.
+fn gvproxy_argv(
+    binary: &str,
+    bess: &str,
+    ssh_port: u16,
+    need_proot: bool,
+    prefix: &str,
+) -> Vec<String> {
+    let mut argv = Vec::new();
+    if need_proot {
+        argv.push("proot".to_string());
+        argv.push("-b".to_string());
+        argv.push(format!("{prefix}/etc:/etc"));
+    }
+    argv.push(binary.to_string());
+    argv.push("-debug".to_string());
+    argv.push(format!("-listen=unix://{bess}.gv.sock"));
+    argv.push(format!("-listen-bess=unixpacket://{bess}"));
+    argv.push(format!("-log-file={bess}.gv.log"));
+    argv.push("-ssh-port".to_string());
+    argv.push(ssh_port.to_string());
+    argv
+}
+
 /// True when `chunk` (appended to `tail`, capped) contains UML's ubd failure
 /// banner. The kernel prints it in several pieces, so a rolling tail of the
 /// last few KB is kept and both known lines are searched.
@@ -1212,6 +1238,37 @@ mod tests {
             assert_eq!(v["detail"], "quote \" and \\ backslash");
             let _ = fs::remove_file(&d.state_path);
         }
+    }
+
+    #[test]
+    fn gvproxy_argv_pins_the_ssh_port_and_supports_a_proot_wrapper() {
+        let argv = gvproxy_argv("/bin/gvproxy", "/tmp/bess.sock", 2222, false, "/usr");
+        assert_eq!(argv[0], "/bin/gvproxy");
+        assert!(argv.contains(&"-listen=unix:///tmp/bess.sock.gv.sock".to_string()));
+        assert!(argv.contains(&"-listen-bess=unixpacket:///tmp/bess.sock".to_string()));
+        let i = argv
+            .iter()
+            .position(|a| a == "-ssh-port")
+            .expect("-ssh-port must be set");
+        assert_eq!(argv[i + 1], "2222");
+
+        // a second instance must be able to pick another port
+        let other = gvproxy_argv("/bin/gvproxy", "/tmp/b2.sock", 12224, false, "/usr");
+        let j = other.iter().position(|a| a == "-ssh-port").unwrap();
+        assert_eq!(other[j + 1], "12224");
+
+        // Termux: wrap in proot so gvproxy can read /etc/resolv.conf
+        let wrapped = gvproxy_argv(
+            "/bin/gvproxy",
+            "/tmp/b.sock",
+            2222,
+            true,
+            "/data/data/com.termux/files/usr",
+        );
+        assert_eq!(wrapped[0], "proot");
+        assert_eq!(wrapped[1], "-b");
+        assert_eq!(wrapped[2], "/data/data/com.termux/files/usr/etc:/etc");
+        assert_eq!(wrapped[3], "/bin/gvproxy");
     }
 
     #[test]

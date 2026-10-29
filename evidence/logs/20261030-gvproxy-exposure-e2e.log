@@ -1,0 +1,21 @@
+GVPROXY_PID 13380
+BESS_SOCK yes
+GVAPI_SOCK yes
+WEB_UP_MARKER 1
+DISK_ATTACHED 1
+--- daemon: gvproxy/threading lines ---
+[1793316958.461] uml4termuxd[26932]: gvproxy up pid=26934 bess=/data/data/com.termux/files/usr/tmp/gve2e/bess.sock
+--- expose 18124 -> guest 8123 ---
+{"exposed":"127.0.0.1:18124 -> 192.168.127.2:8123"}
+--- registry file ---
+{"local":"127.0.0.1:18124","remote":"192.168.127.2:8123"}
+--- inbound fetch through the exposure ---
+CURL_BODY [gvproxy-bess-ok]
+--- ports over the control socket ---
+{"exposures":[{"local":"127.0.0.1:18124","remote":"192.168.127.2:8123"}]}
+--- HTTP health endpoint from inside the daemon would need UML4TERMUXD_HTTP; skip ---
+DAEMON_EXITED yes
+GVPROXY_AFTER 13380
+COW_BITS 11432
+IMAGE_UNCHANGED yes
+rc=0

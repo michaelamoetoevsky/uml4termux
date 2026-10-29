@@ -286,6 +286,33 @@ skripku** (`grep -c` mencetak `0` *dan* keluar 1, sehingga `|| echo 0`
 menghasilkan dua baris dan tes integer pecah) — bukan kegagalan boot; data
 per-siklus sudah menunjukkan boot yang sehat sejak awal.
 
+### Fase 2b — gvproxy + exposure end-to-end (jalur jaringan penuh) — SELESAI
+
+Daemon Rust kini juga **menyalakan gvproxy sendiri** dan jalur masuknya terbukti
+utuh dari HP sampai container:
+
+| Langkah | Bukti |
+|---|---|
+| gvproxy di-spawn daemon | `gvproxy up pid=26934`, socket bess + `gv.sock` API ada (proot-wrapped) |
+| Guest + docker | `WEB_UP_MARKER`, disk terpasang (`root_mounted`), COW 11.432 sektor |
+| `expose 18124 8123` | `{"exposed":"127.0.0.1:18124 -> 192.168.127.2:8123"}` |
+| Registry | `{"local":"127.0.0.1:18124","remote":"192.168.127.2:8123"}` |
+| **Fetch dari host** | `curl http://127.0.0.1:18124/` → **`gvproxy-bess-ok`** (host→gvproxy→BESS→guest→DNAT→container) |
+| `ports` | `{"exposures":[{...}]}` dari registry |
+| Teardown | gvproxy milik daemon (pid 26934) **hilang** setelah stop (kill grup), 0 daemon tersisa |
+
+**Temuan + perbaikan**: gvproxy **mem-bind port host tetap `127.0.0.1:2222`**
+(SSH forwarder). Percobaan e2e pertama mati karena port itu sudah dipegang
+gvproxy milik layanan runit:
+`cannot create ports forwarder: listen tcp 127.0.0.1:2222: bind: address already in use`.
+Perbaikannya: argv gvproxy di daemon Rust dibangun fungsi murni yang **selalu
+mengirim `-ssh-port`**, bisa di-override per instance lewat
+`UML4TERMUXD_GVPROXY_SSH_PORT` (default 2222 tetap sama dengan daemon C, jadi
+parity tak berubah). Daemon C belum punya override ini — batas itu berlaku
+untuknya juga.
+
+Log + driver: `evidence/logs/20261030-gvproxy-exposure-e2e.{log,sh}`.
+
 **Catatan operasional yang menyatu dengan temuan di atas**: layanan runit
 `uml4termux` (flow shell lama) memakai image backing **yang sama**, memegang
 lock eksklusifnya selama guest hidup, dan mem-boot dalam mode **persistent

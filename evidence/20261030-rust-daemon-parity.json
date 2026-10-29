@@ -45,10 +45,28 @@
   "soak_real_disk_8_cycles": {
    "ok": true,
    "evidence": "8/8 cycles of the Rust daemon against a PRIVATE backing image with UML4TERMUXD_STRICT_UBD=1: every cycle reported disk=1 (init 'root_mounted /dev/ubda') switch_root=1 nodisk=0, 5 guest markers, phase=completed detail=exit=0, COW bitmap 752-776 sectors / 588-604 KB allocated, guest RSS 55-62 MB, 2-4 s per cycle, and the private image stayed byte- AND mtime-identical (7e1127d1..., mtime 1793107661) after all eight boots."
+  },
+  "gvproxy_exposure_end_to_end": {
+   "ok": true,
+   "evidence": "Rust daemon spawned gvproxy itself (proot-wrapped; bess sock + gv.sock API present, daemon logged 'gvproxy up pid=26934'), booted the docker guest to WEB_UP_MARKER with the disk attached, then 'expose 18124 8123' returned {\"exposed\":\"127.0.0.1:18124 -> 192.168.127.2:8123\"}, wrote the registry entry, and the host fetched http://127.0.0.1:18124/ through the full path (phone -> gvproxy -> BESS -> guest -> docker DNAT -> container) receiving the demo body 'gvproxy-bess-ok'. 'ports' then listed the registry entry, COW recorded 11432 sectors of docker writes, the backing image stayed unchanged, and after stop the daemon's gvproxy (pid 26934) was gone (kill(-pgid) group teardown) with no Rust daemon left behind."
+  },
+  "gvproxy_port_collision": {
+   "ok": false,
+   "evidence": "gvproxy hard-binds host 127.0.0.1:2222 for its SSH port forwarder, so a second gvproxy instance on the same device dies with 'cannot create ports forwarder: listen tcp 127.0.0.1:2222: bind: address already in use' (the runit service's gvproxy already held it; first e2e attempt). Fix shipped in the Rust daemon: gvproxy argv is now built by a tested helper that always passes -ssh-port, overridable per instance with UML4TERMUXD_GVPROXY_SSH_PORT (default 2222 keeps parity with the C daemon). The C daemon has no such override -- same limit applies to it."
   }
  },
  "verdict": "partial",
  "artifacts": [
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-gvproxy-exposure-e2e.log",
+   "sha256": "65a71f636b08bd7f9305ed27e29ac8311456a94322f50249b1d0a99776417c5e"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-gvproxy-exposure-e2e.sh",
+   "sha256": "1b138af091b3444ce9b1ae628397417145b9b91160c2bc8bf70231684a60e4c0"
+  },
   {
    "kind": "console-log",
    "path": "logs/20261030-rust-daemon-private-image-boot.log",
@@ -99,6 +117,7 @@
  "known_limits_observed": [
   "one UML guest per backing image: UML holds an exclusive F_SETLK on it, so a second boot silently degrades to a diskless guest unless the daemon is run with UML4TERMUXD_STRICT_UBD=1",
   "the runit service (legacy shell flow) may be holding that lock and may also rewrite the backing image (persistent, non-COW), so digest-sensitive runs must stop it first",
-  "gvproxy not attached during the boot tests, so inbound exposure is unverified in the Rust daemon"
+  "gvproxy not attached during the boot tests, so inbound exposure is unverified in the Rust daemon",
+  "one gvproxy per host port 2222: set UML4TERMUXD_GVPROXY_SSH_PORT per instance (Rust daemon) or stop the other instance"
  ]
 }
