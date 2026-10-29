@@ -1,0 +1,74 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261030-rust-daemon-parity",
+ "project_version": "0.5.0",
+ "generated_at": "2026-10-30T05:20:00+07:00",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "7.2.0-rc4-opt",
+  "mode": "seccomp",
+  "ncpus": 4
+ },
+ "capabilities": {
+  "boot": {
+   "ok": true,
+   "evidence": "The Rust supervisor (forkpty + execv, PTY console drain, reap/restart policy) booted the real guest image through a Rust-written COW v3 header: markers RUSTDAEMON_GUEST_START, RUSTDAEMON_UNAME 'Linux (none) 7.2.0-rc4-opt #1 SMP ... aarch64', RUSTDAEMON_CPUCOUNT 4, RUSTDAEMON_WROTE, RUSTDAEMON_DONE, then the guest shut itself down and the daemon recorded phase=completed detail=exit=0."
+  },
+  "rust_daemon_protocol_parity": {
+   "ok": true,
+   "evidence": "ci/verify-daemon-parity.sh runs the C daemon and the Rust daemon in turn on the same runtime with the same client and diffs normalised replies: 6/6 lines identical (status, ports, exec, expose, state file, HTTP /status body). Exit code 3 when the socket is unreachable, as in C."
+  },
+  "cow_isolation_rust_daemon": {
+   "ok": true,
+   "evidence": "Controlled experiment around one Rust-daemon boot: backing image sha256 b363a716cd597efbe1022fc71113757f43e19aaa38a9fe76ac04bc6ed7e20d0a and mtime 2026-10-30 05:00:19 identical BEFORE and AFTER the boot; the guest booted (5 markers) and its COW file grew to 3222016512 bytes."
+  },
+  "cow_writer_byte_exact": {
+   "ok": true,
+   "evidence": "rust/src/cow.rs vs write_cow_header_file(): same 3 MiB image -> cmp identical, sha256 01b716b4d10f60c751ce0b65ef46039c94c05b79ef0e703d48b47895e4e0dee8 and same sparse size for both writers (CI gate). In a real boot both daemons produced byte-identical COW files: sha256 052c0be926c24af44c6a0418843a36c5253abb5e40900ff76b6a20963123f2f9."
+  },
+  "rust_daemon_clean_shutdown": {
+   "ok": true,
+   "evidence": "Guest powered off after completing its script; the Rust daemon logged phase=completed with detail=exit=0 and did not restart (exit 0 = finished session, restart only on crashes). 0 leftover linux-bionic processes after both the Rust and the C run."
+  },
+  "rust_build_native_target": {
+   "ok": true,
+   "evidence": "rustc host triple on Termux is aarch64-linux-android, so the device build IS the bionic target build: cargo test --release 30/30, clippy -D warnings clean, binary 1.6 MB (LTO + strip)."
+  }
+ },
+ "verdict": "partial",
+ "artifacts": [
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-rust-daemon-boot-console.log",
+   "sha256": "e6d1953e579f42120c8db2422252bd69476ce77ffdbd1376052a14da8a214f7f"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-c-daemon-boot-console.log",
+   "sha256": "64b3da429936d60baf1a226c261ab19341f6529fb768db5419e691e934356b72"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-cow-isolation-experiment.log",
+   "sha256": "cc9d6c2e62bde53096c037807659f461f4df413e70707e90a848b5c45cf8e78c"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-rust-daemon-parity-gate.log",
+   "sha256": "b4309446323b8e622aa1a731f41e9860e4ac0bf85c4cd0a16c95752b3bd4c177"
+  }
+ ],
+ "notes": "The Rust port of the daemon boots a real UML guest, isolates writes with COW, shuts down cleanly and answers byte-identically to the C daemon on every control path checked. CAVEATS: (1) gvproxy lifecycle, exposure registry and the optional HTTP endpoint are ported and covered by the parity gate, but they were verified against a fake gvproxy socket and the C daemon's error paths -- not yet with a real gvproxy attached to a running guest. (2) An unrelated runit service (uml4termux, legacy shell flow 'uml4termux docker --foreground') was UP during this session and booted a persistent (non-COW) guest at 04:57-05:00, changing the backing image digest from 83f46631ef4df241a10e55b91612224c00d494ee1c608a294f6416a236a6a9ac to b363a716cd597efbe1022fc71113757f43e19aaa38a9fe76ac04bc6ed7e20d0a. That change is NOT attributable to the Rust daemon -- the controlled before/after experiment proves the Rust boot left the image byte-identical -- but any future image-digest claim must stop that service first. (3) The Rust daemon has not been exercised by a soak run or under the runit service; the C binary is still what ships in release v0.5.0.",
+ "known_limits_observed": [
+  "gvproxy not attached during the boot test, so inbound exposure is unverified in the Rust daemon",
+  "one UML guest at a time on this device; the runit service must be stopped before digest-sensitive runs"
+ ]
+}

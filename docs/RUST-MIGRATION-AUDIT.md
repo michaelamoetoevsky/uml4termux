@@ -220,3 +220,33 @@ Dua bug ditemukan lewat tes ini sendiri:
    C), jadi port aneh tidak bisa merusak JSON.
 
 30 tes Rust lulus.
+
+### Fase 2b — verifikasi device: daemon Rust mem-boot guest nyata — SELESAI
+
+Daemon Rust (bukan selftest) mem-boot image guest sungguhan lewat header COW
+yang ditulis modul Rust sendiri:
+
+| Bukti | Hasil |
+|---|---|
+| Kernel guest | `Linux 7.2.0-rc4-opt #1 SMP aarch64` |
+| CPU di guest | `RUSTDAEMON_CPUCOUNT 4` (jalur seccomp SMP) |
+| Marker guest | `RUSTDAEMON_GUEST_START` … `RUSTDAEMON_WROTE rust-daemon-boot` … `RUSTDAEMON_DONE` |
+| Akhir sesi | guest `poweroff` sendiri → daemon `phase=completed`, `detail=exit=0`, tanpa restart |
+| Proses yatim | **0** setelah boot Rust maupun boot C |
+| Isolasi COW | image `b363a716…` + mtime **identik sebelum/sesudah** boot; COW tumbuh 3.222.016.512 B |
+| A/B vs daemon C | marker guest **identik**; file COW kedua daemon **byte-identik** (`052c0be9…`) |
+
+Evidence: `evidence/20261030-rust-daemon-parity.json` (verdict `partial`, lulus
+checker) + 4 artefak log mentah.
+
+**Temuan operasional penting (bukan bug port)**: layanan runit `uml4termux`
+(flow shell lama, `uml4termux docker --foreground`) sedang UP dan mem-boot guest
+**persistent tanpa COW** pukul 04:57–05:00, sehingga digest image backing
+berubah (`83f46631…` → `b363a716…`). Eksperimen terkontrol membuktikan boot
+daemon Rust **tidak** mengubah image. Konsekuensi: matikan service itu sebelum
+pengukuran digest apa pun, dan jangan menjalankan dua guest bersamaan di device
+ini.
+
+Catatan jujur yang belum tertutup: registry exposure + gvproxy belum diuji
+dengan gvproxy hidup yang menempel ke guest nyata, dan soak belum dijalankan
+untuk daemon Rust. Biner C masih yang dikirim di rilis v0.5.0.

@@ -1,0 +1,7 @@
+daemon parity OK (C vs Rust, 6 normalised lines)
+  {"state":"running","child_pid":PID,"restarts":0,"mode":"selftest"}
+  {"exposures":[]}
+  {"error":"guest not running"}
+  {"error":"gvproxy not running"}
+  {"phase":"running","child_pid":PID,"restarts":0,"detail":"spawned","ts":TS}
+  {"ok":true,"state":"running","child_pid":PID,"exposures":0,"mode":"persistent"}
