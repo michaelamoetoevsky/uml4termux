@@ -259,6 +259,24 @@ run_meta "meta: evidence/schema.json valid" '
 '
 
 # ---------------------------------------------------------------------------
+# 7b. Rust: unit tests + daemon parity (skipped when the toolchain is absent)
+# ---------------------------------------------------------------------------
+run_meta "rust: cargo test+clippy" '
+  set -euo pipefail
+  command -v cargo >/dev/null 2>&1 || exit 77
+  cd '"$ROOT/rust"'
+  cargo test --release --quiet
+  cargo clippy --all-targets --release --quiet -- -D warnings 2>/dev/null || \
+    cargo clippy --all-targets --release -- -D warnings >/dev/null
+'
+
+run_meta "rust: daemon parity (C vs Rust)" '
+  set -euo pipefail
+  [ -x '"$ROOT"'/rust/target/release/uml4termux-rs ] || exit 77
+  bash '"$ROOT"'/ci/verify-daemon-parity.sh >/dev/null
+'
+
+# ---------------------------------------------------------------------------
 # 8. Print summary table and exit
 # ---------------------------------------------------------------------------
 print_table() {

@@ -10,6 +10,7 @@ mod assets;
 mod client;
 mod config;
 mod cow;
+mod daemon;
 mod fetch;
 
 use assets::Asset;
@@ -78,6 +79,12 @@ enum Cmd {
     Info,
     /// Write a UML v3 COW header for an image (byte-exact with the C daemon)
     CowHeader { cow: PathBuf, image: PathBuf },
+    /// Run the supervisor daemon (control socket + child supervision)
+    Daemon {
+        /// Supervise a fake child instead of a real guest (protocol parity)
+        #[arg(long)]
+        selftest: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -102,6 +109,7 @@ fn main() -> ExitCode {
         Cmd::Verify { asset, path } => cmd_verify(&cfg, &asset, path),
         Cmd::Info => cmd_info(&cfg),
         Cmd::CowHeader { cow, image } => cmd_cow_header(&cow, &image),
+        Cmd::Daemon { selftest } => cmd_daemon(cfg, selftest),
     }
 }
 
@@ -217,6 +225,17 @@ fn cmd_info(cfg: &Config) -> ExitCode {
     println!("\nUML4TERMUX_HOME = {}", cfg.home.display());
     println!("daemon socket   = {}", cfg.daemon_sock().display());
     ExitCode::SUCCESS
+}
+
+fn cmd_daemon(cfg: Config, selftest: bool) -> ExitCode {
+    let mut d = daemon::Daemon::new(cfg, selftest);
+    match d.run() {
+        Ok(code) => ExitCode::from(code as u8),
+        Err(e) => {
+            eprintln!("[err] daemon: {e}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 fn cmd_cow_header(cow: &std::path::Path, image: &std::path::Path) -> ExitCode {

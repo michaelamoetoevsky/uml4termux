@@ -154,3 +154,40 @@ Gerbang CI baru `rust`: fmt + clippy `-D warnings` + 13 tes + build + **parity
 daemon** (klien C vs Rust pada satu socket). Duplikasi jalur `expose`/`status`
 belum dihapus karena itu menuntut daemon menjadi satu-satunya pemilik state —
 dikerjakan di Fase 2, bukan dengan mengubah shell lebih dulu.
+
+### Fase 2a — server daemon di Rust — SELESAI
+
+`rust/src/daemon.rs` mem-port paruh daemon: socket kontrol (`0600`, umask 0077),
+file state atomik (`tmp` + `rename`), penjadwalan anak di PTY (`forkpty` +
+`execv`), drain konsol ke `uml-console.log`, kebijakan restart (backoff 2s×n,
+batas 5, exit 0 = sesi selesai tanpa restart, 126/127 = menyerah), shutdown
+bersih (perintah mati-bersih lewat konsol dengan anggaran 20 s, lalu SIGTERM,
+lalu SIGKILL) dan seluruh protokol klien.
+
+**Gerbang parity baru** `ci/verify-daemon-parity.sh`: daemon C dan daemon Rust
+dijalankan bergantian pada runtime yang sama, dikueri klien yang sama, lalu
+dibandingkan baris per baris (hanya PID yang dinormalisasi). Hasil di device:
+
+```
+daemon parity OK (C vs Rust, 5 normalised lines)
+  {"state":"running","child_pid":PID,"restarts":0,"mode":"selftest"}
+  {"exposures":[]}
+  {"error":"guest not running"}
+  {"error":"gvproxy not running"}
+  {"phase":"running","child_pid":PID,"restarts":0,"detail":"spawned","ts":TS}
+```
+
+Satu beda ditemukan dan diperbaiki justru oleh gerbang ini: `serde_json::json!`
+mengurutkan kunci secara alfabetis, sedangkan daemon C menulisnya dalam urutan
+`phase, child_pid, restarts, detail, ts`. State JSON sekarang dibangun dengan
+urutan eksplisit agar byte-identik — **sementara escaping nilainya tetap dari
+serde**, yang menutup bug daemon C (`snprintf("%s")` pada `detail` dapat
+menghasilkan JSON tidak valid).
+
+Belum diport (Fase 2b): siklus hidup `gvproxy`, penulisan registry exposure dan
+endpoint HTTP opsional. Selama gvproxy tidak dijalankan di Rust, balasan
+`expose`/`ports` sudah identik dengan C, yaitu yang diperiksa gerbang ini.
+
+25 tes Rust lulus (termasuk 8 tes daemon: bentuk `status` selftest, `ports`
+kosong, dua jalur galat, perintah tak dikenal, `stop`, round-trip state file
+dengan `detail` berisi kutip/backslash, dan penempatan COW di depan `ubd0=`).

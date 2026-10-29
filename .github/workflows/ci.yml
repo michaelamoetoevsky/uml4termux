@@ -302,6 +302,9 @@ jobs:
           cmp /tmp/cow/c.cow /tmp/cow/r.cow
           echo "cow header identical: $(stat -c%s /tmp/cow/c.cow) bytes, sha256 $(sha256sum /tmp/cow/c.cow | cut -d' ' -f1)"
 
+      - name: Daemon parity (C daemon vs Rust daemon, same runtime + client)
+        run: bash ci/verify-daemon-parity.sh
+
       - name: Daemon parity (C client vs Rust client on one socket)
         env:
           UML4TERMUX_RUNTIME: ${{ runner.temp }}/rt
