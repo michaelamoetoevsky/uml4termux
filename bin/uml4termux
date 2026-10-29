@@ -284,6 +284,32 @@ cmd_expose() {
   [ $# -ge 1 ] || die "expose needs at least one HOSTPORT[:GUESTPORT]"
   case "${1:-}" in -h|--help) usage_expose; return 0 ;; esac
   uml4termux_clean_stale 1
+
+  # Daemon-owned runtime: the daemon keeps the registry (exposures.jsonl) and
+  # re-applies it on restart, so route there instead of maintaining the
+  # parallel expose.list. Falls back to the legacy path only when no daemon
+  # socket is present or its binary cannot be found.
+  if uml4termux_daemon_running; then
+    local dbin
+    if dbin="$(uml4termux_daemon_bin)"; then
+      local spec parsed host guest out rc=0
+      for spec in "$@"; do
+        parsed="$(net_parse_mapping "${spec}")"
+        host="${parsed%% *}"; guest="${parsed##* }"
+        if uml4termux_is_dry_run; then
+          uml4termux_print_cmd "${dbin}" expose "${host}" "${guest}"
+          continue
+        fi
+        out="$("${dbin}" expose "${host}" "${guest}" 2>&1)" || rc=$?
+        printf '%s\n' "${out}"
+        case "${out}" in *'"error"'*) rc=1 ;; esac
+      done
+      info "exposure registry: daemon ($(uml4termux_daemon_socket).state, exposures.jsonl)"
+      return "${rc}"
+    fi
+    warn "daemon socket present but no uml4termuxd binary found; using the legacy path"
+  fi
+
   if [ ! -r "${UML4TERMUX_INSTANCE_ENV}" ] && ! uml4termux_is_dry_run; then
     die "no instance state: start one with 'uml4termux docker' first"
   fi

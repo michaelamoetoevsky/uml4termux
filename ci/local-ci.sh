@@ -276,6 +276,11 @@ run_meta "rust: daemon parity (C vs Rust)" '
   bash '"$ROOT"'/ci/verify-daemon-parity.sh >/dev/null
 '
 
+run_meta "shell: expose routing (daemon owns state)" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-expose-routing.sh >/dev/null
+'
+
 # ---------------------------------------------------------------------------
 # 8. Print summary table and exit
 # ---------------------------------------------------------------------------

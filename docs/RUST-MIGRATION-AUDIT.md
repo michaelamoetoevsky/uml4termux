@@ -313,6 +313,31 @@ untuknya juga.
 
 Log + driver: `evidence/logs/20261030-gvproxy-exposure-e2e.{log,sh}`.
 
+### Fase 2e — daemon jadi pemilik tunggal state exposure — SELESAI
+
+Sebelum ini ada **dua registry** yang hidup berdampingan: daemon menulis
+`exposures.jsonl` (dan me-re-apply saat restart), sementara shell menulis
+`expose.list` lewat jalur `curl` sendiri — semantik persistensinya berbeda dan
+bisa drift. Sekarang:
+
+- `bin/uml4termux expose` **mengalihkan ke daemon** bila socket kontrol ada
+  (`uml4termux_daemon_running`), memakai biner yang ditemukan lewat
+  `uml4termux_daemon_bin` (`UML4TERMUXD_BIN` → `$UML4TERMUX_HOME/uml4termuxd` →
+  `$PREFIX/bin/uml4termuxd`), dan meneruskan exit code serta pesan galat apa
+  adanya.
+- Jalur lama tetap ada **hanya** sebagai fallback (tanpa socket, atau biner
+  daemon tidak ditemukan + `warn`), sehingga device yang belum memakai daemon
+  tidak rusak.
+- Gate baru `tests/test-expose-routing.sh` (dijalankan `ci/local-ci.sh` dan CI):
+  daemon selftest → `uml4termux expose 18125:80` harus menghasilkan balasan
+  daemon (`{"error":"gvproxy not running"}`), **tidak** boleh menulis
+  `expose.list`, dan exit code harus diteruskan.
+
+Catatan proses: iterasi pertama tes ini gagal karena **tes-ku salah bentuk** —
+shell memakai satu spec per argumen (`HOST:GUEST`), sedangkan aku memberi dua
+argumen gaya daemon, sehingga dua pemanggilan terjadi. Kontrak shell tidak
+diubah; tesnya yang diperbaiki.
+
 **Catatan operasional yang menyatu dengan temuan di atas**: layanan runit
 `uml4termux` (flow shell lama) memakai image backing **yang sama**, memegang
 lock eksklusifnya selama guest hidup, dan mem-boot dalam mode **persistent

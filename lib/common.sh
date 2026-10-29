@@ -221,6 +221,24 @@ uml4termux_kill_label() {
   info "stopped ${label} (pid ${pid})"
 }
 
+# ---------------------------------------------------------------------------
+# daemon ownership: when the daemon owns this runtime it is the SINGLE owner
+# of the exposure registry, so front ends must route through its socket instead
+# of keeping a parallel list (the two used to drift apart).
+# ---------------------------------------------------------------------------
+uml4termux_daemon_socket() { printf '%s/daemon.sock' "${UML4TERMUX_RUNTIME}"; }
+uml4termux_daemon_running()  { [ -S "$(uml4termux_daemon_socket)" ]; }
+
+uml4termux_daemon_bin() {
+  local c
+  for c in "${UML4TERMUXD_BIN:-}" "${UML4TERMUX_HOME}/${UML4TERMUXD_FILE}" "${PREFIX}/bin/uml4termuxd"; do
+    [ -n "${c}" ] && [ -x "${c}" ] && { printf '%s' "${c}"; return 0; }
+  done
+  c="$(command -v uml4termuxd 2>/dev/null || true)"
+  [ -n "${c}" ] && { printf '%s' "${c}"; return 0; }
+  return 1
+}
+
 uml4termux_dirs_init() {
   if uml4termux_is_dry_run; then return 0; fi
   mkdir -p "${UML4TERMUX_HOME}" "${UML4TERMUX_STATE_DIR}" "${UML4TERMUX_LOG_DIR}" \

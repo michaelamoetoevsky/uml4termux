@@ -257,6 +257,9 @@ jobs:
           fi
           echo "uml4termuxd: compile + selftest OK"
 
+      - name: Shell->daemon expose routing contract
+        run: bash tests/test-expose-routing.sh /tmp/uml4termuxd
+
   # ---------------------------------------------------------------------------
   rust:
     name: rust (fmt + clippy + tests + daemon parity)
