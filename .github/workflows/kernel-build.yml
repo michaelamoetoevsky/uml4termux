@@ -27,6 +27,13 @@ name: kernel-build
 
 on:
   workflow_dispatch:
+    inputs:
+      # C4: set to test a different source (e.g. zalexdev HEAD) without
+      # touching the default release path.  Empty = the pinned Raymer commit.
+      ksrc_ref:
+        description: 'git ref to build (empty = pinned release commit)'
+        required: false
+        default: ''
   push:
     branches: [main]
     paths:
@@ -63,8 +70,14 @@ jobs:
           # The pin is not arbitrary: the released linux-bionic's uname -r is
           # 7.2.0-rc4-g169b17ff3f66-dirty, i.e. this exact commit produced the
           # device-validated kernel. Pinning keeps every future build
-          # traceable to the same source.
-          KERNEL_COMMIT=169b17ff3f66d507cb137b770ceb1fd9f4547a32
+          # traceable to the same source.  C4: workflow_dispatch can override
+          # the ref (inputs.ksrc_ref) to trial e.g. zalexdev HEAD; the default
+          # stays the pinned Raymer release commit.
+          KERNEL_COMMIT="169b17ff3f66d507cb137b770ceb1fd9f4547a32"
+          if [ -n "${{ github.event.inputs.ksrc_ref }}" ]; then
+            KERNEL_COMMIT="${{ github.event.inputs.ksrc_ref }}"
+            echo "C4 trial ref: $KERNEL_COMMIT"
+          fi
           git clone --filter=blob:none "$KSRC" "$RUNNER_TEMP/ksrc"
           git -C "$RUNNER_TEMP/ksrc" checkout "$KERNEL_COMMIT"
           git -C "$RUNNER_TEMP/ksrc" log --oneline -1
