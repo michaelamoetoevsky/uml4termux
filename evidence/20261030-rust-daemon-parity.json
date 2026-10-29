@@ -41,6 +41,10 @@
   "rust_build_native_target": {
    "ok": true,
    "evidence": "rustc host triple on Termux is aarch64-linux-android, so the device build IS the bionic target build: cargo test --release 33/33, clippy -D warnings clean, binary 1.6 MB (LTO + strip)."
+  },
+  "soak_real_disk_8_cycles": {
+   "ok": true,
+   "evidence": "8/8 cycles of the Rust daemon against a PRIVATE backing image with UML4TERMUXD_STRICT_UBD=1: every cycle reported disk=1 (init 'root_mounted /dev/ubda') switch_root=1 nodisk=0, 5 guest markers, phase=completed detail=exit=0, COW bitmap 752-776 sectors / 588-604 KB allocated, guest RSS 55-62 MB, 2-4 s per cycle, and the private image stayed byte- AND mtime-identical (7e1127d1..., mtime 1793107661) after all eight boots."
   }
  },
  "verdict": "partial",
@@ -59,6 +63,16 @@
    "kind": "other",
    "path": "logs/20261030-strict-ubd-guard.log",
    "sha256": "367d37af1d9712492b5275eb79ea82ebb9c8d5d284e114926c230b9e890adf32"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-rust-daemon-soak-real-disk.log",
+   "sha256": "fbb64ce3c11d06670834e09f3e88657dad90583d2ca4a770ac0c9cd455ac8ff6"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-rust-daemon-soak-real-disk.sh",
+   "sha256": "cd99423ca747d45bd2352e945b3941aaa189522cd8d79ede154dc7f97a801b8f"
   },
   {
    "kind": "console-log",
@@ -81,7 +95,7 @@
    "sha256": "b4309446323b8e622aa1a731f41e9860e4ac0bf85c4cd0a16c95752b3bd4c177"
   }
  ],
- "notes": "Phase-2 device evidence for the Rust daemon. CORRECTION: the first boot runs in this record were silently diskless -- UML could not attach ubd because another guest held the backing image's exclusive F_SETLK -- so they proved the supervisor path but NOT the disk/COW path. A re-run with a private backing image does prove it: ubda attaches, switch_root happens, 760 COW sectors record the guest's writes, and the image stays byte- and mtime-identical. The contention itself is now an explicit, reproducible finding with a guard in the Rust daemon (UML4TERMUXD_STRICT_UBD=1). Still open: gvproxy/exposure-registry with a live gvproxy attached to a real guest, a soak with the disk attached, and the C binary is still what ships in release v0.5.0.",
+ "notes": "Phase-2 device evidence for the Rust daemon. CORRECTION: the first boot runs in this record were silently diskless -- UML could not attach ubd because another guest held the backing image's exclusive F_SETLK -- so they proved the supervisor path but NOT the disk/COW path. A re-run with a private backing image does prove it: ubda attaches, switch_root happens, 760 COW sectors record the guest's writes, and the image stays byte- and mtime-identical. The contention itself is now an explicit, reproducible finding with a guard in the Rust daemon (UML4TERMUXD_STRICT_UBD=1). Still open: gvproxy/exposure-registry with a live gvproxy attached to a real guest, a soak with the disk attached, and the C binary is still what ships in release v0.5.0. A corrected 8-cycle soak against a private image (STRICT_UBD on) now covers the disk path: 8/8 ok with root_mounted + switch_root, COW writes recorded, image byte/mtime-identical, 2-4 s per cycle.",
  "known_limits_observed": [
   "one UML guest per backing image: UML holds an exclusive F_SETLK on it, so a second boot silently degrades to a diskless guest unless the daemon is run with UML4TERMUXD_STRICT_UBD=1",
   "the runit service (legacy shell flow) may be holding that lock and may also rewrite the backing image (persistent, non-COW), so digest-sensitive runs must stop it first",

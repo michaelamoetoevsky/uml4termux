@@ -269,6 +269,23 @@ Belum tertutup dan disebut apa adanya: gvproxy hidup yang menempel ke guest
 nyata, soak dengan disk terpasang, dan biner C masih yang dikirim di rilis
 v0.5.0.
 
+**Soak ulang dengan disk benar-benar terpasang** (image privat + `STRICT_UBD=1`,
+8 siklus) — hasilnya bersih:
+
+| Siklus | disk | switch_root | NO_DISK | marker | COW sektor | COW KB | RSS guest | detik |
+|---|---|---|---|---|---|---|---|---|
+| 1–8 | 1 | 1 | 0 | 5 | 752–776 | 588–604 | 55–62 MB | 2–4 |
+
+`8/8 ok`, dan image privat tetap **byte- dan mtime-identik** setelah delapan
+boot. Log mentah: `evidence/logs/20261030-rust-daemon-soak-real-disk.log`
+(+ driver-nya sebagai artefak), tercatat di
+`evidence/20261030-rust-daemon-parity.json`.
+
+Catatan proses: verdict `FAIL` pada iterasi pertama soak ini adalah **bug
+skripku** (`grep -c` mencetak `0` *dan* keluar 1, sehingga `|| echo 0`
+menghasilkan dua baris dan tes integer pecah) — bukan kegagalan boot; data
+per-siklus sudah menunjukkan boot yang sehat sejak awal.
+
 **Catatan operasional yang menyatu dengan temuan di atas**: layanan runit
 `uml4termux` (flow shell lama) memakai image backing **yang sama**, memegang
 lock eksklusifnya selama guest hidup, dan mem-boot dalam mode **persistent

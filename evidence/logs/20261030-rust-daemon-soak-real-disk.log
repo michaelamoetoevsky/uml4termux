@@ -1,0 +1,15 @@
+SOAK_START cycles=8 image=/data/data/com.termux/files/home/workspace/uml-forensics/cap7/debian-docker.ext4
+IMG_BEFORE 7e1127d18ed826aa8e76d6cd8e7808b4997fa59f89832d9630e2e6971a3334c6 mtime=1793107661
+cycle 1: ok disk=1 switch_root=1 nodisk=0 markers=5 cow_bits=776 cow_kb=604 rss_kb=58840 secs=3
+cycle 2: ok disk=1 switch_root=1 nodisk=0 markers=5 cow_bits=760 cow_kb=596 rss_kb=58488 secs=2
+cycle 3: ok disk=1 switch_root=1 nodisk=0 markers=5 cow_bits=768 cow_kb=596 rss_kb=57984 secs=2
+cycle 4: ok disk=1 switch_root=1 nodisk=0 markers=5 cow_bits=760 cow_kb=592 rss_kb=58200 secs=2
+cycle 5: ok disk=1 switch_root=1 nodisk=0 markers=5 cow_bits=760 cow_kb=592 rss_kb=62360 secs=4
+cycle 6: ok disk=1 switch_root=1 nodisk=0 markers=5 cow_bits=768 cow_kb=600 rss_kb=59260 secs=2
+cycle 7: ok disk=1 switch_root=1 nodisk=0 markers=5 cow_bits=752 cow_kb=588 rss_kb=57672 secs=2
+cycle 8: ok disk=1 switch_root=1 nodisk=0 markers=5 cow_bits=760 cow_kb=592 rss_kb=55136 secs=3
+IMG_AFTER 7e1127d18ed826aa8e76d6cd8e7808b4997fa59f89832d9630e2e6971a3334c6 mtime=1793107661
+PRIVATE_IMAGE_UNCHANGED yes
+PEAK_GUEST_RSS_KB 62360
+RESULT cycles=8 ok=8 fail=0
+rc=0
