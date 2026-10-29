@@ -99,16 +99,20 @@ this project.
   it comes UP when the first container attaches — which is when addresses and
   the default route are handed out. The daemon error is cosmetic. The guest
   kernel has `CONFIG_IPV6`, `CONFIG_IP6_NF_IPTABLES` and `CONFIG_IP6_NF_NAT`.
-- **Cgroup io limits are absent.** The guest's cgroup v2 io controller exposes
-  `io.stat` but not `io.max`, so `docker run --device-*-bps` cannot be
-  enforced (verified: `io_limit_run=fail`, `io_files=io.stat`).
-- **Memory limits cap anonymous RSS only.** The guest kernel has
-  `CONFIG_MEMCG=y` but no `CONFIG_MEMCG_KMEM`, so tmpfs and page-cache pages
-  are not charged to the container's cgroup: a 200 MB tmpfs write inside a
-  64 MB-limited container left `memory.current` at ~5 MB. Anonymous memory IS
-  enforced — the same container workload grown in awk RAM is OOM-killed at the
-  64 MB limit (`OOMKilled=true`, exit 137) and survives when unlimited
-  (peak 146 MB).
+- **Cgroup io limits WORK on the v0.4.0+ CI kernel** (corrects the 0.3.0-era
+  claim that they were absent): `io.max` exists and accepts writes when keyed
+  by device — `echo "98:0 rbps=1048576" > io.max` reads back
+  `98:0 rbps=1048576 wbps=max riops=max wiops=max`. The earlier
+  `io_limit_run=fail` came from a kernel without the throttle symbols *and*
+  from writing a bare `rbps=` line (EINVAL without a `MAJ:MIN` prefix).
+  Evidence: `evidence/20261029-cap11-c1-c2.json`.
+- **Memory limits charge tmpfs and page cache too on the v0.4.0+ CI kernel**
+  (corrects the 0.3.0-era "anonymous RSS only" claim): a 20 MiB tmpfs write
+  inside a child cgroup raises `memory.current` by ~20.9 MB and shows up as
+  `file` in `memory.stat`. `CONFIG_MEMCG_KMEM` no longer exists upstream
+  since v5.14 — kmem charging was folded into `CONFIG_MEMCG` and is now
+  unconditional. Anonymous memory is still enforced as before (OOM at the
+  limit, exit 137). Evidence: `evidence/20261029-cap11-c1-c2.json`.
 - **hostfs exposes host storage.** Never mount it for untrusted guest code. This
   was verified, not assumed: `mount -t hostfs none /mnt/host -o <host-dir>` inside
   the guest listed and read the host's files as the app user.

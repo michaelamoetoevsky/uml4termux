@@ -265,6 +265,7 @@ project; this documentation set does not define their contents.
 | [docs/MOBILITY.md](docs/MOBILITY.md) | you want it to survive Android's lifecycle on a real phone |
 | [docs/CI-CD.md](docs/CI-CD.md) | you are changing CI, evidence or the release process |
 | [docs/KNOWN-LIMITS.md](docs/KNOWN-LIMITS.md) | you are deciding whether this fits your use case |
+| [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) | you want to know where the project is going next (six directions, A–F) |
 | [docs/FAQ.md](docs/FAQ.md) | you have a specific yes/no question |
 | [docs/UPSTREAM.md](docs/UPSTREAM.md) | you want to contribute kernel patches upstream |
 | [evidence/README.md](evidence/README.md) | you are recording or validating a device run |
