@@ -291,6 +291,17 @@ jobs:
         working-directory: rust
         run: cargo build --release
 
+      - name: COW header parity (C vs Rust, byte-for-byte)
+        run: |
+          set -euo pipefail
+          clang -O2 -o /tmp/u4t-cow src/uml4termuxd.c
+          mkdir -p /tmp/cow
+          python3 -c "open('/tmp/cow/base.ext4','wb').write(b'\\x00'*(3*1024*1024)+b'parity')"
+          /tmp/u4t-cow cow-header /tmp/cow/c.cow /tmp/cow/base.ext4
+          rust/target/release/uml4termux-rs cow-header /tmp/cow/r.cow /tmp/cow/base.ext4
+          cmp /tmp/cow/c.cow /tmp/cow/r.cow
+          echo "cow header identical: $(stat -c%s /tmp/cow/c.cow) bytes, sha256 $(sha256sum /tmp/cow/c.cow | cut -d' ' -f1)"
+
       - name: Daemon parity (C client vs Rust client on one socket)
         env:
           UML4TERMUX_RUNTIME: ${{ runner.temp }}/rt

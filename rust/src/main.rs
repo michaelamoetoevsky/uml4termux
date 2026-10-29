@@ -9,6 +9,7 @@
 mod assets;
 mod client;
 mod config;
+mod cow;
 mod fetch;
 
 use assets::Asset;
@@ -75,6 +76,8 @@ enum Cmd {
     },
     /// Show the asset table: id, pinned digest, URL and local state
     Info,
+    /// Write a UML v3 COW header for an image (byte-exact with the C daemon)
+    CowHeader { cow: PathBuf, image: PathBuf },
 }
 
 fn main() -> ExitCode {
@@ -98,6 +101,7 @@ fn main() -> ExitCode {
         Cmd::Fetch { force, only } => cmd_fetch(&cfg, force, only),
         Cmd::Verify { asset, path } => cmd_verify(&cfg, &asset, path),
         Cmd::Info => cmd_info(&cfg),
+        Cmd::CowHeader { cow, image } => cmd_cow_header(&cow, &image),
     }
 }
 
@@ -213,6 +217,24 @@ fn cmd_info(cfg: &Config) -> ExitCode {
     println!("\nUML4TERMUX_HOME = {}", cfg.home.display());
     println!("daemon socket   = {}", cfg.daemon_sock().display());
     ExitCode::SUCCESS
+}
+
+fn cmd_cow_header(cow: &std::path::Path, image: &std::path::Path) -> ExitCode {
+    match cow::write_cow_header(cow, image) {
+        Ok(h) => {
+            eprintln!(
+                "[ok] cow header written: {} (backing {}, {} bytes)",
+                cow.display(),
+                h.backing,
+                h.size
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("[err] cow header: {e}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 fn human(bytes: u64) -> String {

@@ -1063,6 +1063,10 @@ static int client_main(const char *cmd)
 
 int main(int argc, char **argv)
 {
+	/* Test hook: write only the COW header, so the Rust port can be diffed
+	   against this implementation byte-for-byte (ci parity gate). */
+	if (argc >= 4 && strcmp(argv[1], "cow-header") == 0)
+		return write_cow_header_file(argv[2], argv[3]) == 0 ? 0 : 1;
 	if (argc >= 2 && strcmp(argv[1], "daemon") == 0)
 		return daemon_main(argc >= 3 && strcmp(argv[2], "--selftest") == 0);
 	if (argc >= 2 && (strcmp(argv[1], "status") == 0 || strcmp(argv[1], "stop") == 0))
