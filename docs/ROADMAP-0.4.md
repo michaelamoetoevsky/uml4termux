@@ -50,10 +50,18 @@ bukan lagi kumpulan shell exec:
   5 asset (tarball 207 KB, `uml4termuxd`, `linux-bionic`, `stub_exe`,
   SHA256SUMS); `fetch` mengunduh daemon sebagai asset kelas satu
   (kernel,stub,daemon,disk,base); digest pin diperbarui (kernel v0.4.0
-  `29180d95…`, stub byte-identical, daemon `2b13fad0…`); binary CI lulus
-  selftest di device. Catatan reproducibility: hash kernel berubah antar
-  build (timestamp tertanam di version string) → kandidat
-  `KBUILD_BUILD_TIMESTAMP` (C5b).
+  `29180d95...`, stub byte-identical, daemon `2b13fad0...`); binary CI lulus
+  selftest di device.
+- [x] C5b ✔ **Kernel reproducible — TERVERIFIKASI**: dua run CI independen
+  (`40928725971`, `40928738439`) dari commit pin yang sama menghasilkan
+  artifact **byte-identik**: `linux-bionic` `6970ada5…`, `stub_exe`
+  `731c48d5…`, `uml4termuxd` `d86f1c4d…` (VERDICT=REPRODUCIBLE). Sebelum
+  KBUILD_BUILD_* dipin, hash kernel melayang tiap build (v0.3.0 `d2feb2e3...`
+  vs rilis v0.4.0 `29180d95...` — dibangun pra-pin). Tooling:
+  `ci/verify-kernel-reproducible.sh` (bandingkan 2 ZIP artifact; exit≠0 bila
+  berbeda). Evidence: `evidence/20261029-c5b-reproducible.json`. Catatan:
+  reproducibility diklaim untuk runner-class + toolchain yang sama
+  (NDK r29, runner x86_64).
 
 ## B. Mobilitas
 

@@ -1,0 +1,56 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261029-c5b-reproducible",
+ "project_version": "0.4.0",
+ "generated_at": "2026-10-29T11:10:00+07:00",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": false,
+  "release": "7.2.0-rc4-g169b17ff3f66 (pinned source)",
+  "pinned_commit": "169b17ff3f66d507cb137b770ceb1fd9f4547a32",
+  "build": "two separate workflow_dispatch runs of kernel-build.yml on the same commit (40928725971, 40928738439), no inputs",
+  "mode": "n/a (CI artifact comparison, no device boot)",
+  "ncpus": 0
+ },
+ "capabilities": {
+  "boot": {
+   "ok": true,
+   "evidence": "N/A for this record: no guest boot. Both builds completed success in CI (kernel + stub + daemon compiled)."
+  },
+  "c5b_reproducible_kernel": {
+   "ok": true,
+   "evidence": "Two independent CI builds from the identical pinned source produced byte-identical artifacts: linux-bionic sha256 6970ada592e49c03f90e1b422ffb38ea0ceced9d9d1de1c5120542126a426c02, stub_exe 731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e, uml4termuxd d86f1c4d41f7ac7ce30841137fa291737d18e8b2d2a68a2b7de48f6696e34335. Before C5b the kernel hash drifted per build (v0.3.0 d2feb2e3..., v0.4.0 release 29180d95...); with KBUILD_BUILD_TIMESTAMP/USER/HOST pinned the hash is now stable across runs, so a future release can publish a reproducible kernel."
+  }
+ },
+ "observed": {
+  "verify_script": "ci/verify-kernel-reproducible.sh",
+  "verdict_line": "VERDICT=REPRODUCIBLE",
+  "artifacts_compared": 3,
+  "identical": 3,
+  "differing": 0,
+  "artifact_sizes_bytes": [
+   5919269,
+   5918640
+  ],
+  "note": "different ZIP sizes are normal (archive metadata/compression), the payload bytes are identical"
+ },
+ "artifacts": [
+  {
+   "kind": "other",
+   "path": "logs/20261029-c5b-reproducible.log",
+   "sha256": "77356db8a07d5436441f9eda5fdba8cf438885658264022309125b2f6a10233e"
+  }
+ ],
+ "known_limits_observed": [
+  "same-runner-class, same-toolchain reproducibility; cross-arch or cross-NDK reproducibility not claimed"
+ ],
+ "notes": "C5b verified. The released v0.4.0 kernel (29180d95...) predates the timestamp pins; rebuilds of the pinned source are now deterministic (6970ada5...).",
+ "verdict": "pass"
+}

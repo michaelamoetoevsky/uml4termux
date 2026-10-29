@@ -1,0 +1,6 @@
+== C5b kernel reproducibility: two independent CI runs, same pinned commit ==
+runA=40928725971  runB=40928738439  source=169b17ff3f66d507cb137b770ceb1fd9f4547a32
+linux-bionic     IDENTICAL  6970ada592e49c03f90e1b422ffb38ea0ceced9d9d1de1c5120542126a426c02
+stub_exe         IDENTICAL  731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e
+uml4termuxd      IDENTICAL  d86f1c4d41f7ac7ce30841137fa291737d18e8b2d2a68a2b7de48f6696e34335
+VERDICT=REPRODUCIBLE
