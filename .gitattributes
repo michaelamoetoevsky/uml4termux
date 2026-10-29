@@ -47,3 +47,7 @@ Makefile linguist-language=Makefile
 # with `tar` and we *want* tests/, ci/, evidence/ in the source tarball.
 # If you need a clean export for a downstream package, use `make dist` instead
 # of `git archive`.
+
+# Evidence logs are raw captured bytes: hashes are recorded in the
+# evidence records, so git must NOT normalise their line endings.
+evidence/logs/*.log -text
