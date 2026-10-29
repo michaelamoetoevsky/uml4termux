@@ -1,0 +1,25 @@
+[package]
+name = "uml4termux-cli"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "GPL-2.0-only"
+description = "Rust CLI for uml4termux: daemon client and verified asset fetch (phase 1, runs beside the shell CLI)"
+repository = "https://github.com/michaelamoetoevsky/uml4termux"
+
+[[bin]]
+name = "uml4termux-rs"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+serde_json = "1"
+sha2 = "0.10"
+ureq = { version = "2", default-features = false, features = ["tls"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

@@ -43,3 +43,6 @@ ci-kernel-artifact*/
 # curated evidence logs (C5) — must come after any *.log rule
 !evidence/logs/
 !evidence/logs/*.log
+
+# Rust build outputs
+rust/target/

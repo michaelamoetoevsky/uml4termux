@@ -304,6 +304,7 @@ uml4termux_asset_sha() {
   case "$1" in
     kernel)         printf '%s' "${UML4TERMUX_KERNEL_SHA256}" ;;
     stub)           printf '%s' "${UML4TERMUX_STUB_SHA256}" ;;
+    daemon)         printf '%s' "${UML4TERMUXD_SHA256}" ;;
     disk-gz)        printf '%s' "${UML4TERMUX_DISK_SHA256}" ;;
     base-initramfs) printf '%s' "${UML4TERMUX_BASE_INITRAMFS_SHA256}" ;;
     gvproxy)        printf '%s' "${UML4TERMUX_GVPROXY_SHA256}" ;;

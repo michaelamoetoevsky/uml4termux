@@ -121,3 +121,36 @@ bukan hipotesis: `grep -c 'escape' src/uml4termuxd.c` = 0.
 - Klien JSON apa pun bisa memparse keluaran daemon tanpa kasus tepi.
 - Semua bukti lama (evidence schema 1.1) tetap lulus, dan soak arah B lulus
   dengan biner Rust.
+
+## 8. Status pelaksanaan
+
+### Fase 1 — CLI (`rust/`, biner `uml4termux-rs`) — SELESAI
+
+Bangunan: `clap` + `serde_json` + `sha2` + `ureq`/rustls. Modul `config`
+(path sama dengan `lib/common.sh`), `assets` (tabel + pin), `client` (protokol
+socket), `fetch` (unduh + verifikasi). Biner **1,6 MB** (release, LTO, strip)
+dan dibangun **native untuk `aarch64-linux-android`** — host triple rustc
+Termux memang bionic, jadi build di device = build target sebenarnya.
+
+Bukti yang dihasilkan:
+
+| Uji | Hasil |
+|---|---|
+| `cargo test --release` | **13/13 lulus** (protokol, digest NIST, fail-closed tanpa pin, mismatch fatal) |
+| `cargo clippy -D warnings` + `cargo fmt --check` | bersih |
+| Parity klien C vs Rust (satu socket, daemon selftest) | **byte-identik** untuk `status`, `ports`, `expose`, `exec` |
+| Exit code daemon tak terjangkau | `3` di kedua klien |
+| `fetch --only daemon` | digest cocok pin, `chmod 0755`, 1,4 s, **0 subprocess** curl/sha256sum |
+
+Dua bug nyata ditemukan justru karena port ini:
+
+1. **`uml4termux_asset_sha` tidak punya kasus `daemon`** → jalur shell memasang
+   biner daemon **tanpa verifikasi** (`[warn] NOT VERIFIED`). Diperbaiki.
+2. **Pin `UML4TERMUX_DISK_SHA256` (`2807979f…`) adalah digest `.gz`, bukan
+   `.ext4`** (terukur: `.ext4` = `83f46631…`). Tabel Rust dikoreksi: `disk`
+   tanpa pin (turunan hasil dekompresi), `disk-gz` memegang pin.
+
+Gerbang CI baru `rust`: fmt + clippy `-D warnings` + 13 tes + build + **parity
+daemon** (klien C vs Rust pada satu socket). Duplikasi jalur `expose`/`status`
+belum dihapus karena itu menuntut daemon menjadi satu-satunya pemilik state —
+dikerjakan di Fase 2, bukan dengan mengubah shell lebih dulu.

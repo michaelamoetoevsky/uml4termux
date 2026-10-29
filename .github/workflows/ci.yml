@@ -258,6 +258,72 @@ jobs:
           echo "uml4termuxd: compile + selftest OK"
 
   # ---------------------------------------------------------------------------
+  rust:
+    name: rust (fmt + clippy + tests + daemon parity)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Format check
+        working-directory: rust
+        run: cargo fmt --check
+
+      - name: Clippy (warnings are errors)
+        working-directory: rust
+        run: cargo clippy --all-targets --release -- -D warnings
+
+      - name: Unit and protocol tests
+        working-directory: rust
+        run: cargo test --release
+
+      - name: Release build
+        working-directory: rust
+        run: cargo build --release
+
+      - name: Daemon parity (C client vs Rust client on one socket)
+        env:
+          UML4TERMUX_RUNTIME: ${{ runner.temp }}/rt
+        run: |
+          set -euo pipefail
+          mkdir -p "$UML4TERMUX_RUNTIME"
+          clang -O2 -o /tmp/uml4termuxd src/uml4termuxd.c
+          export UML4TERMUXD_SELFTEST_CHILD=/bin/sleep
+          /tmp/uml4termuxd daemon --selftest > /tmp/daemon.log 2>&1 &
+          dp=$!
+          for _ in $(seq 1 40); do
+            [ -S "$UML4TERMUX_RUNTIME/daemon.sock" ] && break
+            sleep 0.25
+          done
+          RS=rust/target/release/uml4termux-rs
+          rc=0
+          for cmd in status ports "exec uname -a" "expose 19124 80"; do
+            c_out=$(/tmp/uml4termuxd $cmd 2>&1 || true)
+            r_out=$($RS --socket "$UML4TERMUX_RUNTIME/daemon.sock" --raw $cmd 2>&1 || true)
+            if [ "$c_out" != "$r_out" ]; then
+              echo "PARITY MISMATCH for '$cmd'"
+              echo "  C   : $c_out"
+              echo "  Rust: $r_out"
+              rc=1
+            else
+              echo "parity ok: $cmd -> $c_out"
+            fi
+          done
+          /tmp/uml4termuxd stop || true
+          wait "$dp" || true
+          exit "$rc"
+
+  # ---------------------------------------------------------------------------
   python:
     name: python (compile + initramfs generator test)
     runs-on: ubuntu-latest
