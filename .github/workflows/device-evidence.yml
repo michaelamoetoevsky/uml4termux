@@ -63,6 +63,11 @@ on:
     # remembered to dispatch it by hand.
     paths:
       - 'evidence/**.json'
+      # The artifacts those records hash: editing a log (or letting git
+      # normalise its line endings) invalidates the recorded sha256, so a log
+      # change MUST re-run the gate -- otherwise it breaks silently until the
+      # daily backstop fires.
+      - 'evidence/logs/**'
       - 'ci/check-evidence.py'
       - 'evidence/schema.json'
       - '.github/workflows/device-evidence.yml'
