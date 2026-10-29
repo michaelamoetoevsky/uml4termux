@@ -51,7 +51,7 @@ UML4TERMUX_GVPROXY_BASE_URL="${UML4TERMUX_GVPROXY_BASE_URL:-https://github.com/c
 # The project's own release: the CI-built kernel adopted in 0.3.0 (gap-closed
 # config: CPUSETS/BLK_CGROUP/THROTTLING/MODULES; stub byte-identical to the
 # released one). Until the repo is public, downloads need GITHUB_TOKEN.
-UML4TERMUX_RELEASE_BASE_URL="${UML4TERMUX_RELEASE_BASE_URL:-https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.4.0}"
+UML4TERMUX_RELEASE_BASE_URL="${UML4TERMUX_RELEASE_BASE_URL:-https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.5.0}"
 
 # The docker-capable kernel of the fork is the one verified on-device:
 # `uname -r` == 7.2.0-rc4-opt, OVERLAY_FS/VETH/BRIDGE/PID_NS/MEMCG on.
@@ -68,13 +68,13 @@ UML4TERMUX_FORK_SHA256SUMS_URL="${UML4TERMUX_FORK_SHA256SUMS_URL:-${UML4TERMUX_F
 UML4TERMUX_GVPROXY_SHA256SUMS_URL="${UML4TERMUX_GVPROXY_SHA256SUMS_URL:-${UML4TERMUX_GVPROXY_BASE_URL}/sha256sums}"
 
 # Pinned digests (all re-measured with sha256sum on this device).
-# Kernel = the v0.4.0 CI-built release asset (same pinned source commit as
+# Kernel = the v0.5.0 CI-built release asset (same pinned source commit as
 # 0.3.0; the hash differs only because the kernel embeds its build timestamp).
 # Stub = byte-identical across both CI runs (NDK r29 toolchain parity).
 # Daemon = the bionic uml4termuxd built in the same CI run.
-UML4TERMUX_KERNEL_SHA256="${UML4TERMUX_KERNEL_SHA256:-29180d954de138573be8d0779b60ca053cee1b902b1fb19826bf4620802fa7c9}"
+UML4TERMUX_KERNEL_SHA256="${UML4TERMUX_KERNEL_SHA256:-6970ada592e49c03f90e1b422ffb38ea0ceced9d9d1de1c5120542126a426c02}"
 UML4TERMUX_STUB_SHA256="${UML4TERMUX_STUB_SHA256:-731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e}"
-UML4TERMUXD_SHA256="${UML4TERMUXD_SHA256:-2b13fad04170a7b3336ad0c8d556fc0706ad426c98af002776a8d7af07b125e6}"
+UML4TERMUXD_SHA256="${UML4TERMUXD_SHA256:-d86f1c4d41f7ac7ce30841137fa291737d18e8b2d2a68a2b7de48f6696e34335}"
 UML4TERMUX_DISK_SHA256="${UML4TERMUX_DISK_SHA256:-2807979f76021fadf1f76f0c827fbe1eab4df51e33bfeca0c840c5181c610be3}"
 UML4TERMUX_GVPROXY_SHA256="${UML4TERMUX_GVPROXY_SHA256:-c1ea864636182a774235c8866c70f2a0223dfcd4f08d24e37a7e82d9882beb9c}"
 UML4TERMUX_BASE_INITRAMFS_SHA256="${UML4TERMUX_BASE_INITRAMFS_SHA256:-15238a37328b99b3206a58c7ab69b853139c40b8ca35f8acacf6226a4c1cf94f}"
