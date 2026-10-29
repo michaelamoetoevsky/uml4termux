@@ -184,10 +184,39 @@ urutan eksplisit agar byte-identik — **sementara escaping nilainya tetap dari
 serde**, yang menutup bug daemon C (`snprintf("%s")` pada `detail` dapat
 menghasilkan JSON tidak valid).
 
-Belum diport (Fase 2b): siklus hidup `gvproxy`, penulisan registry exposure dan
-endpoint HTTP opsional. Selama gvproxy tidak dijalankan di Rust, balasan
-`expose`/`ports` sudah identik dengan C, yaitu yang diperiksa gerbang ini.
+Fase 2b (gvproxy, registry exposure, endpoint HTTP) menyusul di bawah dan
+sudah selesai.
 
 25 tes Rust lulus (termasuk 8 tes daemon: bentuk `status` selftest, `ports`
 kosong, dua jalur galat, perintah tak dikenal, `stop`, round-trip state file
 dengan `detail` berisi kutip/backslash, dan penempatan COW di depan `ubd0=`).
+
+### Fase 2b — gvproxy, registry exposure, endpoint HTTP — SELESAI
+
+Sisa paruh daemon kini juga di Rust: siklus hidup `gvproxy` (argv
+`-listen=unix://<bess>.gv.sock` / `-listen-bess=unixpacket://<bess>` /
+`-log-file`, pembungkus `proot -b $PREFIX/etc:/etc` bila host tak punya
+`/etc/resolv.conf`, `setsid` sebelum exec, tunggu socket bess ≤5 s), shutdown
+per-grup (`kill(-pid)` → SIGKILL, karena tracee proot yatim bila hanya pid proot
+yang dibunuh), klien HTTP-over-unix ke API gvproxy, registry exposure JSONL
+(dedup per port host, tulis atomik), re-apply exposure saat start, dan endpoint
+kesehatan HTTP opsional `UML4TERMUXD_HTTP` (balasan `HTTP/1.0` byte-identik
+dengan C, termasuk mode `ephemeral-cow`/`persistent`).
+
+Gerbang parity kini memeriksa **6 baris** (4 perintah + state file + body HTTP):
+
+```
+daemon parity OK (C vs Rust, 6 normalised lines)
+  ...
+  {"ok":true,"state":"running","child_pid":PID,"exposures":0,"mode":"persistent"}
+```
+
+Dua bug ditemukan lewat tes ini sendiri:
+
+1. **Endianness `sin_addr`** — `u32::from_be_bytes(ip.octets())` menghasilkan
+   `01 00 00 7F` untuk `127.0.0.1` → `bind()` gagal `EADDRNOTAVAIL (os error 99)`;
+   yang benar `u32::from_ne_bytes` (memori `s_addr` memang urutan jaringan).
+2. Payload expose kini dirakit `serde_json` (bukan konkatenasi string seperti
+   C), jadi port aneh tidak bisa merusak JSON.
+
+30 tes Rust lulus.

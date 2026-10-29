@@ -41,6 +41,7 @@ RT="$work/rt"
 mkdir -p "$RT"
 export UML4TERMUX_RUNTIME="$RT"
 export UML4TERMUXD_SELFTEST_CHILD="$SELFTEST_CHILD"
+export UML4TERMUXD_HTTP="127.0.0.1:19119"
 export NO_COLOR=1
 
 # PID varies per run; everything else must match byte for byte.
@@ -79,6 +80,12 @@ query_daemon() { # $1 = daemon binary, $2 = phase name
   if [ -f "$RT/daemon.sock.state" ]; then
     sed -E 's/"child_pid":[0-9-]+/"child_pid":PID/; s/"ts":[0-9]+/"ts":TS/' \
       "$RT/daemon.sock.state" >>"$work/$phase.replies"
+  fi
+  # Optional HTTP health endpoint (D2): same port for both daemons, so the
+  # bodies must match modulo the child pid.
+  if command -v curl >/dev/null 2>&1; then
+    curl -sS --max-time 5 "http://127.0.0.1:19119/status" 2>/dev/null | normalize \
+      >>"$work/$phase.replies" || echo "http: no response ($phase)" >>"$work/$phase.replies"
   fi
   "$c_client" stop >/dev/null 2>&1 || true
   wait "$dp" 2>/dev/null || true

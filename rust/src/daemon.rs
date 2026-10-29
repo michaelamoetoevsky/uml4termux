@@ -66,6 +66,11 @@ pub struct Daemon {
 
     child_argv0: String,
     gvproxy_pid: i32,
+    gvproxy_path: String,
+    bess: String,
+    /// gvproxy's HTTP-over-unix API socket (`<bess>.gv.sock`).
+    gvapi: String,
+    http_fd: RawFd,
 }
 
 impl Daemon {
@@ -112,6 +117,10 @@ impl Daemon {
             cow: env_or("UML4TERMUXD_COW", ""),
             child_argv0,
             gvproxy_pid: -1,
+            gvproxy_path: env_or("UML4TERMUXD_GVPROXY", ""),
+            bess: env_or("UML4TERMUXD_BESS", ""),
+            gvapi: String::new(),
+            http_fd: -1,
         }
     }
 
@@ -137,6 +146,11 @@ impl Daemon {
                 self.ncpus,
                 self.console_log.display()
             ));
+            if self.spawn_gvproxy() != 0 {
+                eprintln!("uml4termux-rs: gvproxy failed to start (see log)");
+                return Ok(2);
+            }
+            self.reapply_exposures();
         }
 
         // Owner-only files (socket, state, console log), like the C daemon.
@@ -144,6 +158,7 @@ impl Daemon {
 
         let lfd = self.bind_socket()?;
         logf(&format!("control socket: {}", self.sock_path.display()));
+        self.open_http_listener();
         self.install_signal_handlers();
 
         if self.spawn_child()? != 0 {
@@ -232,6 +247,18 @@ impl Daemon {
         let (argv, use_pty) = if self.selftest {
             (vec![self.child_argv0.clone(), "30".to_string()], false)
         } else {
+            // B2: this port's ubd driver needs a FORMATTED COW file -- it
+            // stats and reads the header but never creates one. Reset it per
+            // boot by writing a fresh v3 header.
+            if !self.cow.is_empty() {
+                if let Err(e) =
+                    crate::cow::write_cow_header(Path::new(&self.cow), Path::new(&self.image))
+                {
+                    logf(&format!(
+                        "cow header write failed: {e}; booting without COW"
+                    ));
+                }
+            }
             (self.guest_argv(), true)
         };
 
@@ -326,7 +353,318 @@ impl Daemon {
         argv.push("panic=-1".to_string());
         argv.push("con=null".to_string());
         argv.push("con0=fd:0,fd:1".to_string());
+        if self.gvproxy_pid > 0 && !self.bess.is_empty() {
+            argv.push(format!(
+                "vec0:transport=bess,dst={},depth=128,gro=1,mac=5a:94:ef:e4:0c:ee",
+                self.bess
+            ));
+        }
         argv
+    }
+
+    // -----------------------------------------------------------------------
+    // gvproxy lifecycle (A3) -- started only when UML4TERMUXD_GVPROXY is set
+    // -----------------------------------------------------------------------
+    fn spawn_gvproxy(&mut self) -> i32 {
+        if self.gvproxy_path.is_empty() {
+            return 0; // not configured: the guest runs without networking
+        }
+        if self.bess.is_empty() {
+            logf("UML4TERMUXD_GVPROXY set but no UML4TERMUXD_BESS");
+            return -1;
+        }
+        let listen = format!("-listen=unix://{}.gv.sock", self.bess);
+        let bess_arg = format!("-listen-bess=unixpacket://{}", self.bess);
+        let log_arg = format!("-log-file={}.gv.log", self.bess);
+
+        // Termux has no /etc; gvproxy wants /etc/resolv.conf, so proot binds
+        // the Termux etc over it (skipped on hosts that have one).
+        let need_proot =
+            !Path::new("/etc/resolv.conf").exists() && Path::new("/data/data/com.termux").exists();
+        let prefix = std::env::var("PREFIX")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| "/data/data/com.termux/files/usr".to_string());
+
+        let mut argv: Vec<String> = Vec::new();
+        if need_proot {
+            argv.push("proot".to_string());
+            argv.push("-b".to_string());
+            argv.push(format!("{prefix}/etc:/etc"));
+        }
+        argv.push(self.gvproxy_path.clone());
+        argv.push("-debug".to_string());
+        argv.push(listen);
+        argv.push(bess_arg);
+        argv.push(log_arg);
+
+        let cstrings: Vec<CString> = argv
+            .iter()
+            .map(|a| CString::new(a.as_str()).unwrap_or_default())
+            .collect();
+        let mut ptrs: Vec<*const libc::c_char> = cstrings.iter().map(|c| c.as_ptr()).collect();
+        ptrs.push(std::ptr::null());
+
+        let pid = unsafe { libc::fork() };
+        if pid < 0 {
+            return -1;
+        }
+        if pid == 0 {
+            unsafe {
+                // setsid: a bare kill of the proot pid would orphan its
+                // tracee, so the daemon signals the whole process group.
+                libc::setsid();
+                libc::execvp(ptrs[0], ptrs.as_ptr());
+                logf(&format!(
+                    "exec gvproxy failed: {}",
+                    io::Error::last_os_error()
+                ));
+                libc::_exit(127);
+            }
+        }
+        self.gvproxy_pid = pid;
+
+        // Up to 5 s for the bess socket to appear.
+        for _ in 0..50 {
+            if let Ok(meta) = fs::metadata(&self.bess) {
+                use std::os::unix::fs::FileTypeExt;
+                if meta.file_type().is_socket() {
+                    logf(&format!("gvproxy up pid={pid} bess={}", self.bess));
+                    self.gvapi = format!("{}.gv.sock", self.bess);
+                    return 0;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        logf(&format!("gvproxy did not create {}", self.bess));
+        self.gvproxy_pid = -1;
+        -1
+    }
+
+    /// Signal the whole process GROUP, then escalate -- a proot tracee would
+    /// survive a bare kill of the proot pid.
+    fn stop_gvproxy(&mut self) {
+        if self.gvproxy_pid <= 0 {
+            return;
+        }
+        unsafe { libc::kill(-self.gvproxy_pid, libc::SIGTERM) };
+        for _ in 0..10 {
+            if unsafe { libc::waitpid(self.gvproxy_pid, std::ptr::null_mut(), libc::WNOHANG) } != 0
+            {
+                logf("gvproxy stopped");
+                self.gvproxy_pid = -1;
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        logf("gvproxy group ignored SIGTERM, SIGKILL");
+        unsafe {
+            libc::kill(-self.gvproxy_pid, libc::SIGKILL);
+            libc::waitpid(self.gvproxy_pid, std::ptr::null_mut(), 0);
+        }
+        logf("gvproxy stopped");
+        self.gvproxy_pid = -1;
+    }
+
+    // -----------------------------------------------------------------------
+    // Exposure registry (JSONL) + gvproxy HTTP-over-unix client (A3b)
+    // -----------------------------------------------------------------------
+
+    /// One HTTP request over a unix socket; returns the raw response text.
+    fn unix_http(sockpath: &str, req: &str) -> io::Result<String> {
+        use std::os::unix::net::UnixStream;
+        let mut stream = UnixStream::connect(sockpath)?;
+        stream.set_read_timeout(Some(Duration::from_secs(4)))?;
+        stream.write_all(req.as_bytes())?;
+        stream.flush()?;
+        let mut out = String::new();
+        stream.take(4096).read_to_string(&mut out)?;
+        Ok(out)
+    }
+
+    fn do_expose(&self, hport: &str, gport: &str) -> Result<(), String> {
+        let local = format!("127.0.0.1:{hport}");
+        let remote = format!("{}:{gport}", self.cfg.guest_ip);
+        // serde, not string concatenation: a stray quote in a port value
+        // cannot break the payload the way "{\"local\":\"%s\"}" can.
+        let json = serde_json::json!({ "local": local, "remote": remote }).to_string();
+        let req = format!(
+            "POST /services/forwarder/expose HTTP/1.1\r\nHost: unix\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            json.len(),
+            json
+        );
+        match Self::unix_http(&self.gvapi, &req) {
+            Ok(resp) => {
+                if resp.contains("200") {
+                    logf(&format!("exposed {local} -> {remote}"));
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "gvproxy rejected: {}",
+                        resp.chars().take(80).collect::<String>()
+                    ))
+                }
+            }
+            Err(_) => Err("gvproxy API unreachable".to_string()),
+        }
+    }
+
+    /// Append an exposure, dropping any earlier entry for the same host port.
+    fn save_exposure(&self, hport: &str, gport: &str) -> io::Result<()> {
+        let path = match &self.exposures_path {
+            Some(p) => p,
+            None => return Ok(()),
+        };
+        let needle = format!("\"local\":\"127.0.0.1:{hport}\"");
+        let existing = fs::read_to_string(path).unwrap_or_default();
+        let mut out = String::new();
+        for line in existing.lines() {
+            if !line.contains(&needle) {
+                out.push_str(line);
+                out.push('\n');
+            }
+        }
+        out.push_str(&format!(
+            "{{\"local\":\"127.0.0.1:{hport}\",\"remote\":\"{}:{gport}\"}}\n",
+            self.cfg.guest_ip
+        ));
+        let tmp = with_suffix(path, ".tmp");
+        fs::write(&tmp, out)?;
+        fs::rename(&tmp, path)?;
+        Ok(())
+    }
+
+    /// Re-apply every recorded exposure after a restart.
+    fn reapply_exposures(&self) {
+        let path = match &self.exposures_path {
+            Some(p) => p,
+            None => return,
+        };
+        let text = match fs::read_to_string(path) {
+            Ok(t) => t,
+            Err(_) => return,
+        };
+        let mut n = 0;
+        for line in text.lines() {
+            if let (Some(hport), Some(gport)) =
+                (json_field(line, "local"), json_field(line, "remote"))
+            {
+                match self.do_expose(&hport, &gport) {
+                    Ok(()) => n += 1,
+                    Err(e) => logf(&format!("re-expose {hport}->{gport} failed: {e}")),
+                }
+            }
+        }
+        if n > 0 {
+            logf(&format!("re-applied {n} exposure(s) from the registry"));
+        }
+    }
+
+    fn exposure_count(&self) -> usize {
+        match &self.exposures_path {
+            Some(p) => fs::read_to_string(p)
+                .map(|t| t.lines().filter(|l| !l.trim().is_empty()).count())
+                .unwrap_or(0),
+            None => 0,
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Optional loopback HTTP health endpoint (D2, UML4TERMUXD_HTTP=ip:port)
+    // -----------------------------------------------------------------------
+    fn open_http_listener(&mut self) {
+        let spec = match std::env::var("UML4TERMUXD_HTTP") {
+            Ok(v) if !v.is_empty() => v,
+            _ => return,
+        };
+        let (host, port_str) = match spec.rsplit_once(':') {
+            Some((h, p)) => (h.to_string(), p.to_string()),
+            None => ("127.0.0.1".to_string(), spec.clone()),
+        };
+        let port: i32 = port_str.trim().parse().unwrap_or(0);
+        if port <= 0 || port > 65535 {
+            logf("http: invalid port in UML4TERMUXD_HTTP, endpoint disabled");
+            return;
+        }
+        let fd = unsafe { libc::socket(libc::AF_INET, libc::SOCK_STREAM, 0) };
+        if fd < 0 {
+            return;
+        }
+        let yes: libc::c_int = 1;
+        unsafe {
+            libc::setsockopt(
+                fd,
+                libc::SOL_SOCKET,
+                libc::SO_REUSEADDR,
+                &yes as *const libc::c_int as *const libc::c_void,
+                std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+            )
+        };
+        let mut addr: libc::sockaddr_in = unsafe { std::mem::zeroed() };
+        addr.sin_family = libc::AF_INET as libc::sa_family_t;
+        addr.sin_port = (port as u16).to_be();
+        // The libc crate does not expose inet_pton; parse the dotted quad
+        // directly. s_addr is a native-order u32 whose MEMORY bytes are the
+        // network-order octets, so from_ne_bytes is the correct conversion --
+        // from_be_bytes gives 01 00 00 7F for 127.0.0.1 and bind() then fails
+        // with EADDRNOTAVAIL (os error 99).
+        match host.parse::<std::net::Ipv4Addr>() {
+            Ok(ip) => addr.sin_addr.s_addr = u32::from_ne_bytes(ip.octets()),
+            Err(_) => {
+                logf(&format!("http: bad host '{host}', endpoint disabled"));
+                unsafe { libc::close(fd) };
+                return;
+            }
+        }
+        let ok = unsafe {
+            libc::bind(
+                fd,
+                &addr as *const libc::sockaddr_in as *const libc::sockaddr,
+                std::mem::size_of::<libc::sockaddr_in>() as libc::socklen_t,
+            ) == 0
+                && libc::listen(fd, 4) == 0
+        };
+        if !ok {
+            logf(&format!(
+                "http: bind/listen {host}:{port} failed: {}",
+                io::Error::last_os_error()
+            ));
+            unsafe { libc::close(fd) };
+            return;
+        }
+        self.http_fd = fd;
+        logf(&format!(
+            "http health endpoint on {host}:{port} (GET /status)"
+        ));
+    }
+
+    /// Response body is byte-identical to the C daemon's http_serve().
+    fn http_response(&self) -> String {
+        let mode = if self.cow.is_empty() {
+            "persistent"
+        } else {
+            "ephemeral-cow"
+        };
+        let payload = if self.child > 0 {
+            format!(
+                "{{\"ok\":true,\"state\":\"running\",\"child_pid\":{},\"exposures\":{},\"mode\":\"{mode}\"}}\r\n",
+                self.child,
+                self.exposure_count()
+            )
+        } else {
+            format!(
+                "{{\"ok\":true,\"state\":\"idle\",\"child_pid\":-1,\"exposures\":{},\"mode\":\"{mode}\"}}\r\n",
+                self.exposure_count()
+            )
+        };
+        format!("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n{payload}")
+    }
+
+    fn http_serve(&self, cfd: RawFd) {
+        let mut req = [0u8; 512];
+        let _ = unsafe { libc::read(cfd, req.as_mut_ptr() as *mut libc::c_void, req.len() - 1) };
+        let body = self.http_response();
+        let _ = write_all_fd(cfd, body.as_bytes());
     }
 
     fn serve_loop(&mut self, lfd: RawFd) -> io::Result<i32> {
@@ -342,6 +680,16 @@ impl Daemon {
                 pty_idx = Some(pfds.len());
                 pfds.push(libc::pollfd {
                     fd: self.pty_master,
+                    events: libc::POLLIN,
+                    revents: 0,
+                });
+            }
+
+            let mut http_idx: Option<usize> = None;
+            if self.http_fd >= 0 {
+                http_idx = Some(pfds.len());
+                pfds.push(libc::pollfd {
+                    fd: self.http_fd,
                     events: libc::POLLIN,
                     revents: 0,
                 });
@@ -365,6 +713,17 @@ impl Daemon {
                         unsafe { libc::close(cfd) };
                     }
                 }
+                if let Some(i) = http_idx {
+                    if pfds[i].revents & libc::POLLIN != 0 {
+                        let cfd = unsafe {
+                            libc::accept(self.http_fd, std::ptr::null_mut(), std::ptr::null_mut())
+                        };
+                        if cfd >= 0 {
+                            self.http_serve(cfd);
+                            unsafe { libc::close(cfd) };
+                        }
+                    }
+                }
             }
         }
         if self.child > 0 {
@@ -374,7 +733,12 @@ impl Daemon {
             unsafe { libc::close(self.pty_master) };
             self.pty_master = -1;
         }
+        if self.http_fd >= 0 {
+            unsafe { libc::close(self.http_fd) };
+            self.http_fd = -1;
+        }
         self.log_file = None;
+        self.stop_gvproxy();
         logf("daemon exit");
         self.state_json("stopped", "daemon-exit");
         Ok(0)
@@ -462,9 +826,17 @@ impl Daemon {
             if parts.len() != 2 {
                 return "{\"error\":\"usage: expose <host-port> <guest-port>\"}\n".to_string();
             }
-            // phase 2b: do_expose() + save_exposure() are still C-only, so this
-            // branch is unreachable while gvproxy is not started here.
-            return "{\"error\":\"gvproxy not running\"}\n".to_string();
+            let (hport, gport) = (parts[0], parts[1]);
+            return match self.do_expose(hport, gport) {
+                Ok(()) => {
+                    let _ = self.save_exposure(hport, gport);
+                    format!(
+                        "{{\"exposed\":\"127.0.0.1:{hport} -> {}:{gport}\"}}\n",
+                        self.cfg.guest_ip
+                    )
+                }
+                Err(e) => format!("{{\"error\":{}}}\n", serde_json::to_string(&e).unwrap()),
+            };
         }
         if line.starts_with("ports") {
             return self.ports_json();
@@ -678,6 +1050,14 @@ impl Daemon {
     }
 }
 
+/// Extract a `"field":"<prefix><value>"` value from a registry line, e.g.
+/// json_field(line, "local") on {"local":"127.0.0.1:8124"} gives "8124".
+fn json_field(line: &str, field: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(line).ok()?;
+    let s = v.get(field)?.as_str()?;
+    Some(s.rsplit(':').next().unwrap_or(s).to_string())
+}
+
 fn with_suffix(p: &Path, suffix: &str) -> PathBuf {
     let mut s = p.as_os_str().to_os_string();
     s.push(suffix);
@@ -787,6 +1167,122 @@ mod tests {
             assert_eq!(v["detail"], "quote \" and \\ backslash");
             let _ = fs::remove_file(&d.state_path);
         }
+    }
+
+    #[test]
+    fn json_field_reads_the_port_out_of_a_registry_line() {
+        let line = "{\"local\":\"127.0.0.1:8124\",\"remote\":\"192.168.127.2:80\"}";
+        assert_eq!(json_field(line, "local").as_deref(), Some("8124"));
+        assert_eq!(json_field(line, "remote").as_deref(), Some("80"));
+        assert_eq!(json_field("not json", "local"), None);
+    }
+
+    #[test]
+    fn save_exposure_dedups_the_same_host_port() {
+        let d = test_daemon(true);
+        let dir = std::env::temp_dir().join(format!(
+            "u4t-exp-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .subsec_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let d = Daemon {
+            exposures_path: Some(dir.join("exposures.jsonl")),
+            ..d
+        };
+        d.save_exposure("8124", "80").unwrap();
+        d.save_exposure("8125", "81").unwrap();
+        d.save_exposure("8124", "8080").unwrap(); // same host port: replace
+        let text = fs::read_to_string(d.exposures_path.clone().unwrap()).unwrap();
+        assert_eq!(text.lines().count(), 2, "expected 2 entries, got: {text}");
+        assert!(text.contains("8124\",\"remote\":\"192.168.127.2:8080"));
+        assert!(!text.contains(":80\""));
+        assert_eq!(d.exposure_count(), 2);
+        let ports = d.ports_json();
+        assert!(ports.starts_with("{\"exposures\":["));
+        assert!(ports.contains("8125"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn do_expose_accepts_200_and_rejects_errors_from_gvproxy() {
+        use std::os::unix::net::UnixListener;
+        let d = test_daemon(true);
+        let sock = std::env::temp_dir().join(format!(
+            "u4t-gvapi-{}-{}.sock",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .subsec_nanos()
+        ));
+        let _ = fs::remove_file(&sock);
+
+        // A fake gvproxy that answers the expose POST with 200.
+        let listener = UnixListener::bind(&sock).unwrap();
+        let handle = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buf = [0u8; 1024];
+            let n = stream.read(&mut buf).unwrap();
+            let req = String::from_utf8_lossy(&buf[..n]).to_string();
+            assert!(req.starts_with("POST /services/forwarder/expose"));
+            assert!(req.contains("\"local\":\"127.0.0.1:8124\""));
+            assert!(req.contains("\"remote\":\"192.168.127.2:80\""));
+            stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").unwrap();
+        });
+        let d = Daemon {
+            gvapi: sock.to_string_lossy().to_string(),
+            ..d
+        };
+        assert_eq!(d.do_expose("8124", "80"), Ok(()));
+        handle.join().unwrap();
+        fs::remove_file(&sock).ok();
+
+        // An unreachable API is reported, not panicked on.
+        let d = Daemon {
+            gvapi: "/nonexistent/gv.sock".to_string(),
+            ..d
+        };
+        assert_eq!(
+            d.do_expose("1", "1"),
+            Err("gvproxy API unreachable".to_string())
+        );
+    }
+
+    #[test]
+    fn http_response_matches_the_c_daemon_bytes() {
+        let d = test_daemon(true);
+        let idle = d.http_response();
+        assert!(idle.starts_with("HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n"));
+        assert!(idle.contains("{\"ok\":true,\"state\":\"idle\",\"child_pid\":-1,"));
+        assert!(idle.contains("\"mode\":\"persistent\""));
+        assert!(idle.ends_with("}\r\n"));
+
+        let mut d = test_daemon(true);
+        d.child = 4242;
+        d.cow = "/tmp/x.cow".into();
+        let running = d.http_response();
+        assert!(running.contains("\"state\":\"running\",\"child_pid\":4242,"));
+        assert!(running.contains("\"mode\":\"ephemeral-cow\""));
+    }
+
+    #[test]
+    fn expose_reply_matches_the_c_daemon_shape() {
+        let mut d = test_daemon(true);
+        // gvproxy absent -> the same error the C daemon prints
+        assert_eq!(
+            d.dispatch("expose 8124 80"),
+            "{\"error\":\"gvproxy not running\"}\n"
+        );
+        // one argument -> usage error, as in C
+        d.gvproxy_pid = 1234;
+        assert_eq!(
+            d.dispatch("expose 8124"),
+            "{\"error\":\"usage: expose <host-port> <guest-port>\"}\n"
+        );
     }
 
     #[test]
