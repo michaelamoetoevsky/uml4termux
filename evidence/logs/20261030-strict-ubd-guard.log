@@ -1,0 +1,10 @@
+[1793314211.541] uml4termuxd[29960]: guest: kernel=/data/data/com.termux/files/home/.local/share/uml4termux/linux-bionic-smp mem=1024M ncpus=4 console=/data/data/com.termux/files/usr/tmp/strict-ubd/uml-console.log
+[1793314211.541] uml4termuxd[29960]: control socket: /data/data/com.termux/files/usr/tmp/strict-ubd/daemon.sock
+[1793314211.568] uml4termuxd[29960]: child spawned pid=29970 argv0=/data/data/com.termux/files/home/.local/share/uml4termux/linux-bionic-smp
+[1793314211.570] uml4termuxd[29960]: state=running spawned
+[1793314212.243] uml4termuxd[29960]: guest could not attach its disk (ubd); aborting because UML4TERMUXD_STRICT_UBD is set
+[1793314212.255] uml4termuxd[29960]: state=failed ubd-attach
+[1793314212.255] uml4termuxd[29960]: stop: clean poweroff via console (20 s budget)
+[1793314212.756] uml4termuxd[29960]: clean poweroff landed
+[1793314212.756] uml4termuxd[29960]: daemon exit
+[1793314212.759] uml4termuxd[29960]: state=stopped daemon-exit

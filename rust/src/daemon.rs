@@ -71,6 +71,15 @@ pub struct Daemon {
     /// gvproxy's HTTP-over-unix API socket (`<bess>.gv.sock`).
     gvapi: String,
     http_fd: RawFd,
+    /// Console tail used to notice that the guest never attached its disk.
+    console_tail: Vec<u8>,
+    ubd_failed: bool,
+    ubd_aborted: bool,
+    /// UML4TERMUXD_STRICT_UBD=1: treat a failed ubd attach as fatal instead of
+    /// letting the guest silently continue without a disk (its init runs from
+    /// the initramfs and every write is then lost -- a docker run would appear
+    /// to work while nothing persists).
+    strict_ubd: bool,
 }
 
 impl Daemon {
@@ -121,6 +130,12 @@ impl Daemon {
             bess: env_or("UML4TERMUXD_BESS", ""),
             gvapi: String::new(),
             http_fd: -1,
+            console_tail: Vec::new(),
+            ubd_failed: false,
+            ubd_aborted: false,
+            strict_ubd: std::env::var("UML4TERMUXD_STRICT_UBD")
+                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                .unwrap_or(false),
         }
     }
 
@@ -695,6 +710,17 @@ impl Daemon {
                 });
             }
 
+            if self.strict_ubd && self.ubd_failed && !self.ubd_aborted {
+                self.ubd_aborted = true;
+                logf("guest could not attach its disk (ubd); aborting because UML4TERMUXD_STRICT_UBD is set");
+                self.state_json("failed", "ubd-attach");
+                if self.child > 0 {
+                    self.stop_child(5);
+                }
+                STOP.store(true, Ordering::SeqCst);
+                break;
+            }
+
             let rc = unsafe { libc::poll(pfds.as_mut_ptr(), pfds.len() as libc::nfds_t, 500) };
             if CHILD_EXITED.load(Ordering::SeqCst) {
                 self.reap_child();
@@ -759,6 +785,9 @@ impl Daemon {
             }
             if let Some(f) = self.log_file.as_mut() {
                 let _ = f.write_all(&buf[..n as usize]);
+            }
+            if scan_ubd_failure(&mut self.console_tail, &buf[..n as usize]) {
+                self.ubd_failed = true;
             }
         }
     }
@@ -1050,6 +1079,22 @@ impl Daemon {
     }
 }
 
+/// True when `chunk` (appended to `tail`, capped) contains UML's ubd failure
+/// banner. The kernel prints it in several pieces, so a rolling tail of the
+/// last few KB is kept and both known lines are searched.
+fn scan_ubd_failure(tail: &mut Vec<u8>, chunk: &[u8]) -> bool {
+    const TAIL_MAX: usize = 8192;
+    const NEEDLES: [&[u8]; 2] = [b"Failed to initialize ubd device", b"Failed to lock"];
+    tail.extend_from_slice(chunk);
+    if tail.len() > TAIL_MAX {
+        let cut = tail.len() - TAIL_MAX;
+        tail.drain(..cut);
+    }
+    NEEDLES
+        .iter()
+        .any(|n| tail.windows(n.len()).any(|w| w == *n))
+}
+
 /// Extract a `"field":"<prefix><value>"` value from a registry line, e.g.
 /// json_field(line, "local") on {"local":"127.0.0.1:8124"} gives "8124".
 fn json_field(line: &str, field: &str) -> Option<String> {
@@ -1167,6 +1212,43 @@ mod tests {
             assert_eq!(v["detail"], "quote \" and \\ backslash");
             let _ = fs::remove_file(&d.state_path);
         }
+    }
+
+    #[test]
+    fn ubd_failure_is_detected_across_split_writes() {
+        let mut tail = Vec::new();
+        assert!(!scan_ubd_failure(&mut tail, b"normal boot chatter\n"));
+        assert!(!scan_ubd_failure(&mut tail, b"Failed to initial"));
+        // the needle is split across two reads: only now is it complete
+        assert!(scan_ubd_failure(&mut tail, b"ize ubd device 0 :(null)\n"));
+    }
+
+    #[test]
+    fn lock_failure_is_detected_and_tail_stays_bounded() {
+        let mut tail = Vec::new();
+        assert!(scan_ubd_failure(
+            &mut tail,
+            b"Failed to lock '/img', err = 11\n"
+        ));
+        let mut tail = Vec::new();
+        for _ in 0..2000 {
+            assert!(!scan_ubd_failure(&mut tail, &[b'x'; 64]));
+        }
+        assert!(
+            tail.len() <= 8192,
+            "tail must stay bounded, got {}",
+            tail.len()
+        );
+    }
+
+    #[test]
+    fn strict_ubd_is_opt_in() {
+        // default construction (no env var) must not abort on a diskless boot
+        let d = test_daemon(false);
+        assert!(
+            !d.strict_ubd,
+            "strict mode must be opt-in via UML4TERMUXD_STRICT_UBD"
+        );
     }
 
     #[test]

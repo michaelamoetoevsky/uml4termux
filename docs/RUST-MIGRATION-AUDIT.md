@@ -221,31 +221,60 @@ Dua bug ditemukan lewat tes ini sendiri:
 
 30 tes Rust lulus.
 
-### Fase 2b — verifikasi device: daemon Rust mem-boot guest nyata — SELESAI
+### Fase 2b — verifikasi device: daemon Rust mem-boot guest nyata — SELESAI (dengan koreksi)
 
-Daemon Rust (bukan selftest) mem-boot image guest sungguhan lewat header COW
-yang ditulis modul Rust sendiri:
+**Versi pertama klaim ini salah, dan koreksinya bagian terpenting di sini.**
+Boot pertama hari itu memang menjalankan supervisor Rust, tetapi guest-nya
+**TIDAK punya disk**: kernel mencetak
+
+```
+F_SETLK failed, file already locked by pid 30053
+Failed to lock '<image>', err = 11
+Failed to initialize ubd device 0
+UML4TERMUX_INIT NO_DISK: no /dev/ubda, running /forensic.sh inside the initramfs
+```
+
+UML memegang **lock eksklusif (`F_SETLK`) pada image backing**, dan pemegangnya
+adalah guest milik layanan runit lama yang memakai image yang sama. Karena init
+guest jatuh ke mode tanpa-disk, semua marker tetap tercetak dan "boot sukses"
+terlihat benar — padahal tidak ada disk, tidak ada COW, dan setiap tulisan guest
+hilang. Direproduksi pada **kedua daemon** (C rilis v0.5.0 dan Rust): jadi sifat
+lingkungan/kernel, bukan bug port.
+
+Setelah diuji ulang dengan **image privat** (`uml-forensics/cap7/debian-docker.ext4`,
+tidak dipakai service), barulah jalur disk terbukti:
 
 | Bukti | Hasil |
 |---|---|
-| Kernel guest | `Linux 7.2.0-rc4-opt #1 SMP aarch64` |
-| CPU di guest | `RUSTDAEMON_CPUCOUNT 4` (jalur seccomp SMP) |
-| Marker guest | `RUSTDAEMON_GUEST_START` … `RUSTDAEMON_WROTE rust-daemon-boot` … `RUSTDAEMON_DONE` |
-| Akhir sesi | guest `poweroff` sendiri → daemon `phase=completed`, `detail=exit=0`, tanpa restart |
-| Proses yatim | **0** setelah boot Rust maupun boot C |
-| Isolasi COW | image `b363a716…` + mtime **identik sebelum/sesudah** boot; COW tumbuh 3.222.016.512 B |
-| A/B vs daemon C | marker guest **identik**; file COW kedua daemon **byte-identik** (`052c0be9…`) |
+| Attach disk | `UML4TERMUX_INIT root_mounted /dev/ubda -> /newroot` |
+| Pindah root | `UML4TERMUX_INIT SWITCH_ROOT_NOW /forensic.sh` |
+| Userspace guest | `RUSTDAEMON_UNAME … aarch64 GNU/Linux` (Debian, bukan initramfs) |
+| Tulisan masuk COW | **760 sektor** tercatat di bitmap, **592 KB** teralokasi |
+| Image backing | hash `7e1127d1…` **dan mtime identik** sebelum/sesudah |
+| Akhir sesi | guest `poweroff` sendiri → `phase=completed`, `detail=exit=0`, 0 yatim |
+| A/B vs daemon C | marker guest identik; COW kedua daemon **byte-identik** (`052c0be9…`) |
+| `ci/local-ci.sh` / CI | 14/14 · job rust + device-evidence **hijau** |
+
+**Perbaikan produk dari temuan ini** (khusus daemon Rust):
+`UML4TERMUXD_STRICT_UBD=1` menyalakan pemindai konsol yang mengenali kegagalan
+attach ubd (termasuk saat baris kernel terbelah antar-read), lalu menulis
+`state=failed detail=ubd-attach` dan **membatalkan** boot alih-alih melanjutkan
+tanpa disk. Terverifikasi di device: guard menyala, skrip guest **tidak pernah
+jalan** (`GUEST_MARKERS_RAN 0`), 0 proses tersisa.
 
 Evidence: `evidence/20261030-rust-daemon-parity.json` (verdict `partial`, lulus
-checker) + 4 artefak log mentah.
+checker, `ubd_lock_contention.ok=false`) + 7 artefak log mentah.
 
-**Temuan operasional penting (bukan bug port)**: layanan runit `uml4termux`
-(flow shell lama, `uml4termux docker --foreground`) sedang UP dan mem-boot guest
-**persistent tanpa COW** pukul 04:57–05:00, sehingga digest image backing
-berubah (`83f46631…` → `b363a716…`). Eksperimen terkontrol membuktikan boot
-daemon Rust **tidak** mengubah image. Konsekuensi: matikan service itu sebelum
-pengukuran digest apa pun, dan jangan menjalankan dua guest bersamaan di device
-ini.
+Belum tertutup dan disebut apa adanya: gvproxy hidup yang menempel ke guest
+nyata, soak dengan disk terpasang, dan biner C masih yang dikirim di rilis
+v0.5.0.
+
+**Catatan operasional yang menyatu dengan temuan di atas**: layanan runit
+`uml4termux` (flow shell lama) memakai image backing **yang sama**, memegang
+lock eksklusifnya selama guest hidup, dan mem-boot dalam mode **persistent
+(tanpa COW)** sehingga bisa mengubah digest image. Karena itu: matikan
+service sebelum pengukuran digest atau uji COW, dan jangan menjalankan dua
+guest pada satu image.
 
 Catatan jujur yang belum tertutup: registry exposure + gvproxy belum diuji
 dengan gvproxy hidup yang menempel ke guest nyata, dan soak belum dijalankan

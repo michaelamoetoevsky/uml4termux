@@ -20,31 +20,46 @@
  "capabilities": {
   "boot": {
    "ok": true,
-   "evidence": "The Rust supervisor (forkpty + execv, PTY console drain, reap/restart policy) booted the real guest image through a Rust-written COW v3 header: markers RUSTDAEMON_GUEST_START, RUSTDAEMON_UNAME 'Linux (none) 7.2.0-rc4-opt #1 SMP ... aarch64', RUSTDAEMON_CPUCOUNT 4, RUSTDAEMON_WROTE, RUSTDAEMON_DONE, then the guest shut itself down and the daemon recorded phase=completed detail=exit=0."
+   "evidence": "Rust supervisor (forkpty + execv, PTY console drain, reap policy) booted the real guest: kernel 7.2.0-rc4-opt #1 SMP aarch64, guest CPUCOUNT 4 (seccomp SMP path), markers RUSTDAEMON_GUEST_START..RUSTDAEMON_DONE, guest powered itself off -> phase=completed detail=exit=0, no restart, 0 leftover processes of its own."
   },
   "rust_daemon_protocol_parity": {
    "ok": true,
    "evidence": "ci/verify-daemon-parity.sh runs the C daemon and the Rust daemon in turn on the same runtime with the same client and diffs normalised replies: 6/6 lines identical (status, ports, exec, expose, state file, HTTP /status body). Exit code 3 when the socket is unreachable, as in C."
   },
-  "cow_isolation_rust_daemon": {
-   "ok": true,
-   "evidence": "Controlled experiment around one Rust-daemon boot: backing image sha256 b363a716cd597efbe1022fc71113757f43e19aaa38a9fe76ac04bc6ed7e20d0a and mtime 2026-10-30 05:00:19 identical BEFORE and AFTER the boot; the guest booted (5 markers) and its COW file grew to 3222016512 bytes."
-  },
   "cow_writer_byte_exact": {
    "ok": true,
-   "evidence": "rust/src/cow.rs vs write_cow_header_file(): same 3 MiB image -> cmp identical, sha256 01b716b4d10f60c751ce0b65ef46039c94c05b79ef0e703d48b47895e4e0dee8 and same sparse size for both writers (CI gate). In a real boot both daemons produced byte-identical COW files: sha256 052c0be926c24af44c6a0418843a36c5253abb5e40900ff76b6a20963123f2f9."
+   "evidence": "rust/src/cow.rs vs write_cow_header_file(): same 3 MiB image -> cmp identical, sha256 01b716b4d10f60c751ce0b65ef46039c94c05b79ef0e703d48b47895e4e0dee8, same sparse size (CI gate). Real boots: both daemons wrote byte-identical COW files, sha256 052c0be926c24af44c6a0418843a36c5253abb5e40900ff76b6a20963123f2f9."
   },
-  "rust_daemon_clean_shutdown": {
+  "cow_isolation_verified_with_private_backing": {
    "ok": true,
-   "evidence": "Guest powered off after completing its script; the Rust daemon logged phase=completed with detail=exit=0 and did not restart (exit 0 = finished session, restart only on crashes). 0 leftover linux-bionic processes after both the Rust and the C run."
+   "evidence": "CORRECTED RESULT (see ubd_lock_contention below: the first boots of this session were silently DISKLESS, so they proved nothing about COW). Re-run against a private backing image (workspace/uml-forensics/cap7/debian-docker.ext4, sha256 7e1127d18ed826aa8e76d6cd8e7808b4997fa59f89832d9630e2e6971a3334c6): init reported 'root_mounted /dev/ubda -> /newroot' and 'SWITCH_ROOT_NOW', the guest wrote /root/rustboot.marker, the COW bitmap recorded 760 sectors and allocated 592 KB, and the backing image was byte-identical AND mtime-identical before/after (7e1127d1..., mtime 1793107661)."
+  },
+  "ubd_lock_contention": {
+   "ok": false,
+   "evidence": "UML takes an exclusive host lock (F_SETLK) on the BACKING IMAGE. With the runit service's guest alive on the same image, every other boot fails: 'F_SETLK failed, file already locked by pid N', 'Failed to lock <image>, err = 11', 'Failed to initialize ubd device 0'. The guest then silently CONTINUES without a disk (its initramfs init prints NO_DISK and runs the entry script in RAM), so a docker run would appear to work while nothing persists. Reproduced with BOTH the C daemon (bin/uml4termuxd, v0.5.0 release) and the Rust daemon: the fault is in the environment/kernel behaviour, not in the port. Action taken: the Rust daemon gains a console scanner plus UML4TERMUXD_STRICT_UBD=1, which turns the failure into state=failed detail=ubd-attach and aborts instead of continuing diskless (verified on device: guard fired, guest script never ran, 0 leftovers)."
   },
   "rust_build_native_target": {
    "ok": true,
-   "evidence": "rustc host triple on Termux is aarch64-linux-android, so the device build IS the bionic target build: cargo test --release 30/30, clippy -D warnings clean, binary 1.6 MB (LTO + strip)."
+   "evidence": "rustc host triple on Termux is aarch64-linux-android, so the device build IS the bionic target build: cargo test --release 33/33, clippy -D warnings clean, binary 1.6 MB (LTO + strip)."
   }
  },
  "verdict": "partial",
  "artifacts": [
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-rust-daemon-private-image-boot.log",
+   "sha256": "0b719e31b48146e3735de91544d9fcad1cf2b01686a3a0be6c32bcd57e01a10b"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-strict-ubd-guest-console.log",
+   "sha256": "e0f466cb973fa4c3478c0d480570f25b32bbaf1fcee65023fbeccd0548027294"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-strict-ubd-guard.log",
+   "sha256": "367d37af1d9712492b5275eb79ea82ebb9c8d5d284e114926c230b9e890adf32"
+  },
   {
    "kind": "console-log",
    "path": "logs/20261030-rust-daemon-boot-console.log",
@@ -66,9 +81,10 @@
    "sha256": "b4309446323b8e622aa1a731f41e9860e4ac0bf85c4cd0a16c95752b3bd4c177"
   }
  ],
- "notes": "The Rust port of the daemon boots a real UML guest, isolates writes with COW, shuts down cleanly and answers byte-identically to the C daemon on every control path checked. CAVEATS: (1) gvproxy lifecycle, exposure registry and the optional HTTP endpoint are ported and covered by the parity gate, but they were verified against a fake gvproxy socket and the C daemon's error paths -- not yet with a real gvproxy attached to a running guest. (2) An unrelated runit service (uml4termux, legacy shell flow 'uml4termux docker --foreground') was UP during this session and booted a persistent (non-COW) guest at 04:57-05:00, changing the backing image digest from 83f46631ef4df241a10e55b91612224c00d494ee1c608a294f6416a236a6a9ac to b363a716cd597efbe1022fc71113757f43e19aaa38a9fe76ac04bc6ed7e20d0a. That change is NOT attributable to the Rust daemon -- the controlled before/after experiment proves the Rust boot left the image byte-identical -- but any future image-digest claim must stop that service first. (3) The Rust daemon has not been exercised by a soak run or under the runit service; the C binary is still what ships in release v0.5.0.",
+ "notes": "Phase-2 device evidence for the Rust daemon. CORRECTION: the first boot runs in this record were silently diskless -- UML could not attach ubd because another guest held the backing image's exclusive F_SETLK -- so they proved the supervisor path but NOT the disk/COW path. A re-run with a private backing image does prove it: ubda attaches, switch_root happens, 760 COW sectors record the guest's writes, and the image stays byte- and mtime-identical. The contention itself is now an explicit, reproducible finding with a guard in the Rust daemon (UML4TERMUXD_STRICT_UBD=1). Still open: gvproxy/exposure-registry with a live gvproxy attached to a real guest, a soak with the disk attached, and the C binary is still what ships in release v0.5.0.",
  "known_limits_observed": [
-  "gvproxy not attached during the boot test, so inbound exposure is unverified in the Rust daemon",
-  "one UML guest at a time on this device; the runit service must be stopped before digest-sensitive runs"
+  "one UML guest per backing image: UML holds an exclusive F_SETLK on it, so a second boot silently degrades to a diskless guest unless the daemon is run with UML4TERMUXD_STRICT_UBD=1",
+  "the runit service (legacy shell flow) may be holding that lock and may also rewrite the backing image (persistent, non-COW), so digest-sensitive runs must stop it first",
+  "gvproxy not attached during the boot tests, so inbound exposure is unverified in the Rust daemon"
  ]
 }

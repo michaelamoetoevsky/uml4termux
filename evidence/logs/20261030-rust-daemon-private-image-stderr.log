@@ -1,0 +1,9 @@
+[1793313990.930] uml4termuxd[23743]: guest: kernel=/data/data/com.termux/files/home/.local/share/uml4termux/linux-bionic-smp mem=1024M ncpus=4 console=/data/data/com.termux/files/usr/tmp/cowreal/uml-console.log
+[1793313990.931] uml4termuxd[23743]: control socket: /data/data/com.termux/files/usr/tmp/cowreal/daemon.sock
+[1793313990.934] uml4termuxd[23743]: child spawned pid=23748 argv0=/data/data/com.termux/files/home/.local/share/uml4termux/linux-bionic-smp
+[1793313990.935] uml4termuxd[23743]: state=running spawned
+[1793313993.098] uml4termuxd[23743]: child 23748 died (exit 0)
+[1793313993.100] uml4termuxd[23743]: state=completed exit=0
+[1793313993.100] uml4termuxd[23743]: guest session completed; not restarting
+[1793314006.623] uml4termuxd[23743]: daemon exit
+[1793314006.625] uml4termuxd[23743]: state=stopped daemon-exit

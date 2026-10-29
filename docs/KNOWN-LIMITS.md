@@ -113,6 +113,14 @@ this project.
   since v5.14 — kmem charging was folded into `CONFIG_MEMCG` and is now
   unconditional. Anonymous memory is still enforced as before (OOM at the
   limit, exit 137). Evidence: `evidence/20261029-cap11-c1-c2.json`.
+- **One guest per backing image.** UML takes an exclusive host lock
+  (`F_SETLK`) on the ubd backing file, so a second boot against the same
+  image fails with `Failed to lock '<image>', err = 11` /
+  `Failed to initialize ubd device 0`. The guest's initramfs then falls
+  back to running in RAM (`NO_DISK`) and every write is lost -- a docker run
+  appears to work while nothing persists. Give each instance its own copy of
+  the image, or run the daemon with `UML4TERMUXD_STRICT_UBD=1`, which turns
+  that silent degradation into `state=failed detail=ubd-attach` and aborts.
 - **hostfs exposes host storage.** Never mount it for untrusted guest code. This
   was verified, not assumed: `mount -t hostfs none /mnt/host -o <host-dir>` inside
   the guest listed and read the host's files as the app user.
