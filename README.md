@@ -150,7 +150,7 @@ The packaged entrypoint that automates steps 1–3 (launcher, gvproxy lifecycle,
 expose, verdict) lives in `bin/`; run it with `--help` for its flags. The raw
 sequence above is the verified mechanics that entrypoint wraps.
 
-## Daemon quickstart (v0.4.0: one binary, three commands)
+## Daemon quickstart (v0.5.0: one binary, three commands)
 
 Since v0.4.0 the recommended user flow is the daemon, not the raw UML command
 line. One binary, `uml4termuxd`, is both supervisor and client; a runit service

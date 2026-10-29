@@ -4,6 +4,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-10-30
+### Added
+- **Ephemeral boots on UML's native copy-on-write** (roadmap B2):
+  `UML4TERMUXD_COW=<path>` boots `ubd0=<cow>,<backing>` so every guest write
+  lands in the COW file and the backing image stays pristine. The port never
+  formats a COW file itself, so the daemon writes the v3 header (magic `MOOO`
+  big-endian, packed 4128-byte header, zeroed bitmap via a sparse EOF poke).
+  Verified: the 3 GB image sha256 is IDENTICAL before and after a full Docker
+  session (dockerd + pulls + containers).
+- **Clean guest shutdown through the console channel** (roadmap B2): `stop`
+  now writes `exec:sync; poweroff -f` over the PTY (20 s budget) and only
+  escalates to SIGTERM/SIGKILL when the guest cannot act on it — the image
+  stays consistent. Verified: clean poweroff landed in 1.0-1.5 s.
+- **Multi-guest as N daemon instances** (roadmap B3): every knob is
+  per-instance (`UML4TERMUX_RUNTIME`, `UML4TERMUXD_BESS`, `..._COW`,
+  `..._MEM`); all data-plane sockets are unix, so instances cannot collide on
+  TCP. Verified: two 256M guests ran the 27-point matrix simultaneously.
+- **Optional loopback HTTP health endpoint** (roadmap D2):
+  `UML4TERMUXD_HTTP=<ip:port>` serves `GET /status` as JSON
+  (`ok/state/child_pid/exposures/mode`), sharing the daemon's poll loop.
+- `ci/verify-kernel-reproducible.sh` — compares two kernel-build artifact
+  archives (or extracted dirs) and exits non-zero on any byte difference.
+- `kernel-build.yml` gained `workflow_dispatch` inputs `ksrc_ref` /
+  `ksrc_repo` so source trials (e.g. upstream HEAD) never touch the release
+  path; the pinned commit stays the default.
+### Changed
+- **Kernel builds are byte-reproducible** (roadmap C5b verified):
+  `KBUILD_BUILD_TIMESTAMP` / `KBUILD_BUILD_USER` / `KBUILD_BUILD_HOST` are
+  pinned in the workflow. Two independent CI runs from the same source now
+  produce identical `linux-bionic`, `stub_exe` and `uml4termuxd`. The v0.4.0
+  release kernel predates the pins, which is why its hash differs from a
+  rebuild.
+- **Upstream HEAD is healthy again** (roadmap C4): zalexdev HEAD
+  `32e5e10b81d8` compiles clean in CI and boots on the device
+  (`7.2.0-rc4-g32e5e10b81d8-dirty #1 SMP`) with the gap-closing config intact
+  (controllers `cpuset cpu io memory pids`, `cpuset.cpus` write accepted,
+  20 MiB tmpfs charged). The release pin stays on the device-validated
+  `169b17ff…`.
+- `README.md`: new "Daemon quickstart" section — install → daemon →
+  `exec`/`expose`/`console`/`stop`, a knob table, and the multi-guest pattern;
+  the raw UML command line stays as "verified mechanics".
+- 0.3.0-era capability gaps re-tested on the CI kernel and closed as test
+  artifacts: tmpfs/page-cache charging works (kmem charging folded into
+  MEMCG since v5.14 — `CONFIG_MEMCG_KMEM` no longer exists) and `io.max` is
+  accepted when written with the required `MAJ:MIN` device prefix.
+### Fixed
+- **Daemon poll loop swallowed events when the PTY fd was absent**
+  (e.g. `--selftest`): the HTTP listener took index 1 and the old
+  `npfd > 2` guard never fired. The loop now tracks explicit per-source
+  indices (`pty_idx` / `http_idx`).
+- Network test documentation: the guest port 8123 is owned every boot by the
+  image's demo web container, so port-forward tests must use another port —
+  this was the root cause of the "gvproxy banner" anomaly, not a regression
+  (inbound throughput measured at ~8-12 MB/s over 24 MiB).
+### Security
+- No new privileges: the daemon still runs unprivileged in Termux; the HTTP
+  endpoint defaults to loopback and is opt-in.
+
 ## [0.4.0] - 2026-10-28
 ### Added
 - **`uml4termuxd` — the UML runtime as a binary daemon** (roadmap A1-A4, all
