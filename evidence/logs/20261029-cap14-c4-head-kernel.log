@@ -1,0 +1,12 @@
+C14: C14 uname: Linux (none) 7.2.0-rc4-g32e5e10b81d8-dirty #1 SMP Thu Oct 23 23:21:58 UTC 2026 aarch64 Linux
+C14: C14 cgroup2 mounted: yes
+C14: C14 root controllers: cpuset cpu io memory pids
+C14: C14 subtree_control: cpuset io memory
+C14: C14 cpuset.cpus write OK: 0-3
+C14: C14 RESULT=CPUSET_OK
+C14: C14 C1 before=2097152 after=23527424 delta=20928K
+C14: C14 C1 RESULT=CHARGED
+C14: C14 memory.stat file: file 20971520
+C14: C14 C2 io.max exists: yes dev=none
+C14: C14 C2 RESULT=IO_MAX_ABSENT
+C14: C14_DONE

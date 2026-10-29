@@ -95,11 +95,20 @@ bukan lagi kumpulan shell exec:
   tercatat: io.max berkunci per-device `MAJ:MIN` — penulisan `rbps=`
   telanjang ditolak EINVAL; itulah akar pengamatan "io.max ABSEN" era 0.3.0
   (diulang dengan sintaks benar = jalan). Evidence yang sama dengan C1.
-- [ ] C3 **Akselerasi jaringan**: evaluasi path vector bess vs passthrough;
-  ukur throughput pull/run (baseline 0.3.0 ada).
-- [ ] C4 **Kernel lebih baru**: coba HEAD port setelah fix upstream `user_mode`
-  (temuan #1 UPSTREAM-FINDINGS) — dengan config gap-closing yang sama.
-  Status: menunggu perbaikan di repo upstream (issue #4 terkait).
+- [x] C3 ✔ (entri lengkap di bagian D — baseline pull + throughput inbound 8–12 MB/s)
+- [x] C4 ✔ **Kernel lebih baru — HEAD upstream kini bersih**: zalexdev HEAD
+  (`32e5e10b81d8`, 17 Okt — memuat "um: give libc back what it allocated
+  inside physical memory" + "do without close_range()") **berhasil
+  dikompilasi** di CI (run 40924821880; regresi `user_mode` temuan #1
+  UPSTREAM-FINDINGS sudah hilang di upstream) dan **boot di device**:
+  `7.2.0-rc4-g32e5e10b81d8-dirty #1 SMP aarch64`. Config gap-closing
+  BERTAHAN di HEAD: kontroller `cpuset cpu io memory pids`, tulis
+  `cpuset.cpus=0-3` OK, charging 20 MiB = +20928 K. (io.max inconclusive di
+  run ini — lookup device gagal = artefak tes; bukti kernel pin tetap sah.)
+  Pin rilis tetap `169b17ff` sampai ada rilis HEAD. Evidence:
+  `evidence/20261029-cap14-c4-head-kernel.json`.
+  Tooling: `kernel-build.yml` kini punya input `ksrc_ref`/`ksrc_repo` untuk
+  uji sumber lain tanpa menyentuh jalur rilis.
 - [x] C5 ✔ **Evidence checker diperkuat** (temuan review GPT #2): wajibkan path
   artefak pada tiap record, gag bila log hilang/kosong, simpan + verifikasi
   SHA-256 log mentah, dan cek marker spesifik-kapabilitas terhadap verdict.

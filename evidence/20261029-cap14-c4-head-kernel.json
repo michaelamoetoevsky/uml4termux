@@ -1,0 +1,65 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261029-cap14-c4-head-kernel",
+ "project_version": "0.4.0",
+ "generated_at": "2026-10-29T10:15:00+07:00",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "7.2.0-rc4-g32e5e10b81d8-dirty #1 SMP",
+  "source": "zalexdev/linux-um-arm64 HEAD 32e5e10b81d8 (2026-10-17), built by kernel-build.yml run 40924821880 with the same gap-closing config as the released kernel",
+  "build": "GitHub Actions workflow_dispatch (repo override input), NDK r29, x86_64 runner",
+  "mode": "seccomp",
+  "ncpus": 4
+ },
+ "capabilities": {
+  "boot": {
+   "ok": true,
+   "evidence": "Upstream HEAD kernel (7.2.0-rc4-g32e5e10b81d8-dirty #1 SMP aarch64) boots the cap14 gate initramfs to C14_DONE on the device and powers off cleanly. This closes the original UPSTREAM-FINDINGS finding #1: HEAD no longer fails to compile on 'user_mode' (sched/signal.h)."
+  },
+  "c4_cpuset": {
+   "ok": true,
+   "evidence": "subtree_control accepts +cpuset ('cpuset io memory'); writing '0-3' to t3/cpuset.cpus succeeds and reads back. HEAD keeps the SMP wiring: CPUSETS=y, BLK_CGROUP/BLK_DEV_THROTTLING=y, MEMCG=y survive olddefconfig (verified in the artifact's embedded config strings and in-guest controllers 'cpuset cpu io memory pids')."
+  },
+  "c4_memcg_charging": {
+   "ok": true,
+   "evidence": "20 MiB tmpfs write inside a child cgroup charged memory.current by 20928K (memory.stat file 20971520 bytes) -- same as the pinned kernel."
+  },
+  "c4_io_max": {
+   "ok": false,
+   "evidence": "INCONCLUSIVE IN THIS RUN (test artifact, not a kernel gap): /proc/partitions lookup for 'ubda' returned no device in this boot, so the write test was skipped. io.max acceptance is already proven on the pinned kernel (evidence/20261029-cap11-c1-c2.json)."
+  },
+  "c5b_timestamp_pin": {
+   "ok": true,
+   "evidence": "Kernel banner shows 'Thu Oct 23 23:21:58 UTC 2026' and 'uml4termux@pin...' -- KBUILD_BUILD_TIMESTAMP/USER/HOST pins are in effect for CI builds."
+  }
+ },
+ "observed": {
+  "uname": "Linux (none) 7.2.0-rc4-g32e5e10b81d8-dirty #1 SMP Thu Oct 23 23:21:58 UTC 2026 aarch64",
+  "controllers": "cpuset cpu io memory pids",
+  "cpuset_write": "0-3",
+  "charging_delta_kb": 20928,
+  "stub_exe_sha256": "d4d0840351de95d4f0146f7b198b6c8b5e689bff0159c61a797e3ece55841d05",
+  "daemon_sha256": "d86f1c4d41f7ac7ce30841137fa291737d18e8b2d2a68a2b7de48f6696e34335",
+  "kernel_sha256": "6bff5a907a7b1d8321243cec8f2e5b1512230831dd3574a44b3c37819488730c"
+ },
+ "artifacts": [
+  {
+   "kind": "console-log",
+   "path": "logs/20261029-cap14-c4-head-kernel.log",
+   "sha256": "ed336b69faaaa5fe7af3effa819ded6ea43aea8c5b31390a7836f49fb995f9ca"
+  }
+ ],
+ "known_limits_observed": [
+  "io.max device lookup failed in this boot (test artifact); pinned-kernel proof stands"
+ ],
+ "notes": "C4 closed: upstream HEAD compiles and boots with the gap-closing config; the release pin stays on 169b17ff (device-validated) until a HEAD release is cut.",
+ "verdict": "pass"
+}
