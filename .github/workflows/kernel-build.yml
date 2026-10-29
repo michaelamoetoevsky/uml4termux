@@ -34,6 +34,10 @@ on:
         description: 'git ref to build (empty = pinned release commit)'
         required: false
         default: ''
+      ksrc_repo:
+        description: 'source repo URL override (empty = packaging fork)'
+        required: false
+        default: ''
   push:
     branches: [main]
     paths:
@@ -74,11 +78,21 @@ jobs:
           # the ref (inputs.ksrc_ref) to trial e.g. zalexdev HEAD; the default
           # stays the pinned Raymer release commit.
           KERNEL_COMMIT="169b17ff3f66d507cb137b770ceb1fd9f4547a32"
+          KERNEL_REPO="$KSRC"
           if [ -n "${{ github.event.inputs.ksrc_ref }}" ]; then
             KERNEL_COMMIT="${{ github.event.inputs.ksrc_ref }}"
             echo "C4 trial ref: $KERNEL_COMMIT"
           fi
-          git clone --filter=blob:none --no-single-branch "$KSRC" "$RUNNER_TEMP/ksrc"
+          if [ -n "${{ github.event.inputs.ksrc_repo }}" ]; then
+            KERNEL_REPO="${{ github.event.inputs.ksrc_repo }}"
+            echo "C4 trial repo: $KERNEL_REPO"
+          fi
+          git clone --filter=blob:none "$KERNEL_REPO" "$RUNNER_TEMP/ksrc"
+          git -C "$RUNNER_TEMP/ksrc" fetch --no-tags origin "+refs/heads/*:refs/remotes/origin/*" 2>/dev/null || true
+          if ! git -C "$RUNNER_TEMP/ksrc" cat-file -e "$KERNEL_COMMIT^{commit}" 2>/dev/null; then
+            echo "commit not reachable via branches; fetching by sha"
+            git -C "$RUNNER_TEMP/ksrc" fetch origin "$KERNEL_COMMIT"
+          fi
           git -C "$RUNNER_TEMP/ksrc" checkout "$KERNEL_COMMIT"
           git -C "$RUNNER_TEMP/ksrc" log --oneline -1
 
