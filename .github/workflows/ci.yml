@@ -276,7 +276,7 @@ jobs:
         run: bash tests/test-signature.sh
 
       - name: Daemon hardening (direction E3)
-        run: bash tests/test-daemon-security.sh
+        run: bash tests/test-daemon-security.sh /tmp/uml4termuxd
 
       - name: Launcher adapters (systemd/s6/plain)
         run: bash tests/test-adapters.sh /tmp/uml4termuxd

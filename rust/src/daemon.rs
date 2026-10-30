@@ -846,7 +846,13 @@ impl Daemon {
         let safe: String = detail
             .chars()
             .take(240)
-            .map(|c| if (c as u32) < 0x20 || (c as u32) == 0x7f { '_' } else { c })
+            .map(|c| {
+                if (c as u32) < 0x20 || (c as u32) == 0x7f {
+                    '_'
+                } else {
+                    c
+                }
+            })
             .collect();
         let uid = unsafe { libc::geteuid() };
         if let Some(f) = self.audit_file.as_mut() {

@@ -14,23 +14,29 @@
 #   * every state-changing command leaves one line in audit.log, and a crafted
 #     command cannot forge a second line.
 #
-# usage: tests/test-daemon-security.sh
+# usage: tests/test-daemon-security.sh [daemon-binary]
 # SPDX-License-Identifier: GPL-2.0-only
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 work="$(mktemp -d)"
-trap 'cleanup' EXIT
 fails=0
 skips=0
 daemon_pid=""
+other_pid=""
 
 cleanup() {
-  [ -n "${daemon_pid}" ] && kill -TERM "${daemon_pid}" 2>/dev/null
+  for p in "${daemon_pid}" "${other_pid}"; do
+    [ -n "${p}" ] && kill -TERM "${p}" 2>/dev/null
+  done
   sleep 1
-  [ -n "${daemon_pid}" ] && kill -KILL "${daemon_pid}" 2>/dev/null
+  for p in "${daemon_pid}" "${other_pid}"; do
+    [ -n "${p}" ] && kill -KILL "${p}" 2>/dev/null
+  done
   rm -rf "${work}"
 }
+trap 'cleanup' EXIT
+
 ok()  { printf '  PASS: %s\n' "$1"; }
 bad() { printf '  FAIL: %s\n' "$1"; fails=$((fails + 1)); }
 skip() { printf '  SKIP: %s\n' "$1"; skips=$((skips + 1)); }
@@ -44,14 +50,38 @@ has() { # <description> <needle> <haystack>
   esac
 }
 
-# The tracked binary first, exactly like the rest of the project: the shipped
-# artefact is what a user runs.
-DBIN="${UML4TERMUXD_BIN:-${ROOT}/bin/uml4termuxd}"
-if [ ! -x "${DBIN}" ]; then
-  DBIN="${work}/uml4termuxd"
-  { cc -O2 -o "${DBIN}" "${ROOT}/src/uml4termuxd.c" || clang -O2 -o "${DBIN}" "${ROOT}/src/uml4termuxd.c"; } 2>/dev/null
+# --- the daemon under test -------------------------------------------------
+# An explicit path first, as the other daemon-driven tests take one, so CI can
+# hand over the binary it compiled for the RUNNER's architecture. Otherwise
+# $UML4TERMUXD_BIN, otherwise the tracked one -- but only if this host can
+# actually execute it: the tracked binary is built for the device (aarch64), and
+# on an x86_64 runner exec fails with "Exec format error" (the shell then tries to
+# parse the ELF as a script, which is how this test first failed in CI).
+mkdir -p "${work}/probe"
+runnable() { # <binary> -> 0 when this host can execute it
+  local out rc
+  out="$(UML4TERMUX_RUNTIME="${work}/probe" "$1" status 2>&1)"
+  rc=$?
+  case "${rc}" in 126 | 127) return 1 ;; esac
+  case "${out}" in *"Exec format error"* | *"cannot execute"*) return 1 ;; esac
+  return 0
+}
+compile_daemon() { # <out>
+  { cc -O2 -o "$1" "${ROOT}/src/uml4termuxd.c" 2>/dev/null \
+      || clang -O2 -o "$1" "${ROOT}/src/uml4termuxd.c" 2>/dev/null; } || return 1
+  [ -x "$1" ]
+}
+DBIN="${1:-${UML4TERMUXD_BIN:-${ROOT}/bin/uml4termuxd}}"
+if [ ! -x "${DBIN}" ] || ! runnable "${DBIN}"; then
+  alt="${work}/uml4termuxd"
+  if compile_daemon "${alt}" && runnable "${alt}"; then
+    DBIN="${alt}"
+  else
+    echo "SKIP: ${DBIN} cannot run on this host and ${ROOT}/src/uml4termuxd.c did not compile"
+    exit 77
+  fi
 fi
-[ -x "${DBIN}" ] || { echo "SKIP: no daemon binary and no C compiler"; exit 77; }
+echo "daemon under test: ${DBIN}"
 
 runtime="${work}/rt"
 mkdir -p "${runtime}"
@@ -61,7 +91,10 @@ start_daemon() { # [env assignments...]
   daemon_pid=$!
   local i=0
   while [ "${i}" -lt 40 ]; do
-    [ -S "${runtime}/daemon.sock" ] && UML4TERMUX_RUNTIME="${runtime}" "${DBIN}" status >/dev/null 2>&1 && return 0
+    if [ -S "${runtime}/daemon.sock" ] \
+       && UML4TERMUX_RUNTIME="${runtime}" "${DBIN}" status >/dev/null 2>&1; then
+      return 0
+    fi
     sleep 0.5
     i=$((i + 1))
   done
@@ -86,7 +119,7 @@ chk "direktori runtime tidak world-readable" "700" "$(stat -c%a "${runtime}" 2>/
 printf '\nE3.3: exec di-rate-limit, dan penolakannya ikut tercatat\n'
 out1="$(UML4TERMUX_RUNTIME="${runtime}" "${DBIN}" exec 'echo satu' 2>&1)"
 out2="$(UML4TERMUX_RUNTIME="${runtime}" "${DBIN}" exec 'echo dua' 2>&1)"
-has "exec pertama lolos pembatas (sampai ke guest/penolakan guest)" "guest not running" "${out1}"
+has "exec pertama lolos pembatas (sampai ke penolakan guest)" "guest not running" "${out1}"
 has "exec kedua dalam jendela yang sama DITOLAK" "rate-limited" "${out2}"
 has "balasan menyebut jendelanya" "min_interval_ms" "${out2}"
 sleep 0.6
@@ -142,12 +175,14 @@ if [ "$(id -u)" = "0" ]; then
     has "penolakan tercatat di audit" "denied uid=" "$(cat "${rt2}/audit.log" 2>/dev/null)"
   else
     bad "daemon milik user lain tidak siap"
+    sed -n '1,10p' "${work}/daemon2.log" 2>/dev/null | sed 's/^/    /'
   fi
   kill -TERM "${other_pid}" 2>/dev/null
   sleep 1
   kill -KILL "${other_pid}" 2>/dev/null
+  other_pid=""
 else
-  skip "bukan root: koneksi dari uid lain tidak bisa diuji (socket 0600 saja sudah menutup jalur; yang diuji di CI adalah jalur 'peer bukan pemilik yang tetap bisa menyentuh socket')"
+  skip "bukan root: koneksi dari uid lain tidak bisa diuji di sini (socket 0600 sudah menutup jalur biasa; yang diuji di CI adalah kasus peer bukan pemilik yang tetap bisa menyentuh socket)"
 fi
 
 if [ "${fails}" -gt 0 ]; then
