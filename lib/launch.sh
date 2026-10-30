@@ -83,6 +83,7 @@ cmd_up() {
   case "${cpus}" in *[!0-9]*) cpus="${cpus%[Mm]}" ;; esac
 
   [ -n "${rt}" ] || rt="${UML4TERMUX_RUNTIME}"
+  uml4termux_check_runtime_path "${rt}" || return 64
 
   # G4: bound the logs BEFORE starting, so an instance never inherits an
   # unbounded daemon.log / console log from a previous run. Copy+truncate keeps

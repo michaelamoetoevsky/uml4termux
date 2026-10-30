@@ -44,7 +44,7 @@ while [ $# -gt 0 ]; do
 done
 
 [ -x "${BIN}" ] || { echo "soak: no ${BIN}" >&2; exit 1; }
-OUT="${OUT:-${ROOT}/soak/out/$(date +%Y%m%d-%H%M%S)}"
+OUT="${OUT:-${TMPDIR:-/tmp}/soak-$(date +%Y%m%d-%H%M%S)}"
 W="${OUT}/work"
 IMG_SRC="${UML4TERMUX_HOME:-$HOME/.uml4termux}/${UML4TERMUX_DISK_FILE:-debian-docker.ext4}"
 BASE="${UML4TERMUX_HOME:-$HOME/.uml4termux}/initramfs-alpine.cpio.gz"
@@ -112,21 +112,22 @@ run_instance() {
     rc=$?
     t1="$(date +%s)"
 
+    daemon_pid="$(sed -n 's/^PID=//p' "${UML4TERMUX_STATE_DIR}/instances/${name}.env" 2>/dev/null)"
+    # child_pid comes from the daemon's own atomic state file: the CLI has no
+    # --json flag, so asking for one silently produced 0 KB on every cycle.
+    kernel_pid="$(env -u LD_LIBRARY_PATH python3 -c 'import json,sys
+try: print(json.load(open(sys.argv[1])).get("child_pid", ""))
+except Exception: print("")' "${rt}/daemon.sock.state" 2>/dev/null)"
+    drss=0; krss=0
+    [ -n "${daemon_pid}" ] && drss="$(rss_kb "${daemon_pid}")"
+    [ -n "${kernel_pid}" ] && krss="$(rss_kb "${kernel_pid}")"
+
     local waited=0
     while [ "${waited}" -lt "${TICK_TIMEOUT}" ]; do
       grep -qs 'SOAK_TICK_DONE' "${console}" 2>/dev/null && break
       sleep 5; waited=$((waited + 5))
     done
     grep -qs 'SOAK_TICK_DONE' "${console}" 2>/dev/null && tick_ok=yes || tick_ok=no
-
-    daemon_pid="$(sed -n 's/^PID=//p' "${UML4TERMUX_STATE_DIR}/instances/${name}.env" 2>/dev/null)"
-    kernel_pid="$(UML4TERMUX_RUNTIME="${rt}" "${BIN}" status --name "${name}" --json 2>/dev/null \
-                  | env -u LD_LIBRARY_PATH python3 -c 'import json,sys
-try: print(json.load(sys.stdin).get("child_pid",""))
-except Exception: print("")' 2>/dev/null)"
-    drss=0; krss=0
-    [ -n "${daemon_pid}" ] && drss="$(rss_kb "${daemon_pid}")"
-    [ -n "${kernel_pid}" ] && krss="$(rss_kb "${kernel_pid}")"
 
     local dockerline runline
     dockerline="$(grep -a 'SOAK_DOCKERD' "${console}" 2>/dev/null | tail -1 | tr -d '\r')"

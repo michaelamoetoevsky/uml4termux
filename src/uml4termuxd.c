@@ -31,6 +31,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 #include <libgen.h>
 #include <pty.h>
 #include <time.h>
@@ -56,6 +57,25 @@ static char g_statepath[512];
 static char g_selftest_seconds[16] = SELFTEST_SECONDS_DEFAULT;
 /* Listening socket of the control channel; children must never inherit it. */
 static int g_lfd = -1;
+
+/* Unix socket paths are capped at sizeof(sun_path)-1 bytes (107 on Linux). A
+   longer path used to be silently TRUNCATED by strncpy, so the daemon would
+   bind -- or connect -- to a different path than the one it printed, and the
+   far end simply never appeared (found when a soak run put its runtime dir
+   inside a deep repo path: gvproxy died with "bind: invalid argument" while the
+   daemon reported no problem). Refuse loudly instead of guessing. */
+/* logf_ is defined further down (it needs the log file first). */
+static void logf_(const char *fmt, ...);
+
+static int sockpath_too_long(const char *p)
+{
+	size_t limit = sizeof(((struct sockaddr_un *)0)->sun_path);
+	if (strlen(p) >= limit) {
+		logf_("socket path too long: %zu bytes, limit %zu: %s", strlen(p), limit - 1, p);
+		return 1;
+	}
+	return 0;
+}
 static char g_child_argv0[512];
 static char g_consolelog[512];
 
@@ -212,6 +232,8 @@ static int unix_http(const char *sockpath, const char *req,
 		return -1;
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
+	if (sockpath_too_long(sockpath))
+		return -1;
 	strncpy(addr.sun_path, sockpath, sizeof(addr.sun_path) - 1);
 	if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
 		close(fd);
@@ -340,7 +362,11 @@ static int spawn_gvproxy(void)
 	if (pid < 0)
 		return -1;
 	if (pid == 0) {
-		char largs[600], bargs[600], fargs[600];
+		/* B3: a SIGKILLed daemon must not leave gvproxy holding the host ports
+		   (the next start then fails with "bind: address already in use" and the
+		   expose returns 500). The kernel signals the child when the parent dies. */
+		prctl(PR_SET_PDEATHSIG, SIGTERM);
+		char largs[600], bargs[600], fargs[600], sargs[48];
 		char *argv[12];
 		int i = 0;
 		int need_proot;
@@ -366,6 +392,19 @@ static int spawn_gvproxy(void)
 		argv[i++] = largs;
 		argv[i++] = bargs;
 		argv[i++] = fargs;
+		/* gvproxy binds 127.0.0.1:2222 for its SSH forwarder by default, so a
+		   SECOND instance on the same device dies with "bind: address already in
+		   use". The Rust daemon has honoured UML4TERMUXD_GVPROXY_SSH_PORT since
+		   the multi-instance round; this one silently ignored it, which surfaced
+		   the moment a restart test ran next to another gvproxy. */
+		{
+			const char *sp = getenv("UML4TERMUXD_GVPROXY_SSH_PORT");
+
+			if (sp && sp[0]) {
+				snprintf(sargs, sizeof(sargs), "-ssh-port=%s", sp);
+				argv[i++] = sargs;
+			}
+		}
 		argv[i] = NULL;
 		setsid();
 		execvp(argv[0], argv);
@@ -517,6 +556,7 @@ static int spawn_child(void)
 			return -1;
 		}
 		if (pid == 0) {
+			prctl(PR_SET_PDEATHSIG, SIGTERM);
 			if (g_lfd >= 0) close(g_lfd);
 			execv(g_kernel, argv);
 			_exit(127);
@@ -531,6 +571,7 @@ static int spawn_child(void)
 			return -1;
 		}
 		if (pid == 0) {
+			prctl(PR_SET_PDEATHSIG, SIGTERM);
 			if (g_lfd >= 0) close(g_lfd);
 			/* How long the fake child lives. The selftest exists to exercise
 			   supervision, so its lifetime must be settable: a child that
@@ -1018,6 +1059,10 @@ static int daemon_main(int selftest)
 	}
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
+	if (sockpath_too_long(g_sockpath)) {
+		close(lfd);
+		return 1;
+	}
 	strncpy(addr.sun_path, g_sockpath, sizeof(addr.sun_path) - 1);
 	if (bind(lfd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
 		logf_("bind %s: %s", g_sockpath, strerror(errno));
@@ -1070,6 +1115,10 @@ static int client_line(const char *what, const char *prefix)
 	}
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
+	if (sockpath_too_long(g_sockpath)) {
+		close(fd);
+		return 1;
+	}
 	strncpy(addr.sun_path, g_sockpath, sizeof(addr.sun_path) - 1);
 	if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
 		fprintf(stderr, "daemon not reachable at %s: %s\n", g_sockpath, strerror(errno));

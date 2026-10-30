@@ -1,0 +1,43 @@
+[info] instance 'b3': running the daemon in the foreground (adapter hook)
+[1793372636.631] uml4termuxd[10336]: guest: kernel=/data/data/com.termux/files/usr/tmp/bench-assets/linux-bionic mem=2048M ncpus=4 console=/data/data/com.termux/files/usr/tmp/b3-20261030-220157/work/rt-b3/uml-console.log
+[1793372637.032] uml4termuxd[10336]: gvproxy up pid=10461 bess=/data/data/com.termux/files/usr/tmp/b3-20261030-220157/work/rt-b3/bess.sock
+[1793372637.049] uml4termuxd[10336]: exposed 127.0.0.1:18131 -> 192.168.127.2:8123
+[1793372637.049] uml4termuxd[10336]: re-applied 1 exposure(s) from the registry
+[1793372637.052] uml4termuxd[10336]: control socket: /data/data/com.termux/files/usr/tmp/b3-20261030-220157/work/rt-b3/daemon.sock
+[1793372637.068] uml4termuxd[10336]: cow header written: /data/data/com.termux/files/usr/tmp/b3-20261030-220157/work/rt-b3/b3.cow (backing /data/data/com.termux/files/usr/tmp/b3-20261030-220157/work/img.ext4, 3221225472 bytes)
+[1793372637.071] uml4termuxd[10336]: child spawned pid=10490 argv0=/data/data/com.termux/files/usr/tmp/bench-assets/linux-bionic
+2026/10/30 15:04:00 tcpproxy: for incoming conn 127.0.0.1:37462, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: no route to host
+2026/10/30 15:04:03 tcpproxy: for incoming conn 127.0.0.1:48430, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:07 tcpproxy: for incoming conn 127.0.0.1:48436, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:10 tcpproxy: for incoming conn 127.0.0.1:48448, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:13 tcpproxy: for incoming conn 127.0.0.1:53316, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:16 tcpproxy: for incoming conn 127.0.0.1:53332, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:19 tcpproxy: for incoming conn 127.0.0.1:53342, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:25 tcpproxy: for incoming conn 127.0.0.1:35156, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: no route to host
+2026/10/30 15:04:31 tcpproxy: for incoming conn 127.0.0.1:35172, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: no route to host
+2026/10/30 15:04:34 tcpproxy: for incoming conn 127.0.0.1:38176, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:37 tcpproxy: for incoming conn 127.0.0.1:38190, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:40 tcpproxy: for incoming conn 127.0.0.1:38204, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:43 tcpproxy: for incoming conn 127.0.0.1:40590, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:47 tcpproxy: for incoming conn 127.0.0.1:40598, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:50 tcpproxy: for incoming conn 127.0.0.1:40608, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:53 tcpproxy: for incoming conn 127.0.0.1:39782, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:56 tcpproxy: for incoming conn 127.0.0.1:39796, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:04:59 tcpproxy: for incoming conn 127.0.0.1:39802, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:05:02 tcpproxy: for incoming conn 127.0.0.1:43498, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:05:05 tcpproxy: for incoming conn 127.0.0.1:43506, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:05:08 tcpproxy: for incoming conn 127.0.0.1:43516, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:05:11 tcpproxy: for incoming conn 127.0.0.1:54308, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:05:14 tcpproxy: for incoming conn 127.0.0.1:54316, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:05:18 tcpproxy: for incoming conn 127.0.0.1:54318, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:05:21 tcpproxy: for incoming conn 127.0.0.1:54326, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:05:24 tcpproxy: for incoming conn 127.0.0.1:33136, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:05:27 tcpproxy: for incoming conn 127.0.0.1:33142, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+2026/10/30 15:05:33 tcpproxy: for incoming conn 127.0.0.1:33150, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: no route to host
+2026/10/30 15:05:38 tcpproxy: for incoming conn 127.0.0.1:40204, error dialing "192.168.127.2:8123": connect tcp 192.168.127.2:8123: connection was refused
+[1793372742.221] uml4termuxd[10336]: stop requested: SIGTERM -> 10490
+[1793372742.221] uml4termuxd[10336]: stop: clean poweroff via console (20 s budget)
+[1793372753.413] uml4termuxd[10336]: clean poweroff landed after 12.0s
+[1793372753.413] uml4termuxd[10336]: gvproxy stopped
+[1793372753.413] uml4termuxd[10336]: daemon exit
+supervise: 'up --foreground' exited 0 (deliberate stop); not restarting

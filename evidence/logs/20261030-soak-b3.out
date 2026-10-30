@@ -1,0 +1,21 @@
+b3: ports host=18131 ssh=12600
+== langkah 1: up dengan gvproxy ==
+  PASS: instance siap (up rc=0)
+  pid daemon = 7573
+== langkah 2: tunggu container web di guest ==
+  PASS: container web hidup (WEB_UP_MARKER)
+== langkah 3: expose 18131:8123 ==
+  PASS: curl host:18131 -> banner container (exposure jalan)
+== langkah 4: bunuh daemon (SIGKILL) ==
+  PASS: daemon 7573 mati
+  PASS: exposure ikut mati bersama daemon
+== langkah 5: restart lewat adapter plain ==
+  PASS: instance hidup lagi dengan pid baru (7573 -> 10336)
+== langkah 6: exposure di-re-apply (uji end-to-end) ==
+  PASS: curl host:18131 -> banner container LAGI setelah restart
+  catatan: exposures.jsonl tidak memuat 'expos' (periksa /data/data/com.termux/files/usr/tmp/b3-20261030-220157/work/rt-b3/exposures.jsonl)
+== langkah 7: teardown bersih ==
+  PASS: 0 proses tersisa setelah down
+b3: hasil -> /data/data/com.termux/files/usr/tmp/b3-20261030-220157/b3.json
+B3: OK
+rc=0

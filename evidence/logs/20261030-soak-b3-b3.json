@@ -1,0 +1,7 @@
+{
+ "check": "B3 restart + exposure re-apply (end-to-end curl)",
+ "daemon_pid_before": "7573",
+ "daemon_pid_after": "10336",
+ "host_port": 18131,
+ "passed": true
+}

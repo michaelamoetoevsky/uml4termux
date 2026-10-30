@@ -305,6 +305,21 @@ while b>=1024 and i<len(u)-1: b/=1024.0;i+=1
 print(f"{b:.1f} {u[i]}")' "${b}" 2>/dev/null || printf '%s B' "${b}"
 }
 
+# Unix sockets cap the path at 107 bytes and gvproxy/daemon socket names add up
+# to 17 ("/bess.sock.gv.sock"), so a deep runtime directory fails deep inside a
+# child process. Refuse it up front, with the number.
+uml4termux_check_runtime_path() { # <runtime dir>
+  local rt="$1" n
+  n=$(( ${#rt} + 17 ))
+  if [ "${n}" -ge 107 ]; then
+    err "runtime dir too long for unix sockets: ${#rt} + 17 = ${n} bytes (limit 107)"
+    err "  ${rt}"
+    err "  use a shorter UML4TERMUX_RUNTIME (for example under \$TMPDIR)"
+    return 1
+  fi
+  return 0
+}
+
 uml4termux_asset_path() {
   case "$1" in
     kernel)          printf '%s/%s' "${UML4TERMUX_HOME}" "${UML4TERMUX_KERNEL_FILE}" ;;

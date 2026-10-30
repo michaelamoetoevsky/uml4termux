@@ -158,6 +158,28 @@ biner dan COW ada. Jadi belum ada bukti untuk arsitektur sekarang.
 
 **Biaya.** 2–3 jam pasif (device menyala). **Risiko.** Nol.
 
+
+**Hasil B3 — LULUS, dan ia menemukan tiga cacat nyata.** B3 bukan formalitas:
+menjalankannya membongkar masalah yang tak terlihat pada pemakaian biasa.
+Bukti: `evidence/20261030-soak-b3-restart.json`.
+
+| Cacat | Gejala | Perbaikan |
+|---|---|---|
+| Daemon C mengabaikan `UML4TERMUXD_GVPROXY_SSH_PORT` | instance kedua / restart di sebelah gvproxy lama mati `listen tcp 127.0.0.1:2222: bind: address already in use` | daemon C kini meneruskan `-ssh-port=<n>` (daemon Rust sudah melakukannya — ini divergensi perilaku) |
+| Anak yatim saat daemon di-`SIGKILL` | gvproxy tetap hidup memegang port host → instance baru tak bisa bind, dan `expose` berikutnya dijawab gvproxy **HTTP 500** | `prctl(PR_SET_PDEATHSIG, SIGTERM)` di kedua cabang anak (gvproxy + kernel guest) |
+| Path socket unix dipotong diam-diam | `strncpy` memotong path >107 byte → daemon bind/connect ke path yang berbeda dari yang dilaporkannya; gvproxy mati `bind: invalid argument` | `sockpath_too_long()` menolak keras + launcher memeriksa panjang runtime dir di depan (`exit 64` dengan angka) |
+
+Hasil akhir B3: exposure `18131->8123` diuji **end-to-end** (curl host → banner
+container), daemon di-`SIGKILL`, forwarder ikut mati, instance dihidupkan ulang
+adapter plain (pid 7573 → 10336), lalu **curl yang sama mencapai container lagi**
+(exposure di-*re-apply*, bukan dibuat ulang manual), teardown 0 proses.
+
+**Catatan pengukuran.** `/proc/net/tcp` **tidak terbaca** oleh app Termux, jadi
+"apakah port LISTEN?" harus dijawab dengan permintaan nyata — bukan parsing
+`/proc`. Guest yang mematikan diri setelah tugasnya membuat daemon keluar normal
+(exit 0 = sesi selesai), sehingga uji restart memakai `docker-init.sh` dengan
+`GUEST_LIFETIME=0`.
+
 **Harness sudah tersedia.** `soak/soak.sh` menjalankan siklus
 boot → dockerd → `docker run` → stop bersih dengan **COW ephemeral** (launcher
 memasangnya otomatis), mencatat RSS daemon + RSS kernel guest tiap siklus ke

@@ -1,0 +1,100 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261030-soak-b3-restart",
+ "project_version": "0.5.0",
+ "generated_at": "2026-10-30T22:18:09+0700",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "7.2.0-rc4-g169b17ff3f66-dirty",
+  "mode": "seccomp",
+  "ncpus": 4
+ },
+ "capabilities": {
+  "boot": {
+   "ok": true,
+   "evidence": "Guest boots in every B3 phase: the initial up, the post-SIGKILL restart, and the final teardown all report a live kernel (7.2.0-rc4-g169b17ff3f66-dirty, seccomp, ncpus=4) and the guest reaches WEB_UP_MARKER with a running container. The kernel release is taken from the guest, not from the boot arguments."
+  },
+  "b3_restart_and_exposure_reapply": {
+   "ok": true,
+   "evidence": "B3 passes end to end: instance ready, a real container serving 8123 inside the guest (WEB_UP_MARKER), an exposure 18131->8123 that a host curl reaches (banner gvproxy-bess-ok), a SIGKILL of the daemon after which the forwarder dies with it, a restart through the plain supervisor adapter with a new daemon pid (7573 -> 10336), and after that restart the SAME host curl reaches the container again -- the recorded exposure was re-applied, not re-created by hand. Teardown left 0 processes."
+  },
+  "c_daemon_ssh_port_parity_gap": {
+   "ok": false,
+   "evidence": "Found by B3: the C daemon never honoured UML4TERMUXD_GVPROXY_SSH_PORT, so gvproxy was always started with its default 127.0.0.1:2222 SSH forwarder and a second instance (or a restart next to a leftover) died with 'bind: address already in use'. The Rust daemon has honoured it since the multi-instance round -- a real behaviour divergence. Fixed in src/uml4termuxd.c (argv now carries -ssh-port=<n> when the env var is set); the gvproxy command line in the B3 log shows ssh-port=12600."
+  },
+  "orphan_children_on_sigkill": {
+   "ok": false,
+   "evidence": "Found by B3: SIGKILLing the daemon left its gvproxy alive, holding the host ports, so the restarted instance could not bind them and a later expose came back as gvproxy HTTP 500 ('bind: address already in use' in gvproxy's own log). Fixed with prctl(PR_SET_PDEATHSIG, SIGTERM) in both child branches (gvproxy and the guest kernel), so the kernel reaps them when the daemon dies; the successful B3 run ends with 0 leftover processes."
+  },
+  "unix_socket_path_truncation": {
+   "ok": false,
+   "evidence": "Found while a soak run put its runtime dir inside a deep repo path: three strncpy(addr.sun_path, ...) sites silently TRUNCATED a path longer than 107 bytes, so the daemon would bind or connect to a different path than the one it printed -- gvproxy then died with 'bind: invalid argument' while the daemon reported no problem. Now sockpath_too_long() refuses loudly, and the launcher checks the runtime dir up front (runtime 92 bytes + 17 = 109 >= 107 -> exit 64 with the numbers and a suggested fix)."
+  }
+ },
+ "verdict": "partial",
+ "artifacts": [
+  {
+   "kind": "other",
+   "path": "logs/20261030-soak-b3-b3.json",
+   "sha256": "c88ea14a8b03a78f3b7e5778d44e185b7920f3e675f4e74432baf4d45f00488a"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-soak-b3-down.log",
+   "sha256": "0fa392d1c6d0b895d74aab8c926e6c5a07e885132b785f463aa4548af3bc59c0"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-soak-b3-expose.log",
+   "sha256": "b67429e59bbb24e767840a4672dbb6d92cc2c6d775cbfd320f02b5ea0b7e4bd2"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-soak-b3-restart-check.sh",
+   "sha256": "bc0f4adce4e2d0a951b52a8a653946325e8af99cdf3937101aac30b49bced057"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-soak-b3-supervise.log",
+   "sha256": "ba8097722695310763b9f2240687c5ab02d580544076ebc96919e172b1e3c85c"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-soak-b3-up.log",
+   "sha256": "47aaef076187e7ae4fdf24f4e23fe9f5112cedfe4b2309f910806c582f41fa26"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-soak-b3.out",
+   "sha256": "4f5c7850d9a88bae4b0cb6d0d500a2fc75e2a181882014ba484078da3c47d931"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-soak-soak.sh",
+   "sha256": "a3f1971db4940b2506884389d5053201ede7946acaa813a87d65e59f68bd9719"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-soak-summarise.py",
+   "sha256": "5e0b1179b731f433d91a638dc73c71c5622d256823e49b1144546f67b977e8c6"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-soak-tick.sh",
+   "sha256": "5ede73ca7d51afd387e6767cfcc011285f86ceca504908da772aacd32eb9ba24"
+  }
+ ],
+ "notes": "Direction B, item B3 only; B1 (2 h soak) and B2 (two parallel guests) run separately and get their own record. The B3 harness answers 'is the port listening?' with a real HTTP request because /proc/net/tcp is denied to the Termux app, and it keeps the guest alive with the repo's docker-init.sh (GUEST_LIFETIME=0) because a guest that powers off makes the daemon exit normally.",
+ "known_limits_observed": [
+  "the exposure test depends on a container image being available in the guest (pull through gvproxy NAT)",
+  "the first B3 attempt reported a false failure because a stray forwarder from an earlier interrupted run still held the port; the harness now probes the port and moves to the next one"
+ ]
+}

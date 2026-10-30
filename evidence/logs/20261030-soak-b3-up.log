@@ -1,0 +1,8 @@
+[info] instance 'b3' is up (pid 7573, runtime /data/data/com.termux/files/usr/tmp/b3-20261030-220157/work/rt-b3)
+instance  : b3
+state     : yes (phase running)
+pid       : 7573 (alive)
+runtime   : /data/data/com.termux/files/usr/tmp/b3-20261030-220157/work/rt-b3
+image     : /data/data/com.termux/files/usr/tmp/b3-20261030-220157/work/img.ext4
+ssh port  : 12600
+logs      : 8.0 KiB
