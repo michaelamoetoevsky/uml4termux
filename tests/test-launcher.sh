@@ -2,180 +2,179 @@
 #
 # Launcher + instance registry contract (direction G2/G3).
 #
-# Drives `up/status/ls/logs/down` against real (selftest) daemons, with no `sv`
-# on PATH at all, and checks that the three invariants the registry enforces are
-# actually refused rather than merely documented.
+# Drives `up/status/ls/logs/down` against real (selftest) daemons with FAILING
+# runit shims first on PATH, and checks that the three invariants the registry
+# enforces are refusals, not warnings.
+#
+# Runs once per front end (C and Rust), because the launcher's liveness probe
+# reads the protocol reply and the Rust CLI pretty-prints that JSON while the C
+# front end does not -- a difference that once made every live instance look
+# dead, so `up` reported failure while the daemon and guest kept running.
 #
 # SPDX-License-Identifier: GPL-2.0-only
 #
-# usage: tests/test-launcher.sh [daemon-binary]
+# usage: tests/test-launcher.sh [c-daemon] [rust-binary]
 
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="$ROOT/bin/uml4termux"
-DAEMON="${1:-}"
-work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+C_BIN="${1:-$ROOT/bin/uml4termuxd}"
+RS_BIN="${2:-$ROOT/rust/target/release/uml4termux-rs}"
+DEBUG="${UML4TERMUX_DEBUG_PROBE:-0}"
+
+fails=0
+ok()  { printf '  PASS: %s\n' "$1"; }
+bad() { printf '  FAIL: %s\n' "$1"; fails=$((fails + 1)); }
+check() { # label expected actual
+  if [ "$2" = "$3" ]; then ok "$1"; else bad "$1 (harap '$2', dapat '$3')"; fi
+}
+
+# main() answers usage with exit 64; only 126/127 mean "cannot run here"
+# (the tracked aarch64 binary on an x86 runner).
+can_run() { "$1" --help >/dev/null 2>&1; local rc=$?; [ "$rc" -ne 126 ] && [ "$rc" -ne 127 ]; }
 
 [ -x "$BIN" ] || { echo "SKIP: $BIN not executable"; exit 77; }
-[ -n "$DAEMON" ] || DAEMON="$ROOT/bin/uml4termuxd"
-[ -x "$DAEMON" ] || { echo "SKIP: no daemon binary at $DAEMON"; exit 77; }
-# A wrong-arch binary cannot run here; ask the caller for a compiled one.
-# main() answers usage with exit 64, so only 126/127 mean "cannot execute".
-"$DAEMON" --help >/dev/null 2>&1; drc=$?
-if [ "$drc" -eq 126 ] || [ "$drc" -eq 127 ]; then
-  echo "SKIP: $DAEMON cannot execute here (pass a locally built daemon)"
-  exit 77
-fi
 
-# --- the whole point: the launcher must not need runit ---------------------
-# Rather than stripping PATH (which breaks unrelated tools), put FAILING shims
-# for every runit binary in front of it: if any code path here shells out to
-# runit, the shim fires and we see it instead of a silent dependency.
-shim="$work/shim"
-mkdir -p "$shim"
+work="$(mktemp -d)"
+RUNS=""   # "name pid" for every instance this harness started
+
+# Deleting a temp dir under a live daemon orphans it beyond reach, so stop
+# everything we started before cleaning up.
+cleanup() {
+  local pair
+  for pair in $RUNS; do kill -TERM "${pair#* }" 2>/dev/null; done
+  sleep 0.3
+  for pair in $RUNS; do kill -KILL "${pair#* }" 2>/dev/null; done
+  rm -rf "$work"
+}
+trap cleanup EXIT
+
+# --- no runit, verified two ways -------------------------------------------
+shim="$work/shim"; mkdir -p "$shim"
 for t in sv runsv runsvdir svlogd chpst; do
-  {
-    printf '#!/bin/sh\n'
-    printf 'echo "FAIL: the launcher called %s ($*) -- it must not depend on runit" >&2\n' "$t"
-    printf 'exit 111\n'
-  } > "$shim/$t"
+  printf '#!/bin/sh\necho "SHIM_FIRED %s $*" >&2\nexit 111\n' "$t" > "$shim/$t"
   chmod +x "$shim/$t"
 done
 export PATH="$shim:$PATH"
-if [ "$(command -v sv)" != "$shim/sv" ]; then
-  echo "FAIL: the runit shim is not first on PATH"
-  exit 1
-fi
-# static side of the same claim: the launcher files must not name runit at all
+[ "$(command -v sv)" = "$shim/sv" ] || { echo "FAIL: shim not first on PATH"; exit 1; }
 hits="$(grep -nE '\bsv\b|runsv|svlogd|termux-services' "$ROOT/lib/launch.sh" "$ROOT/lib/registry.sh" \
-  | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true)"
+        | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true)"
 if [ -n "$hits" ]; then
-  echo "FAIL: lib/launch.sh or lib/registry.sh references runit in code:"
-  printf '%s\n' "$hits"
-  exit 1
+  echo "FAIL: launcher code references runit:"; printf '%s\n' "$hits"; exit 1
 fi
 
-export UML4TERMUX_STATE_DIR="$work/state"
-export UML4TERMUX_HOME="$work/home"
-export UML4TERMUX_INITRAMFS_DIR="$work/initramfs"
-export UML4TERMUXD_BIN="$DAEMON"
 SELFTEST_SLEEP="$(command -v sleep || echo /bin/sleep)"
-export UML4TERMUXD_SELFTEST_CHILD="$SELFTEST_SLEEP"
-export UML4TERMUXD_SELFTEST_SECONDS="${UML4TERMUXD_SELFTEST_SECONDS:-600}"
-export NO_COLOR=1
-mkdir -p "$UML4TERMUX_STATE_DIR" "$UML4TERMUX_HOME" "$UML4TERMUX_INITRAMFS_DIR"
 
-fails=0
-ok()  { echo "  PASS: $1"; }
-bad() { echo "  FAIL: $1"; fails=$((fails + 1)); }
-expect_rc() { # label expected actual
-  if [ "$2" = "$3" ]; then ok "$1 (rc=$3)"; else bad "$1 (harap rc=$2, dapat rc=$3)"; fi
-}
-
-up()   { UML4TERMUX_RUNTIME="$1" "$BIN" up --name "$2" --selftest --no-gvproxy --runtime "$1" --image "$3" ${4:+--ssh-port "$4"} 2>&1; }
-down() { "$BIN" down --name "$1" 2>&1; }
-
-# The launcher probes liveness through `protocol`. The C front end prints the
-# raw JSON while the Rust one pretty-prints it; a strict compact-form grep once
-# made every LIVE instance look dead, so `up` reported failure while the daemon,
-# the guest and gvproxy kept running. The suite therefore runs against BOTH
-# front ends -- a launcher bug that only shows with one of them is exactly the
-# kind this project has been bitten by.
-# A wrong-arch binary (the tracked aarch64 one on an x86 runner) cannot execute
-# here; main() answers usage with exit 64, so only 126/127 mean "cannot run".
-can_run() {
-  "$1" --help >/dev/null 2>&1
-  local rc=$?
-  [ "$rc" -ne 126 ] && [ "$rc" -ne 127 ]
-}
-
-run_suite() { # <label> <daemon-binary>
+# --- one suite per front end ------------------------------------------------
+run_suite() { # <label> <daemon binary>
   local label="$1" daemon="$2"
-  # Each suite must use the binary it was given: without this export the
-  # launcher falls back to an installed uml4termuxd and both suites would
-  # silently test the same front end.
+
   export UML4TERMUXD_BIN="$daemon"
+  export UML4TERMUX_STATE_DIR="$work/state-$label"
+  export UML4TERMUX_HOME="$work/home-$label"
+  export UML4TERMUX_INITRAMFS_DIR="$work/initramfs-$label"
+  export UML4TERMUXD_SELFTEST_CHILD="$SELFTEST_SLEEP"
+  export UML4TERMUXD_SELFTEST_SECONDS=600
+  export NO_COLOR=1
+  mkdir -p "$UML4TERMUX_STATE_DIR" "$UML4TERMUX_HOME" "$UML4TERMUX_INITRAMFS_DIR"
+
+  local rt_a="$work/rt-a-$label" rt_b="$work/rt-b-$label"
+  local img_a="$work/img-a-$label" img_b="$work/img-b-$label"
+  local rcd="$UML4TERMUX_STATE_DIR/instances"
+
   echo "### front end: ${label} ###"
 
-out="$(up "$work/rt-a" a "$work/img-a" 2222)"; rc=$?
-expect_rc "up A" 0 "$rc"
-printf '%s\n' "$out" | grep -q "is up" && ok "pesan up" || bad "pesan up tidak muncul: $out"
+  # The launcher must resolve the binary this suite was handed (a missing export
+  # once made both suites test an installed uml4termuxd).
+  check "$label: biner daemon terdeteksi" "$daemon" \
+    "$(UML4TERMUXD_BIN="$daemon" UML4TERMUX_HOME="$UML4TERMUX_HOME" \
+       bash -c ". '$ROOT/lib/common.sh'; uml4termux_daemon_bin" 2>/dev/null)"
 
-# Guard against silent fallback: the running daemon MUST be the binary this
-# suite was handed. A missing export once made both suites test the installed
-# uml4termuxd while every assertion still passed.
-dpid="$(sed -n 's/^PID=//p' "$UML4TERMUX_STATE_DIR/instances/a.env" 2>/dev/null)"
-if [ -n "$dpid" ] && tr '\0' ' ' < "/proc/$dpid/cmdline" 2>/dev/null | grep -qF "$daemon"; then
-  ok "daemon yang berjalan = biner ${label}"
-else
-  bad "daemon yang berjalan BUKAN biner ${label} (cmdline pid ${dpid:-?} tidak memuat $daemon)"
-fi
+  do_up() { # <runtime> <name> <image> [ssh-port]
+    UML4TERMUX_RUNTIME="$1" "$BIN" up --name "$2" --selftest --no-gvproxy \
+      --runtime "$1" --image "$3" ${4:+--ssh-port "$4"} 2>&1
+  }
+  rec_pid() { sed -n 's/^PID=//p' "$rcd/$1.env" 2>/dev/null; }
+  note()    { RUNS="$RUNS $1:$(rec_pid "$1")"; }
 
-st="$("$BIN" status --name a --json)"
-printf '%s' "$st" | grep -q '"live":"yes"' && ok "status A live" || bad "status A: $st"
-printf '%s' "$st" | grep -q '"phase":"running"' && ok "status A fase running" || bad "status A: $st"
+  # 1. start
+  out="$(do_up "$rt_a" a "$img_a" 2222)"; rc=$?
+  if [ "$rc" -eq 0 ]; then ok "$label: up A"; else bad "$label: up A rc=$rc: $out"; fi
+  note a
+  check "$label: registry mencatat runtime" "$rt_a" "$(sed -n 's/^RUNTIME=//p' "$rcd/a.env" 2>/dev/null)"
+  check "$label: status live" "yes" \
+    "$("$BIN" status --name a --json | sed -n 's/.*"live":"\([a-z]*\)".*/\1/p')"
+  if "$BIN" logs --name a -l 4 >/dev/null 2>&1; then ok "$label: logs terbaca"; else bad "$label: logs gagal"; fi
 
-"$BIN" logs --name a -l 4 >/dev/null 2>&1 && ok "logs A terbaca" || bad "logs A gagal"
+  # 2. idempotent: the second up must keep the SAME daemon
+  pid_before="$(rec_pid a)"
+  out="$(do_up "$rt_a" a "$img_a" 2222)"; rc=$?
+  pid_after="$(rec_pid a)"
+  check "$label: up ulang rc" "0" "$rc"
+  if [ -n "$pid_before" ] && [ "$pid_before" = "$pid_after" ] && kill -0 "$pid_after" 2>/dev/null; then
+    ok "$label: up idempoten (pid $pid_after dipertahankan)"
+  else
+    bad "$label: up ulang mengganti daemon (sebelum='$pid_before' sesudah='$pid_after')"
+  fi
 
-echo "== invarian 3: satu runtime per instance =="
-out="$(up "$work/rt-a" b "$work/img-b" 12222)"; rc=$?
-expect_rc "up B pada runtime A ditolak" 1 "$rc"
-printf '%s' "$out" | grep -q "runtime .* is owned by live instance 'a'" \
-  && ok "pesan invarian runtime" || bad "pesan invarian runtime: $out"
+  # 3. stop/start cycle: a stale state file must not fool the readiness poll
+  "$BIN" down --name a >/dev/null 2>&1
+  out="$(do_up "$rt_a" a "$img_a" 2222)"; rc=$?
+  if [ "$rc" -eq 0 ]; then ok "$label: up setelah down (state basi)"; else bad "$label: up setelah down rc=$rc: $out"; fi
+  note a
 
-echo "== invarian 1: satu guest per image =="
-out="$(up "$work/rt-b" b "$work/img-a" 12222)"; rc=$?
-expect_rc "up B pada image A ditolak" 1 "$rc"
-printf '%s' "$out" | grep -q "used by live instance 'a'" \
-  && ok "pesan invarian image" || bad "pesan invarian image: $out"
+  # 4. invariants must REFUSE
+  out="$(do_up "$rt_a" b "$img_b" 12222)"; rc=$?
+  if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q "runtime $rt_a is owned by"; then
+    ok "$label: invarian runtime ditolak"
+  else bad "$label: invarian runtime (rc=$rc): $out"; fi
 
-echo "== invarian 2: satu gvproxy per port ssh =="
-out="$(up "$work/rt-b" b "$work/img-b" 2222)"; rc=$?
-expect_rc "up B pada port 2222 ditolak" 1 "$rc"
-printf '%s' "$out" | grep -q "port 2222 is held by live instance 'a'" \
-  && ok "pesan invarian port" || bad "pesan invarian port: $out"
+  out="$(do_up "$rt_b" b "$img_a" 12222)"; rc=$?
+  if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q "used by live instance 'a'"; then
+    ok "$label: invarian image ditolak"
+  else bad "$label: invarian image (rc=$rc): $out"; fi
 
-echo "== instance B: image + port + runtime sendiri -> boleh =="
-out="$(up "$work/rt-b" b "$work/img-b" 12222)"; rc=$?
-expect_rc "up B" 0 "$rc"
+  out="$(do_up "$rt_b" b "$img_b" 2222)"; rc=$?
+  if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q "port 2222 is held by"; then
+    ok "$label: invarian port ditolak"
+  else bad "$label: invarian port (rc=$rc): $out"; fi
 
-ls_out="$("$BIN" ls)"
-printf '%s' "$ls_out" | grep -c 'yes' | grep -q '^2$' && ok "ls melaporkan 2 instance live" || bad "ls: $ls_out"
+  # 5. a second instance with its own runtime, image and port IS allowed
+  out="$(do_up "$rt_b" b "$img_b" 12222)"; rc=$?
+  if [ "$rc" -eq 0 ]; then ok "$label: up B"; else bad "$label: up B rc=$rc: $out"; fi
+  note b
+  check "$label: ls melihat 2 instance live" "2" "$("$BIN" ls | grep -c ' yes ')"
 
-echo "== up ulang pada instance yang sudah hidup =="
-out="$(up "$work/rt-a" a "$work/img-a" 2222)"; rc=$?
-expect_rc "up A dua kali" 0 "$rc"
-printf '%s' "$out" | grep -q 'already up' && ok "up idempoten" || bad "up ulang: $out"
+  # 6. teardown
+  "$BIN" down --name a >/dev/null 2>&1; check "$label: down A" "0" "$?"
+  "$BIN" down --name b >/dev/null 2>&1; check "$label: down B" "0" "$?"
+  sleep 1
+  alive=0
+  for pair in $RUNS; do kill -0 "${pair#* }" 2>/dev/null && alive=$((alive + 1)); done
+  check "$label: semua daemon berhenti" "0" "$alive"
+  check "$label: registry kosong" "0" "$(ls "$rcd" 2>/dev/null | wc -l | tr -d ' ')"
+  "$BIN" status --name a >/dev/null 2>&1; check "$label: status instance turun" "1" "$?"
 
-echo "== down + registry dibersihkan =="
-out="$(down a)"; expect_rc "down A" 0 "$?"
-out="$(down b)"; expect_rc "down B" 0 "$?"
-"$BIN" ls >"$work/ls2" 2>&1
-if grep -q 'no instances registered' "$work/ls2"; then ok "registry kosong setelah down"; else bad "ls setelah down: $(cat "$work/ls2")"; fi
-"$BIN" status --name a >/dev/null 2>&1; expect_rc "status instance yang sudah turun" 1 "$?"
-
-echo "== dry-run tidak menjalankan apa pun =="
-out="$(UML4TERMUX_RUNTIME="$work/rt-c" "$BIN" --dry-run up --name c --selftest --no-gvproxy --image "$work/img-c")"; rc=$?
-expect_rc "up --dry-run" 0 "$rc"
-printf '%s' "$out" | grep -q ' daemon --selftest' && ok "dry-run mencetak perintah" || bad "dry-run: $out"
-[ -S "$work/rt-c/daemon.sock" ] && bad "dry-run meninggalkan daemon hidup" || ok "dry-run tidak menyalakan daemon"
-
+  # 7. dry run must not start anything
+  out="$(UML4TERMUX_RUNTIME="$work/rt-c-$label" "$BIN" --dry-run up --name c --selftest --no-gvproxy --image "$work/img-c" 2>&1)"
+  check "$label: dry-run rc" "0" "$?"
+  if printf '%s' "$out" | grep -q ' daemon --selftest'; then ok "$label: dry-run mencetak perintah"; else bad "$label: dry-run: $out"; fi
+  if [ -S "$work/rt-c-$label/daemon.sock" ]; then bad "$label: dry-run menyalakan daemon"; else ok "$label: dry-run tidak menyalakan daemon"; fi
 }
 
-# The C suite uses the binary the caller provided (bin/uml4termuxd locally, the
-# freshly compiled one in CI) and is skipped when that binary cannot run here.
-if [ -x "$DAEMON" ] && can_run "$DAEMON"; then
-  run_suite c "$DAEMON"
+if [ -x "$C_BIN" ] && can_run "$C_BIN"; then
+  run_suite c "$C_BIN"
 else
-  echo "SKIP: C front end cannot execute here ($DAEMON)"
+  echo "SKIP: C front end cannot execute here ($C_BIN)"
 fi
-if [ -x "$ROOT/rust/target/release/uml4termux-rs" ] && can_run "$ROOT/rust/target/release/uml4termux-rs"; then
-  run_suite rust "$ROOT/rust/target/release/uml4termux-rs"
+if [ -x "$RS_BIN" ] && can_run "$RS_BIN"; then
+  run_suite rust "$RS_BIN"
 else
-  echo "SKIP: rust front end not built"
+  echo "SKIP: rust front end not built ($RS_BIN)"
 fi
+
+[ "$DEBUG" = "1" ] && echo "  [dbg] RUNS:$RUNS"
 
 echo
 if [ "$fails" -eq 0 ]; then

@@ -72,14 +72,8 @@ uml4termux_reg_live() { # <name>
   pid="$(uml4termux_reg_get "${name}" PID)" || return 1
   [ -n "${rt}" ] && [ -n "${pid}" ] || return 1
   uml4termux_pid_alive "${pid}" uml4termux || return 1
-  [ -S "${rt}/daemon.sock" ] || return 1
   dbin="$(uml4termux_daemon_bin)" || return 1
-  # The Rust front end pretty-prints JSON by default (the C one does not), so
-  # this must tolerate whitespace: a strict '"protocol":1' match silently made
-  # every live instance look dead -- which left daemons, guests and gvproxy
-  # running after `up` reported failure.
-  UML4TERMUX_RUNTIME="${rt}" "${dbin}" protocol 2>/dev/null \
-    | grep -qE '"protocol"[[:space:]]*:[[:space:]]*1'
+  uml4termux_socket_answers "${rt}" "${dbin}"
 }
 
 uml4termux_reg_prune() { # drop records whose instance is gone; print how many
@@ -140,4 +134,17 @@ uml4termux_state_phase() { # <runtime dir>
   local f="$1/daemon.sock.state"
   [ -r "${f}" ] || return 0
   sed -n 's/.*"phase":"\([a-z]*\)".*/\1/p' "${f}" 2>/dev/null || true
+}
+
+# Does a daemon on <runtime> answer the contract handshake? Tolerates the Rust
+# front end's pretty-printed JSON as well as the C front end's raw line.
+uml4termux_socket_answers() { # <runtime dir> <daemon binary>
+  [ -S "$1/daemon.sock" ] || return 1
+  local reply
+  # Read the WHOLE reply first: piping into `grep -q` lets grep exit early and
+  # close the pipe, and a Rust writer then dies on EPIPE -- which made liveness
+  # detection fail at random and, once, left a live daemon reported as down.
+  reply="$(UML4TERMUX_RUNTIME="$1" "$2" protocol 2>/dev/null | tr -d '[:space:]')"
+  case "$reply" in *'"protocol":1'*) return 0 ;; esac
+  return 1
 }

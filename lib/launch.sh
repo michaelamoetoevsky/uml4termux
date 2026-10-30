@@ -23,9 +23,7 @@ uml4termux_wait_ready() { # <runtime> <daemon-bin> <timeout-seconds>
   while [ "${i}" -lt "${timeout}" ]; do
     phase="$(uml4termux_state_phase "${rt}")"
     case "${phase}" in failed|completed|exited|stopped) return 1 ;; esac
-    if [ -S "${rt}/daemon.sock" ] && [ "${phase}" = "running" ] \
-       && UML4TERMUX_RUNTIME="${rt}" "${bin}" protocol 2>/dev/null \
-          | grep -qE '"protocol"[[:space:]]*:[[:space:]]*1'; then
+    if [ "${phase}" = "running" ] && uml4termux_socket_answers "${rt}" "${bin}"; then
       return 0
     fi
     sleep 1
@@ -103,6 +101,15 @@ cmd_up() {
     die "host ssh port ${ssh_port} is held by live instance '${holder}'; pass --ssh-port with a free port"
   fi
 
+  # Only now, with all three invariants satisfied, is adopting an unregistered
+  # live daemon safe: it cannot belong to another live instance (checked above).
+  if uml4termux_socket_answers "${rt}" "${dbin}"; then
+    warn "a daemon is already serving ${rt}; adopting it as instance '${name}'"
+    uml4termux_reg_write "${name}" "${rt}" "${image}" "${ssh_port:-}" "$(uml4termux_read_pid uml4termuxd)"
+    cmd_status --name "${name}"
+    return 0
+  fi
+
   local -a env
   env=(
     "UML4TERMUX_RUNTIME=${rt}"
@@ -133,6 +140,8 @@ cmd_up() {
     info "instance '${name}': running the daemon in the foreground (adapter hook)"
     exec "${cmd[@]}"
   fi
+
+  rm -f "${rt}/daemon.sock.state" "${rt}/daemon.sock" "${rt}/daemon.log"
 
   uml4termux_spawn uml4termuxd "${rt}/daemon.log" "${cmd[@]}"
   local pid

@@ -17,7 +17,17 @@ C_DAEMON="${1:-$ROOT/bin/uml4termuxd}"
 RS_BIN="${2:-$ROOT/rust/target/release/uml4termux-rs}"
 
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+PROBE_PIDS=""
+# Never leave a selftest daemon behind when the harness exits early: its runtime
+# dir is about to be deleted, and an orphan with a dead socket is unreachable.
+cleanup() {
+  local p
+  for p in $PROBE_PIDS; do kill -TERM "$p" 2>/dev/null; done
+  sleep 0.3
+  for p in $PROBE_PIDS; do kill -KILL "$p" 2>/dev/null; done
+  rm -rf "$work"
+}
+trap cleanup EXIT
 
 SELFTEST_SLEEP="$(command -v sleep || echo /bin/sleep)"
 PROTOCOL_REPLY='{"protocol":1,"runtime_contract":1,"commands":["status","stop","ports","expose","exec","protocol"]}'
@@ -53,6 +63,7 @@ probe() {
 
   "$daemon" daemon --selftest >"$work/$label.daemon.log" 2>&1 &
   local dp=$!
+  PROBE_PIDS="$PROBE_PIDS $dp"
   for _ in $(seq 1 60); do [ -S "$rt/daemon.sock" ] && break; sleep 0.25; done
   if [ ! -S "$rt/daemon.sock" ]; then
     bad "$label: socket kontrol tidak pernah dibuat"

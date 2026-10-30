@@ -135,7 +135,19 @@ fn daemon(
     match reply {
         Ok(r) => {
             let text = if raw { r.clone() } else { client::present(&r) };
-            println!("{text}");
+            // A reader that exits early (`... | grep -q foo`) closes the pipe.
+            // Rust ignores SIGPIPE, so the write returns EPIPE; panicking there
+            // would ABORT the client and make any caller's liveness probe fail
+            // intermittently. Write and report the error instead.
+            use std::io::Write;
+            let mut out = std::io::stdout();
+            if out
+                .write_all(text.as_bytes())
+                .and_then(|_| out.write_all(b"\n"))
+                .is_err()
+            {
+                return ExitCode::from(3);
+            }
             // The daemon reports failures as {"error": ...} with exit 0;
             // signalling it through the exit code would change the contract.
             ExitCode::SUCCESS
