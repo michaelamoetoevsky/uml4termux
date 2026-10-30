@@ -1,0 +1,30 @@
+{
+ "cycles_total": 105,
+ "labels": {
+  "s1": {
+   "cycles": 105,
+   "cycles_failed": 4,
+   "ticks_incomplete": 4,
+   "leftover_processes_total": 0,
+   "image_unchanged_all_cycles": true,
+   "restart_checks": [],
+   "daemon_rss_kb_first_window_median": 4786.0,
+   "daemon_rss_kb_last_window_median": 4758.0,
+   "daemon_rss_kb_max": 5468,
+   "kernel_rss_kb_max": 78892,
+   "dockerd_ready_cycles": 101,
+   "container_run_cycles": 101,
+   "wall_seconds": 10047,
+   "seconds_per_cycle": 96.6,
+   "daemon_rss_trend_kb": -28.0,
+   "daemon_rss_trend_pct": -0.6
+  }
+ },
+ "pass": {
+  "no_cycle_failures": false,
+  "no_leftovers": true,
+  "images_untouched": true,
+  "rss_no_upward_trend": true,
+  "restart_checked": false
+ }
+}

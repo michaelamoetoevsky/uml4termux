@@ -75,11 +75,15 @@ def main() -> int:
     labels = sorted({r["label"] for r in rows})
     daemon_rss = [r["daemon_rss_kb"] for r in rows if r["daemon_rss_kb"]]
     kernel_rss = [r["kernel_rss_kb"] for r in rows if r["kernel_rss_kb"]]
-    third = max(1, len(daemon_rss) // 3)
-    first_third = sorted(daemon_rss)[:third]
-    last_third = sorted(daemon_rss)[-third:]
-    med_first = first_third[len(first_third) // 2] if first_third else None
-    med_last = last_third[len(last_third) // 2] if last_third else None
+
+    # Trend = chronological first window vs last window. The earlier version
+    # sorted the whole series and compared its lowest block with its highest
+    # block, which measures DISPERSION and is positive by construction (it
+    # reported 16.9% for a run whose real trend was -0.6%).
+    import statistics
+    window = min(10, max(1, len(daemon_rss) // 3))
+    med_first = statistics.median(daemon_rss[:window]) if daemon_rss else None
+    med_last = statistics.median(daemon_rss[-window:]) if daemon_rss else None
     trend_pct = round((med_last - med_first) / med_first * 100, 1) if med_first and med_last else None
 
     failures = [r for r in rows if r["up_rc"] != 0]
@@ -123,7 +127,7 @@ def main() -> int:
             "daemon_rss_stable": {
                 "ok": trend_pct is None or abs(trend_pct) < 10,
                 "evidence": (f"Daemon RSS ranged {min(daemon_rss)}-{max(daemon_rss)} KB; median of the "
-                             f"first third {med_first} KB vs last third {med_last} KB ({trend_pct}%). "
+                             f"first {window} cycles {med_first} KB vs last {window} {med_last} KB ({trend_pct}%). "
                              f"Guest kernel RSS ranged {min(kernel_rss)}-{max(kernel_rss)} KB."
                              if daemon_rss and kernel_rss else "RSS not recorded"),
             },

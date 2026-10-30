@@ -1,0 +1,94 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261030-soak-b1",
+ "project_version": "0.5.0",
+ "generated_at": "2026-10-31T01:36:06+0700",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "7.2.0-rc4-g169b17ff3f66-dirty",
+  "mode": "seccomp",
+  "ncpus": 4
+ },
+ "capabilities": {
+  "boot": {
+   "ok": false,
+   "evidence": "105 boot cycles across 1 instance label(s) (s1); 4 cycle(s) failed to start, 4 cycle(s) never reached the guest's own tick marker. Every run boots with an ephemeral COW overlay, so each cycle starts from the pristine backing image."
+  },
+  "no_leftover_processes": {
+   "ok": true,
+   "evidence": "0 leftover process(es) summed over all cycles, counted by resolving /proc/<pid>/exe (never by pattern: a pattern also matches the calling shell on this device)."
+  },
+  "images_untouched": {
+   "ok": true,
+   "evidence": "Backing image sha256 AND mtime identical before/after every cycle: yes -- proof the writes went to the COW overlay and the shared image was never modified."
+  },
+  "daemon_rss_stable": {
+   "ok": true,
+   "evidence": "Daemon RSS ranged 4608-5468 KB; median of the first 10 cycles 4786.0 KB vs last 10 4758.0 KB (-0.6%). Guest kernel RSS ranged 60964-78892 KB."
+  },
+  "docker_every_cycle": {
+   "ok": false,
+   "evidence": "dockerd reached a usable API and a container ran to completion in 101/105 cycles; the guest reports the daemon version and storage driver each cycle."
+  },
+  "duration": {
+   "ok": true,
+   "evidence": "Measured wall-clock: 167.4 minutes across {'soak-b1': {'cycles': 105, 'wall_minutes': 167.4, 'seconds_per_cycle': 96.6, 'labels': ['s1']}}; {\"soak-b1\": {\"cycles\": 105, \"wall_minutes\": 167.4, \"seconds_per_cycle\": 96.6, \"labels\": [\"s1\"]}}"
+  }
+ },
+ "verdict": "partial",
+ "artifacts": [
+  {
+   "kind": "other",
+   "path": "logs/20261031-20261030-soak-b1-restart-check.sh",
+   "sha256": "bc0f4adce4e2d0a951b52a8a653946325e8af99cdf3937101aac30b49bced057"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261031-20261030-soak-b1-soak.sh",
+   "sha256": "cd80581ddb4b9f3bab36f753152022d721f1331e01fe259c6cef1f6bcac9a79c"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261031-20261030-soak-b1-summarise.py",
+   "sha256": "e889cd0877db0f8fcff590e88c1655e58ae3aaa59596f061d63d8c9ecf48a4ae"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261031-20261030-soak-b1-tick.sh",
+   "sha256": "5ede73ca7d51afd387e6767cfcc011285f86ceca504908da772aacd32eb9ba24"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261031-soak-soak-b1-cycles.jsonl",
+   "sha256": "3721a45a12963297dad7bfb0fc02c4ef2be34a5ba2d2925f68edadc81b7677c9"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261031-soak-soak-b1-final-summary.txt",
+   "sha256": "8022ccdc1574348bacf9db3caeb794165afeffcc0a0de12c3d34319bbe985b55"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261031-soak-soak-b1-run-meta.json",
+   "sha256": "7fdb0c2dcf75278aace671757f8d3152596d3a4f1aee0169d709e74c173829d1"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261031-soak-soak-b1-summary.json",
+   "sha256": "fdadab4ab23e2139dab689d5ff3d5f34b3b128b36d021bf8ba4d561b2566c9e4"
+  }
+ ],
+ "notes": "Direction B (docs/NEXT-STEPS.md). B3 (restart + exposure re-apply) has its own record: evidence/20261030-soak-b3-restart.json.",
+ "known_limits_observed": [
+  "each cycle pulls its container image unless the COW overlay keeps a cache; with an ephemeral overlay every cycle starts from the pristine image",
+  "RSS is sampled once per cycle right after readiness (the guest powers off at the end of its tick, taking the daemon's state file with it)"
+ ]
+}

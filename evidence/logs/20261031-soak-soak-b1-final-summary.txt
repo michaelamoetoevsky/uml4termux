@@ -1,0 +1,8 @@
+{
+ "no_cycle_failures": false,
+ "no_leftovers": true,
+ "images_untouched": true,
+ "rss_no_upward_trend": true,
+ "restart_checked": false
+}
+s1: cycles=105 failed=4 rss_trend=-0.1% max_rss=5468KB leftovers=0 runs_ok=101

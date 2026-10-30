@@ -1,0 +1,6 @@
+{
+ "cycles": 105,
+ "wall_seconds": 10047,
+ "seconds_per_cycle": 96.6,
+ "stopped_by": "watcher at the 2h bar; driver terminated after the summary"
+}
