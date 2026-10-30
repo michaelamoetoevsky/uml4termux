@@ -1,4 +1,4 @@
 [err] snapshot 'snap-a' was taken against a different backing image:
-[err]   recorded: size 3221225472 bytes, mtime 1793394612  (/data/data/com.termux/files/usr/tmp/c-check/work/img.ext4)
-[err]   now     : size 3221225472 bytes, mtime 1577811600  (/data/data/com.termux/files/usr/tmp/c-check/work/img-other.ext4)
+[err]   recorded: size 3221225472 bytes, mtime 1793396311  (/data/data/com.termux/files/usr/tmp/c-check2/work/img.ext4)
+[err]   now     : size 3221225472 bytes, mtime 1577811600  (/data/data/com.termux/files/usr/tmp/c-check2/work/img-other.ext4)
 [err] refusing to resume: the COW header names the recorded image.

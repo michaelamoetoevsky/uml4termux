@@ -65,6 +65,12 @@ cmd_up() {
   dbin="$(uml4termux_daemon_bin)" || die "daemon binary not found (run 'uml4termux fetch' first, or set UML4TERMUXD_BIN)"
 
   if uml4termux_reg_live "${name}"; then
+    # A resume REPLACES the disk state, so it cannot be silently skipped: `up`
+    # would otherwise report success while the running guest -- the one whose
+    # state the caller wanted replaced -- keeps running.
+    if [ -n "${from}" ]; then
+      die "instance '${name}' is live, and a resume replaces its disk state. Stop it first: uml4termux down --name ${name} (then: uml4termux up --from ${from} --name ${name})"
+    fi
     warn "instance '${name}' is already up"
     cmd_status --name "${name}"
     return 0
@@ -119,6 +125,9 @@ cmd_up() {
   # Only now, with all three invariants satisfied, is adopting an unregistered
   # live daemon safe: it cannot belong to another live instance (checked above).
   if uml4termux_socket_answers "${rt}" "${dbin}"; then
+    if [ -n "${from}" ]; then
+      die "a daemon is already serving ${rt}, and adopting it would not resume anything. Stop it first: uml4termux down --name ${name} (then: uml4termux up --from ${from})"
+    fi
     warn "a daemon is already serving ${rt}; adopting it as instance '${name}'"
     uml4termux_reg_write "${name}" "${rt}" "${image}" "${ssh_port:-}" "$(uml4termux_read_pid uml4termuxd)"
     cmd_status --name "${name}"

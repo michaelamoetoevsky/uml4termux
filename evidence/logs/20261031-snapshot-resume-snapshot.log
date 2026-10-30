@@ -1,3 +1,3 @@
 [info] stopping 'c1' cleanly: a snapshot of a guest that is still writing is not a state worth keeping
-[info] snapshot 'snap-a': COW 3222016512 bytes, base image 3221225472 bytes (mtime 1793394612)
+[info] snapshot 'snap-a': COW 3222016512 bytes, base image 3221225472 bytes (mtime 1793396311)
 [info] resume it with: uml4termux up --from snap-a

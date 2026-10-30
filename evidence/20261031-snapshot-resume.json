@@ -2,7 +2,7 @@
  "schema_version": "1.1",
  "run_id": "20261031-snapshot-resume",
  "project_version": "0.5.0",
- "generated_at": "2026-10-31T04:25:20+0700",
+ "generated_at": "2026-10-31T04:50:02+0700",
  "device": {
   "model": "2406APNFAG",
   "android_release": "16",
@@ -24,7 +24,7 @@
   },
   "c1_snapshot_records_base": {
    "ok": true,
-   "evidence": "snapshot stopped the guest cleanly, wrote snapshots/snap-a.cow and a metadata record whose BASE_SIZE equals the backing image (54140a722974..., sha256 recorded); the file-level gate tests/test-snapshot.sh covers GUEST_UNAME and the remaining fields."
+   "evidence": "snapshot stopped the guest cleanly, wrote snapshots/snap-a.cow and a metadata record whose BASE_SIZE equals the backing image (e1403e13b4f9..., sha256 recorded); the file-level gate tests/test-snapshot.sh covers GUEST_UNAME and the remaining fields."
   },
   "c2_resume_restores_filesystem": {
    "ok": true,
@@ -33,6 +33,10 @@
   "c2_copy_on_resume_immutable": {
    "ok": true,
    "evidence": "The snapshot COW sha256 was identical after both resumes, and a second marker written during resume 1 produced ZERO occurrences of its md5 during resume 2: the second boot did not see the first boot writes. The daemon log confirms the policy: \"cow: reusing the header ... (resume semantics)\"."
+  },
+  "c2b_refuse_resume_while_live": {
+   "ok": true,
+   "evidence": "With the instance LIVE and the snapshot present, `up --from snap-a` was refused (rc=1) instead of adopting the running daemon: the message names the reason and the `down` command to run, and the live guest pid was still alive afterwards. Found while writing the closing PoC document -- before this guard the launcher reported success without resuming anything."
   },
   "c3_list_and_remove": {
    "ok": true,
@@ -44,7 +48,7 @@
   },
   "base_image_untouched": {
    "ok": true,
-   "evidence": "The private copy of the backing image had the same sha256 before and after three boots: guest writes went to the COW (54140a722974... unchanged)."
+   "evidence": "The private copy of the backing image had the same sha256 before and after three boots: guest writes went to the COW (e1403e13b4f9... unchanged)."
   },
   "no_leftovers_from_this_run": {
    "ok": true,
@@ -56,7 +60,7 @@
   {
    "kind": "other",
    "path": "logs/20261031-snapshot-resume-c-snapshot.json",
-   "sha256": "7f6b7340de0d19c13f51ceb76b32720792a995d15616fdb0bfa858aef0005412"
+   "sha256": "0339b1e59c07b29497048f298a6ec4fa31d7334462db82314ea2ebdfea01a6b8"
   },
   {
    "kind": "other",
@@ -66,50 +70,55 @@
   {
    "kind": "other",
    "path": "logs/20261031-snapshot-resume-snapshot.log",
-   "sha256": "0924a163c2cc195f7cc856c8b54916d6f12f2a869c7adbbffb9a84bd1a52b6dc"
+   "sha256": "3704a75d39b7f7068d31fb22e24d4c80784b8063e3d68319ce4db69e783ac495"
   },
   {
    "kind": "other",
    "path": "logs/20261031-snapshot-resume-refuse.log",
-   "sha256": "03a28e5342a50dc357205e877ce2968b17d86ba5f5d390f53968a559bf6398e7"
+   "sha256": "2fc8feb815cabe27c7718b58a24131126d51ccacd21932e4e4874e9173f65e27"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261031-snapshot-resume-refuse-live.log",
+   "sha256": "7dcacf2b4cebd9405bad0d82f5acb1f6e0f7bfbb233e2f5586e22a6a4fb326ac"
   },
   {
    "kind": "other",
    "path": "logs/20261031-snapshot-resume-snapshots-list.log",
-   "sha256": "9d0606bd26727aa7347677cb31814eebb8b76b41e5c71b6e85a1c11de11255bd"
+   "sha256": "269b335406586ffefa578118dddb7ee061f1c96233ba243c51d9b9f861585833"
   },
   {
    "kind": "other",
    "path": "logs/20261031-snapshot-resume-up1.log",
-   "sha256": "9fcf151c344bb88a1f5f6520e18c06bffb40467cce70478a5bc65add0b88bb49"
+   "sha256": "51c308969d98818050f65aee350e84825f76a110038316a7343140fea6b5af19"
   },
   {
    "kind": "other",
    "path": "logs/20261031-snapshot-resume-up2.log",
-   "sha256": "0044ec50fb9efc2ecdc25bd6a20623f07c53a2f819bea9c16985e0f17664fcab"
+   "sha256": "531e9e922e3785fc15e001a729820a803d94ccdf1aad1e3b65c8b95abf2c184e"
   },
   {
    "kind": "other",
    "path": "logs/20261031-snapshot-resume-up3.log",
-   "sha256": "77e26220ac5634dd2e0be88f246f60b1de60ef9bc60e1abc60ea3b94bc1336fd"
+   "sha256": "abf7f6e9e7f5a0fa4994bcd8dfc45ebf6ec0e676c03df14953bd2ca73b1b7807"
   },
   {
    "kind": "console-log",
    "path": "logs/20261031-snapshot-resume-console-boot-2-previous.log",
-   "sha256": "0ecce3d9fcf123a8f22dcc0ab309a6b8772e74e3545347c76d82d7a0bfa6acfa"
+   "sha256": "ba0a07bf9049ac31ba90f2968c3d75dd3f0f0665d95f1e5896e0c07fa92351b6"
   },
   {
    "kind": "console-log",
    "path": "logs/20261031-snapshot-resume-console-boot-3-final.log",
-   "sha256": "88b1991f3a786f1c02eddc5d6038ac6689c1f48620ef0c5979cd996f0ae99316"
+   "sha256": "016239237bcebb4e8ad1ffdea95201249c1a20a79d3749e971fd0176fa91e465"
   },
   {
    "kind": "console-log",
    "path": "logs/20261031-snapshot-resume-console-boot-3-previous.log",
-   "sha256": "03aa7eb9597ddc1e24de0365e5457dcf442548ee1a7e0d227a60ff9ae61dc9c0"
+   "sha256": "9fae94e5ba52fddcfc1fb7a2a9960b5a53cadb067640d328510f1f2c8d192f8a"
   }
  ],
- "notes": "Direction C, C1-C4, on the device with three real boots (fresh, resume, resume). The snapshot is COLD state: the filesystem comes back, RAM does not, and resuming costs a boot -- there is no RAM save/restore in this port. This harness needed three fixes before it could measure anything: it must down the instance before each resume (`up` adopts a live daemon and returns 0 without booting), it must archive the console log instead of deleting it (the daemon holds the handle), and every marker must be base64 in the typed command because the console echoes what it is given.",
+ "notes": "Direction C, C1-C4, on the device with three real boots (fresh, resume, resume) plus a refusal check while live. The snapshot is COLD state: the filesystem comes back, RAM does not, and resuming costs a boot -- there is no RAM save/restore in this port. This harness needed three fixes before it could measure anything: it must down the instance before each resume (`up` adopts a live daemon and returns 0 without booting), it must archive the console log instead of deleting it (the daemon holds the handle), and every marker must be base64 in the typed command because the console echoes what it is given.",
  "known_limits_observed": [
   "Resume returns the FILESYSTEM only: processes running in the guest do not come back, and the cost is one boot.",
   "Base-image identity is size+mtime by default; the full sha256 is checked only with UML4TERMUX_SNAPSHOT_VERIFY_DIGEST=1 because it reads the whole image.",

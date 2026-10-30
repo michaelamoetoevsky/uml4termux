@@ -1,9 +1,9 @@
 [info] resuming 'snap-a': working COW staged from snap-a.cow (the snapshot itself stays untouched)
-[info] instance 'c1' is up (pid 27601, runtime /data/data/com.termux/files/usr/tmp/c-check/work/rt-c)
+[info] instance 'c1' is up (pid 23049, runtime /data/data/com.termux/files/usr/tmp/c-check2/work/rt-c)
 instance  : c1
 state     : yes (phase running)
-pid       : 27601 (alive)
-runtime   : /data/data/com.termux/files/usr/tmp/c-check/work/rt-c
-image     : /data/data/com.termux/files/usr/tmp/c-check/work/img.ext4
+pid       : 23049 (alive)
+runtime   : /data/data/com.termux/files/usr/tmp/c-check2/work/rt-c
+image     : /data/data/com.termux/files/usr/tmp/c-check2/work/img.ext4
 ssh port  : 12640
-logs      : 7.8 KiB
+logs      : 7.5 KiB

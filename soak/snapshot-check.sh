@@ -202,6 +202,22 @@ else
   console_tail
 fi
 
+echo "== langkah 4b: resume pada instance yang MASIH HIDUP harus ditolak =="
+# Without this the launcher would adopt the running daemon and report success
+# while nothing was resumed -- the instance the caller wanted replaced keeps
+# running. Snapshot snap-a exists at this point, and the guest is live.
+set +e
+UML4TERMUX_RUNTIME="${RT}" "${BIN}" up --name "${NAME}" --image "${W}/img.ext4" \
+  --mem "${MEM}" --ssh-port "${SSH_PORT}" --from snap-a --timeout 30 >"${OUT}/refuse-live.log" 2>&1
+rc_live=$?
+set +e
+[ "${rc_live}" -ne 0 ] && ok "resume pada instance hidup DITOLAK (rc=${rc_live})" || fail "resume pada instance hidup diterima"
+grep -q 'is live' "${OUT}/refuse-live.log" && grep -q 'down --name' "${OUT}/refuse-live.log" \
+  && ok "pesan menyebut sebabnya dan perintah yang harus dijalankan" || { fail "pesan tidak menuntun"; sed -n '1,6p' "${OUT}/refuse-live.log" | sed 's/^/    /'; }
+LIVE_PID="$(sed -n 's/^PID=//p' "${W}/state/instances/${NAME}.env" 2>/dev/null)"
+[ -n "${LIVE_PID}" ] && [ -d "/proc/${LIVE_PID}" ] && ok "guest yang hidup tidak diganggu (pid ${LIVE_PID} masih hidup)" \
+  || fail "instance yang seharusnya hidup ternyata mati"
+
 echo "== langkah 5: tulis penanda kedua, lalu resume snapshot yang SAMA lagi (C2) =="
 if guest_run "${MK_WROTE_B}" "${CMD_WRITE_B}" 180 && [ "$(marker_count "${MD5_B}")" -gt 0 ]; then
   ok "penanda kedua ditulis (md5 ${MD5_B})"

@@ -19,12 +19,12 @@ Early memory node ranges
   node   0: [mem 0x0000000000000000-0x000000007fffffff]
 Initmem setup node 0 [mem 0x0000000000000000-0x000000007fffffff]
 percpu: Embedded 5 pages/cpu s37208 r8192 d36520 u81920
-Kernel command line: ubd0=/data/data/com.termux/files/usr/tmp/c-check/work/rt-c/c1.cow,/data/data/com.termux/files/usr/tmp/c-check/work/img.ext4 root=/dev/ubda rw panic=-1 con=null con0=fd:0,fd:1 vec0:transport=bess,dst=/data/data/com.termux/files/usr/tmp/c-check/work/rt-c/bess.sock,depth=128,gro=1,mac=5a:94:ef:e4:0c:ee console=tty0
+Kernel command line: ubd0=/data/data/com.termux/files/usr/tmp/c-check2/work/rt-c/c1.cow,/data/data/com.termux/files/usr/tmp/c-check2/work/img.ext4 root=/dev/ubda rw panic=-1 con=null con0=fd:0,fd:1 vec0:transport=bess,dst=/data/data/com.termux/files/usr/tmp/c-check2/work/rt-c/bess.sock,depth=128,gro=1,mac=5a:94:ef:e4:0c:ee console=tty0
 printk: log_buf_len individual max cpu contribution: 4096 bytes
 printk: log_buf_len total cpu_extra contributions: 12288 bytes
 printk: log_buf_len min size: 16384 bytes
 printk: log buffer data + meta data: 32768 + 114688 = 147456 bytes
-printk: early log buf free: 14888(90%)
+printk: early log buf free: 14880(90%)
 Dentry cache hash table entries: 262144 (order: 7, 2097152 bytes, linear)
 Inode-cache hash table entries: 131072 (order: 6, 1048576 bytes, linear)
 Built 1 zonelists, mobility grouping on.  Total pages: 131072
@@ -38,7 +38,7 @@ NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 64
 rcu: srcu_init: Setting srcu_struct sizes based on contention.
 clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
 clocksource: timer: mask: 0xffffffffffffffff max_cycles: 0x1cd42e205, max_idle_ns: 881590404426 ns
-Calibrating delay loop... 4080.43 BogoMIPS (lpj=20402176)
+Calibrating delay loop... 4559.66 BogoMIPS (lpj=22798336)
 Checking that host ptys support output SIGIO...Yes
 pid_max: default: 32768 minimum: 301
 Mount-cache hash table entries: 4096 (order: 1, 32768 bytes, linear)
@@ -73,7 +73,7 @@ UDP hash table entries: 1024 (order: 2, 65536 bytes, linear)
 NET: Registered PF_UNIX/PF_LOCAL protocol family
 printk: legacy console [stderr0] disabled
 Checking host MADV_REMOVE support...OK
-mconsole (version 2) initialized on /data/data/com.termux/files/home/.uml/1lRbXL/mconsole
+mconsole (version 2) initialized on /data/data/com.termux/files/home/.uml/PWxFMp/mconsole
 Unpacking initramfs...
 workingset: timestamp_bits=46 (anon: 41) max_order=17 bucket_order=0 (anon: 0)
 9p: Installing v9fs 9p2000 file system support
@@ -108,44 +108,46 @@ UML4TERMUX_INIT SWITCH_ROOT_NOW /docker-init.sh
 UNAME: Linux 7.2.0-rc4-g169b17ff3f66-dirty aarch64
 uml-vector uml-vector.0 vec0: netif_napi_add_weight_locked() called with weight 128
 DHCPACK of 192.168.127.2 from 192.168.127.1
-bound to 192.168.127.2 -- renewal in 1551 seconds.
+bound to 192.168.127.2 -- renewal in 1730 seconds.
 ADDR: 3: vec0    inet 192.168.127.2/24 brd 192.168.127.255 scope global dynamic vec0\       valid_lft 3600sec preferred_lft 3600sec 3: vec0    inet6 fe80::5894:efff:fee4:cee/64 scope link tentative \       valid_lft forever preferred_lft forever 
 ROUTE: default via 192.168.127.1 dev vec0  192.168.127.0/24 dev vec0 proto kernel scope link src 192.168.127.2  
 RESOLV: nameserver 192.168.127.1 
-DNS_TEST: 2600:1f18:2148:bc00:c668:ad49:de3d:38ac registry-1.docker.io
+DNS_TEST: 2600:1f18:2148:bc02:fcb0:41f1:f1ec:47e9 registry-1.docker.io
 starting dockerd...
 SERVER=20.10.24+dfsg1 DRIVER=overlay2 CGROUPV=2
 --- fresh pull through gvproxy NAT/DNS ---
-Error response from daemon: Head "https://registry-1.docker.io/v2/library/busybox/manifests/latest": dial tcp [2600:1f18:2148:bc02:d114:7bf3:7ba3:744a]:443: connect: network is unreachable
-Error response from daemon: Get "https://registry-1.docker.io/v2/": dial tcp [2600:1f18:2148:bc02:a2e7:dd21:fade:29f]:443: connect: network is unreachable
+Status: Image is up to date for busybox:latest
+docker.io/library/busybox:latest
+Status: Image is up to date for alpine:latest
+docker.io/library/alpine:latest
 --- run pulled image ---
-docker0: port 1(veth13000e3) entered blocking state
-docker0: port 1(veth13000e3) entered disabled state
-veth13000e3: entered allmulticast mode
-veth13000e3: entered promiscuous mode
-eth0: renamed from vetha882919
-docker0: port 1(veth13000e3) entered blocking state
-docker0: port 1(veth13000e3) entered forwarding state
-vetha882919: renamed from eth0
-docker0: port 1(veth13000e3) entered disabled state
-docker0: port 1(veth13000e3) entered disabled state
-veth13000e3 (unregistering): left allmulticast mode
-veth13000e3 (unregistering): left promiscuous mode
-docker0: port 1(veth13000e3) entered disabled state
+docker0: port 1(veth9ea43d3) entered blocking state
+docker0: port 1(veth9ea43d3) entered disabled state
+veth9ea43d3: entered allmulticast mode
+veth9ea43d3: entered promiscuous mode
+eth0: renamed from veth81d2252
+docker0: port 1(veth9ea43d3) entered blocking state
+docker0: port 1(veth9ea43d3) entered forwarding state
+veth81d2252: renamed from eth0
+docker0: port 1(veth9ea43d3) entered disabled state
+docker0: port 1(veth9ea43d3) entered disabled state
+veth9ea43d3 (unregistering): left allmulticast mode
+veth9ea43d3 (unregistering): left promiscuous mode
+docker0: port 1(veth9ea43d3) entered disabled state
 BUSYBOX_RUN_OK
 Name:	registry-1.docker.io
-Address: 44.213.162.232
+Address: 100.51.27.57
 
 --- published port container ---
-docker0: port 1(veth6b8716a) entered blocking state
-docker0: port 1(veth6b8716a) entered disabled state
-veth6b8716a: entered allmulticast mode
-veth6b8716a: entered promiscuous mode
-eth0: renamed from veth08467cf
-docker0: port 1(veth6b8716a) entered blocking state
-docker0: port 1(veth6b8716a) entered forwarding state
-b3d27c1bf85ca2b2f5d33d261dde46360e3a5e3dabaacd18f59f8f7734bdbe38
-web | Up 14 seconds | 0.0.0.0:8123->80/tcp, :::8123->80/tcp
+docker0: port 1(vethf8367ce) entered blocking state
+docker0: port 1(vethf8367ce) entered disabled state
+vethf8367ce: entered allmulticast mode
+vethf8367ce: entered promiscuous mode
+eth0: renamed from veth36d1040
+docker0: port 1(vethf8367ce) entered blocking state
+docker0: port 1(vethf8367ce) entered forwarding state
+34626912ce6546783d5c4459f9688c546e7113d57792e522a454cebb5a6b1a9b
+web | Up 13 seconds | 0.0.0.0:8123->80/tcp, :::8123->80/tcp
 WEB_UP_MARKER
 exec:echo __EXEC_1_BEGIN__; echo U05BUC1BLUNPTlRFTlQ= | base64 -d > /root/snap-a.txt; md5sum /root/snap-a.txt | cut -c1-10; echo $(echo V1JPVEVfQQ== | base64 -d); echo __EXEC_1_DONE_$?
 __AGENT_GOT__: echo __EXEC_1_BEGIN__; echo U05BUC1BLUNPTlRFTlQ= | base64 -d > /root/snap-a.txt; md5sum /root/snap-a.txt | cut -c1-10; echo $(echo V1JPVEVfQQ== | base64 -d); echo __EXEC_1_DONE_$?

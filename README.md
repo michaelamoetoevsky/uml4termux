@@ -229,6 +229,10 @@ filesystem, **not RAM** -- processes that were running do not come back, and
 resuming costs one boot. This port has no RAM save/restore, so do not read
 "resume" as "instant".
 
+A resume is also refused when the instance is **still live** -- `up` would otherwise
+adopt the running daemon and report success without resuming anything -- so stop it
+first (`uml4termux down`), which is what the error message tells you to do.
+
 A resume is refused **before anything is staged** when the backing image no longer
 matches the snapshot's record (size + mtime always; `sha256` as well when
 `UML4TERMUX_SNAPSHOT_VERIFY_DIGEST=1`), and the message names both numbers.

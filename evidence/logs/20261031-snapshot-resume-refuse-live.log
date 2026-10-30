@@ -1,0 +1,1 @@
+[err] instance 'c1' is live, and a resume replaces its disk state. Stop it first: uml4termux down --name c1 (then: uml4termux up --from snap-a --name c1)

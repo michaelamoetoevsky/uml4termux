@@ -215,6 +215,9 @@ beserta catatan `<label>.meta`. Resume menyalinnya kembali ke COW kerja.
   menolak **sebelum satu byte dipindahkan**, dengan pesan yang menyebut angka yang
   dicatat dan yang terlihat sekarang. Mengandalkan penolakan UML berarti
   kegagalannya baru muncul setelah satu boot.
+- **Resume menuntut instance berhenti.** `up --from` pada instance yang masih hidup
+  **ditolak** dengan pesan yang menyebut `down` lebih dulu; tanpa aturan itu `up`
+  mengadopsi daemon yang berjalan dan membalas sukses tanpa me-resume apa pun.
 - **Rotasi** menyimpan `UML4TERMUX_SNAPSHOT_KEEP` (default 5) snapshot terbaru
   menurut mtime; selebihnya dibuang bersama COW-nya.
 - **Label** dibatasi `[A-Za-z0-9._-]+`: label menjadi nama berkas, jadi ia

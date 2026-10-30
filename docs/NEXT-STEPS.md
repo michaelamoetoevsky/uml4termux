@@ -343,9 +343,17 @@ Bukti: `evidence/20261031-snapshot-resume.json` (11 artefak) + gate
 | C3 | `snapshots` mendaftar label; `snapshot --rm` menghapus COW + metadata; rotasi menyimpan N terbaru (dibuktikan di gate) |
 | C4 | resume dengan image berbeda **ditolak rc=1 sebelum boot**, pesan menyebut `recorded: size …` dan `now : size …`, dan tidak ada daemon baru di registry |
 | lain | image dasar tidak berubah (sha256 sama) -- tulisan guest masuk ke COW; 0 proses tersisa milik run ini |
+| C2b | `up --from` pada instance yang **masih hidup** ditolak rc=1 (bukan diadopsi diam-diam), pesan menyebut `down`, dan guest yang hidup tidak terganggu |
 
 Verdict record: `pass`. Snapshot tetap **state dingin**: yang kembali adalah
 filesystem, bukan RAM; biayanya satu boot; "resume instan" tidak dijanjikan.
+
+**Satu cacat produk lagi, ditemukan justru saat menulis dokumen penutup:** `up --from`
+pada instance yang masih hidup **mengadopsi** daemon yang berjalan dan membalas
+`rc=0` **tanpa me-resume apa pun** -- laporan sukses untuk pekerjaan yang tidak
+dilakukan. Sekarang ia menolak dengan pesan yang menyebut sebabnya dan perintah
+`down` yang harus dijalankan; versi barunya diuji di device (langkah 4b) sekaligus
+memastikan guest yang hidup tidak ikut terganggu.
 
 **Tiga cacat harness yang harus diperbaiki sebelum angka di atas sah** -- dicatat
 karena masing-masing sempat menghasilkan kesimpulan palsu:

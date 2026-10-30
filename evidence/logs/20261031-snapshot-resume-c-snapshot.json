@@ -1,7 +1,7 @@
 {
  "check": "C snapshot & resume (device, real boots)",
- "base_image_sha256": "54140a722974b909fb9b53c7a26d6488d480f81f0dda093a32622183189eb163",
- "snapshot_cow_sha256": "73c73b832a137c13e4899455de0f049481d7b2894e0a54633270c6a163f8dc6e",
+ "base_image_sha256": "e1403e13b4f91186555ac41af584ab488a7dd8fec5851d281eecf8c4471c86fe",
+ "snapshot_cow_sha256": "5ceae5c1cee90892c63149b51e7fc90a68f311412a486d22ace12fb28c25fd3e",
  "device_wide_processes_after_run": 1,
  "passed": true
 }
