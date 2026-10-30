@@ -8,20 +8,29 @@ set -uo pipefail
 
 RUN="${1:?run id required}"
 OUT="${2:-$TMPDIR/bench-assets}"
-CREDS="$HOME/.hermes/cache/scratch/ghprobe/auth"
+# Creds live in TMPDIR and are rewritten before EVERY call: the Hermes scratch
+# cache prunes idle entries, which silently emptied this file mid-run once and
+# made every curl fail with "option --config: error encountered when reading a
+# file" while the watcher looked healthy.
+CREDS="${TMPDIR:-/tmp}/head-kernel-creds.$$"
 REPO="michaelamoetoevsky/uml4termux"
 WORK="${TMPDIR:-/tmp}/head-kernel-${RUN}"
 
 T="$(sed -n 's/^GITHUB_TOKEN=//p' "$HOME/.hermes/.env" | head -1 | tr -d '\r')"
 [ -n "${T}" ] || { echo "no token"; exit 1; }
-printf 'header = "Authorization: Bearer %s"\n' "$T" > "$CREDS"
-chmod 600 "$CREDS"
+write_creds() {
+  mkdir -p "$(dirname "$CREDS")"
+  printf 'header = "Authorization: Bearer %s"\n' "$T" > "$CREDS"
+  chmod 600 "$CREDS"
+}
+write_creds
 trap 'rm -f "$CREDS"' EXIT
 
 mkdir -p "$WORK"
 echo "[$(date +%H:%M:%S)] waiting for run ${RUN}; local account cc unavailable offline, this may take ~20 min"
 
 for i in $(seq 1 120); do
+  write_creds
   st="$(curl -s --config "$CREDS" "https://api.github.com/repos/${REPO}/actions/runs/${RUN}" \
         | env -u LD_LIBRARY_PATH python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("status"), d.get("conclusion"))' 2>/dev/null)"
   case "$st" in
@@ -32,9 +41,11 @@ for i in $(seq 1 120); do
   sleep 30
 done
 
+write_creds
 AID="$(curl -s --config "$CREDS" "https://api.github.com/repos/${REPO}/actions/runs/${RUN}/artifacts" \
       | env -u LD_LIBRARY_PATH python3 -c 'import json,sys; print(json.load(sys.stdin)["artifacts"][0]["id"])')"
 echo "[$(date +%H:%M:%S)] artifact ${AID}, downloading"
+write_creds
 curl -sL --config "$CREDS" -H 'Accept: application/vnd.github+json' \
   -o "$WORK/kernel.zip" "https://api.github.com/repos/${REPO}/actions/artifacts/${AID}/zip"
 [ -s "$WORK/kernel.zip" ] || { echo "download failed"; exit 1; }

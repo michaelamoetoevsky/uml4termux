@@ -68,6 +68,39 @@ pada tiap profil. Keputusan pin rilis berikutnya mengikuti hasil ini.
 dari ubda: 720 ms. Angka ini hanya untuk memastikan harness bekerja dan
 mengukur biaya per run (~80 s pada skala 1), bukan untuk memutuskan pin.
 
+**Kampanye pertama selesai (7 boot guest, 2026-10-30) — hasilnya DIREKSIONAL,
+bukan dasar keputusan.** Bukti: `evidence/20261030-bench-pin-vs-head.json`.
+Atribusi kernel diambil dari `uname` guest sendiri tiap run
+(`g169b17ff3f66` = pin, `g32e5e10b81d8` = HEAD).
+
+| kernel | profil | run | median | min | max | sebaran |
+|---|---|---|---|---|---|---|
+| pin  | forkexec  | 4 | 44.625 ms | 35.160 | 50.180 | 33,7% |
+| head | forkexec  | 3 | 43.430 ms | 28.220 | 51.050 | 52,6% |
+| pin  | pagefault | 4 | 1.545 ms  | 1.400  | 2.620  | 79,0% |
+| head | pagefault | 3 | 1.180 ms  | 1.120  | 3.760  | 223,7% |
+| pin  | diskread  | 3 | 6.169 ms  | 5.010  | 13.040 | 130,2% |
+| head | diskread  | 3 | 5.580 ms  | 3.410  | 127.150| 2217,6% |
+
+- **forkexec: SETARA** (selisih <5%). Angka "HEAD 15% lebih cepat" pada
+  ringkasan antara muncul karena jumlah run belum sama (pin 3 vs head 3, lalu
+  pin 4) — koreksi ini yang benar.
+- **pagefault: HEAD lebih cepat ~31% menurut median**, dan arahnya konsisten
+  (min HEAD 1.120 ms < min pin 1.400 ms). Ini **sejalan** dengan hipotesis A1
+  (upstream `257d23ee` menurunkan biaya fault) — tapi **belum konfirmasi**:
+  sebaran sel 79%/224% lebih besar daripada selisihnya.
+- **diskread: tak konklusif.** Median mendukung HEAD, satu titik 127 s di sel
+  HEAD membuat rentangnya tak berguna.
+- Catatan jujur yang menentukan: kampanye berjalan saat device **sibuk**
+  (load average 16–20). Satu run dingin (pin-1) bahkan tak menyelesaikan profil
+  disk di dalam jendela tunggu dan harus diulang dengan `BENCH_WAIT=900`.
+
+**Yang dibutuhkan agar bisa dipakai memutuskan pin** (belum dilakukan): device
+tenang (tak ada CI/job paralel), satu run pemanasan dibuang per kernel, ≥5 run
+per sel, lalu median + interval. Sampai itu ada, **pin rilis tetap `169b17ff`**.
+
+**Kalibrasi awal (pin, skala 0.1, 1 run) — bukan hasil kampanye.**
+
 **Biaya.** 1 sesi benchmark (perlu baterai cukup). **Risiko.** Nol (hanya baca
 dan ukur; tak mengubah jalur rilis).
 

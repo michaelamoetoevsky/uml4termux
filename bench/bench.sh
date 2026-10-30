@@ -119,51 +119,10 @@ for pair in "${pairs[@]}"; do
 done
 
 # ---- summarise: median + range per (kernel, profile) ---------------------
-env -u LD_LIBRARY_PATH python3 - "${OUT}" "${KERNELS}" <<'PY'
-import glob, json, os, re, statistics, sys
-
-out, kernels = sys.argv[1], sys.argv[2]
-data = {}      # label -> profile -> [ms]
-meta = {}
-for path in sorted(glob.glob(os.path.join(out, "runs", "*.log"))):
-    label, run = os.path.basename(path)[:-4].rsplit("-", 1)
-    txt = open(path, errors="replace").read()
-    m = re.search(r"Linux ([\w.\-+]+)", txt)
-    if m:
-        meta.setdefault(label, set()).add(m.group(1))
-    for prof, ms in re.findall(r"RESULT profile=(\w+) .*?ms=(\d+)", txt):
-        data.setdefault(label, {}).setdefault(prof, []).append(int(ms))
-
-summary = {"kernels": sorted(data), "profiles": sorted({p for v in data.values() for p in v}), "cells": {}}
-lines = ["| kernel | profile | runs | median ms | min | max | spread |", "|---|---|---|---|---|---|---|"]
-for label in sorted(data):
-    for prof in summary["profiles"]:
-        vals = data[label].get(prof, [])
-        if not vals:
-            continue
-        med = statistics.median(vals)
-        summary["cells"][f"{label}/{prof}"] = {
-            "runs": len(vals), "median_ms": med, "min_ms": min(vals), "max_ms": max(vals), "values": vals,
-        }
-        spread = (max(vals) - min(vals)) / med * 100 if med else 0
-        lines.append(f"| {label} | {prof} | {len(vals)} | {med:.0f} | {min(vals)} | {max(vals)} | {spread:.1f}% |")
-
-summary["kernel_releases"] = {k: sorted(v) for k, v in meta.items()}
-json.dump(summary, open(os.path.join(out, "summary.json"), "w"), indent=1)
-open(os.path.join(out, "summary.md"), "w").write("\n".join(lines) + "\n")
-print("\n".join(lines))
-
-# verdict per profile, only when every kernel has >=3 runs (the plan's bar)
-labels = sorted(data)
-for prof in summary["profiles"]:
-    got = {l: len(data[l].get(prof, [])) for l in labels}
-    if len(labels) >= 2 and all(n >= 3 for n in got.values()):
-        a, b = labels[0], labels[-1]
-        ma = statistics.median(data[a][prof]); mb = statistics.median(data[b][prof])
-        delta = (mb - ma) / ma * 100
-        verdict = "setara" if abs(delta) < 5 else (f"{b} lebih cepat {abs(delta):.1f}%" if delta < 0 else f"{b} lebih lambat {delta:.1f}%")
-        print(f"VERDICT {prof}: {a} {ma:.0f} ms vs {b} {mb:.0f} ms -> {verdict}")
-PY
+# The summariser is a standalone script on purpose: a campaign can be extended
+# with extra runs (a cold first run can blow past the wait window) and
+# re-summarised without re-booting anything.
+env -u LD_LIBRARY_PATH python3 "${ROOT}/bench/summarise.py" "${OUT}" --min-runs "${RUNS}"
 
 echo "bench: summary -> ${OUT}/summary.md"
 [ "${KEEP}" = "1" ] || rm -f "${W}/img.ext4"

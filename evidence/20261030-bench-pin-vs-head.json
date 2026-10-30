@@ -1,0 +1,117 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261030-bench-pin-vs-head",
+ "project_version": "0.5.0",
+ "generated_at": "2026-10-30T20:40:21+0700",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "both: 7.2.0-rc4-g169b17ff3f66-dirty (pin) and 7.2.0-rc4-g32e5e10b81d8-dirty (HEAD)",
+  "mode": "seccomp",
+  "ncpus": 4
+ },
+ "capabilities": {
+  "boot": {
+   "ok": true,
+   "evidence": "Seven real guest boots, all through the launcher with no runit: each run's kernel release is read from the GUEST's own uname (g169b17ff3f66 for the pin, g32e5e10b81d8 for HEAD), so a run can never be attributed to the wrong kernel. Every run reached BENCH_START and powered off via the guest (poweroff -f)."
+  },
+  "bench_harness": {
+   "ok": true,
+   "evidence": "bench/bench.sh boots one guest per run, waits for the guest's own BENCH_DONE marker before tearing down, and bench/summarise.py emits median + range per (kernel, profile) as summary.json/summary.md. The three profiles are fork-exec (1500 x /bin/true), page-fault heavy (512 MiB read at bs=4k = one fault per page) and sequential disk read (1 GiB, READ-ONLY on /dev/ubda, so the benchmark cannot disturb an image or a digest baseline)."
+  },
+  "a1_verdict": {
+   "ok": false,
+   "evidence": "A first pin-vs-HEAD campaign completed (>=3 runs per cell after one cold first run blew past the wait window and was re-run), but the result is DIRECTIONAL, not decision-grade: fork-exec is equivalent (head 43430 ms vs pin 44625 ms, within 5%), fault-heavy reads favour HEAD (head 1180 ms median vs pin 1545 ms, median-based -30.9%, and HEAD's best run 1120 ms is below pin's best 1400 ms), disk read also favours HEAD by median (5580 vs 6169 ms) but HEAD has a 127 s outlier in that cell. Recorded ok=false because a pin decision cannot be taken from it: load average on the device was 16-20 during the campaign (other work running in parallel) and per-cell spread reached 30-2200%, which is larger than the median differences."
+  },
+  "head_257d23ee_hypothesis": {
+   "ok": false,
+   "evidence": "The A1 hypothesis (upstream 257d23ee, 'give libc back what it allocated inside physical memory', lowers fault cost) is CONSISTENT with the fault-heavy cell here: HEAD is faster at the median and at the best case, while fork-exec is unchanged - which is what a fault-path improvement should look like. It is NOT confirmed: the spread is 79% (pin) and 224% (HEAD) on that cell, so the effect is smaller than the measurement noise on this device."
+  },
+  "bench_noise": {
+   "ok": false,
+   "evidence": "Honest limitation, recorded as a defect of the measurement, not of a component: the campaign ran while the device was loaded (load average 16-20). Values inside one cell ranged 3410-127150 ms (HEAD disk read) and 1120-3760 ms (HEAD pagefault). Any decision-grade repetition needs a quiet device, a discarded warm-up run per kernel, and more runs per cell."
+  }
+ },
+ "verdict": "partial",
+ "artifacts": [
+  {
+   "kind": "other",
+   "path": "logs/20261030-bench-bench-guest.sh",
+   "sha256": "03f939fda5794d6d0125446e1fb99728e379df2473a9108159b64bca7db53b43"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-bench-bench.sh",
+   "sha256": "03f939fda5794d6d0125446e1fb99728e379df2473a9108159b64bca7db53b43"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench-head-1.log",
+   "sha256": "0b721a20d426ff2ce8895117e0c270c146287264347bfced1b96a033410d2596"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench-head-2.log",
+   "sha256": "cb91e63ddbf7fa87ffb06fbccc6db57375dcb19e4b9ad7239f3c016d573fdbbf"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench-head-3.log",
+   "sha256": "282370b45da6655ccbdc13810bd3fd52c237a5fa60d5bd8f2fd9d227f3390053"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench-head-kernel-fetch.log",
+   "sha256": "be7d0ac34b49cf14ec5bb61f9425f7bdb36edabdedddfb09779eae5b78549b74"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench-pin-1.log",
+   "sha256": "b8a0d1a734be764782a7b4b10aea1ca7c2469a5757683035c76871c05c467c9d"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench-pin-2.log",
+   "sha256": "17ef43b0cffe00e36f28e24008759b262ab102a9512420bcb42221a6d22f4f0a"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench-pin-3.log",
+   "sha256": "32b0fde8f36d08082ddf2ddc82b27b3a5d25dde04d2279267ab575134096c806"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench-pin-4.log",
+   "sha256": "46c1fa8d7b0264f1d68594aefbb153cce7422b651a9c0e7565fc218a6837d1c3"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-bench-summarise.py",
+   "sha256": "5c4a41e034848862673e7d27f2a72cedd4af90d1caa678ce7af715ea6512a178"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-bench-summary.json",
+   "sha256": "c68b16d0afe9419299ac1e6ca82d3b35cae1d133ba90215c9471b632bba54761"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-bench-summary.md",
+   "sha256": "36533c7fe955e66539d6f0ace5a6eabf79652ca7eb65c4ef7658510ef118bd33"
+  }
+ ],
+ "notes": "Direction A (docs/NEXT-STEPS.md). README/contract were not touched by this run. The release pin stays 169b17ff: this campaign does not justify moving it, and no HEAD release has been cut.",
+ "known_limits_observed": [
+  "runs per kernel are not equal for every profile (pin has 4 values on two profiles because one cold run was re-run)",
+  "one guest run (pin-1) never reached its disk-read result inside the wait window; it was re-run with a longer BENCH_WAIT and both facts are kept in the artifacts",
+  "the benchmark is guest-only: host-side costs (Android app scheduling, thermal throttling) are not controlled",
+  "measurement resolution is /proc/uptime (10 ms)"
+ ]
+}

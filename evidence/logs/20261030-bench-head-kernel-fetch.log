@@ -1,0 +1,13 @@
+[20:18:09] waiting for run 41060215247; local account cc unavailable offline, this may take ~20 min
+[20:18:09] build completed successfully after 30s
+[20:18:10] artifact 12980755158, downloading
+    SHA256SUMS 308
+    build.log 2569914
+    linux-bionic 15104616
+    stub_exe 2048
+    uml4termuxd 32760
+[20:18:15] installed /data/data/com.termux/files/usr/tmp/bench-assets/linux-head
+sha256 6bff5a907a7b1d8321243cec8f2e5b1512230831dd3574a44b3c37819488730c
+size 15104616
+Linux version 7.2.0-rc4-g32e5e10b81d8-dirty
+rc=0
