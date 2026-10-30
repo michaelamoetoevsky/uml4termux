@@ -81,6 +81,8 @@ enum Cmd {
     Info,
     /// Write a UML v3 COW header for an image (byte-exact with the C daemon)
     CowHeader { cow: PathBuf, image: PathBuf },
+    /// Apply the boot-path COW policy (reuse a valid header, else write one)
+    CowEnsure { cow: PathBuf, image: PathBuf },
     /// Run the supervisor daemon (control socket + child supervision)
     Daemon {
         /// Supervise a fake child instead of a real guest (protocol parity)
@@ -121,6 +123,7 @@ fn main() -> ExitCode {
         Cmd::Verify { asset, path } => cmd_verify(&cfg, &asset, path),
         Cmd::Info => cmd_info(&cfg),
         Cmd::CowHeader { cow, image } => cmd_cow_header(&cow, &image),
+        Cmd::CowEnsure { cow, image } => cmd_cow_ensure(&cow, &image),
         Cmd::Daemon { selftest } => cmd_daemon(cfg, selftest),
     }
 }
@@ -257,6 +260,25 @@ fn cmd_daemon(cfg: Config, selftest: bool) -> ExitCode {
         Ok(code) => ExitCode::from(code as u8),
         Err(e) => {
             eprintln!("[err] daemon: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// The decision goes to stdout so the parity gate can compare the C and Rust
+/// implementations on the policy (reuse vs write), not only on header bytes.
+fn cmd_cow_ensure(cow: &std::path::Path, image: &std::path::Path) -> ExitCode {
+    match cow::ensure_cow_header(cow, image) {
+        Ok(cow::CowEnsure::Reused) => {
+            println!("reuse");
+            ExitCode::SUCCESS
+        }
+        Ok(cow::CowEnsure::Written) => {
+            println!("write");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("[err] cow-ensure: {e}");
             ExitCode::FAILURE
         }
     }

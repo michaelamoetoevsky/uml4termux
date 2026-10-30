@@ -296,6 +296,11 @@ run_meta "shell: log rotation (no svlogd)" '
   bash '"$ROOT"'/tests/test-log-rotation.sh >/dev/null
 '
 
+run_meta "shell: snapshot & resume (direction C)" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-snapshot.sh >/dev/null
+'
+
 run_meta "shell: launcher adapters (systemd/s6/plain)" '
   set -euo pipefail
   bash '"$ROOT"'/tests/test-adapters.sh >/dev/null

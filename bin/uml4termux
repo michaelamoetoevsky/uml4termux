@@ -50,6 +50,7 @@ unset _uml4_self _uml4_link 2>/dev/null || true
 . "${UML4TERMUX_ROOT}/lib/launch.sh"
 # shellcheck source=../lib/logs.sh
 . "${UML4TERMUX_ROOT}/lib/logs.sh"
+. "${UML4TERMUX_ROOT}/lib/snapshot.sh"
 
 UML4TERMUX_VERSION="${UML4TERMUX_VERSION:-0.1.0}"
 
@@ -175,7 +176,7 @@ cmd_help() {
   local topic="${1:-}"
   if [ -z "${topic}" ]; then usage; return 0; fi
   case "${topic}" in
-    doctor|fetch|init-image|boot|docker|expose|stop|service|up|down|status|logs|ls|rotate|version|dist-info|help)
+    doctor|fetch|init-image|boot|docker|expose|stop|service|up|down|status|logs|ls|rotate|snapshot|snapshots|version|dist-info|help)
       case "${topic}" in
         doctor)     doctor_usage ;;
         fetch)      cmd_fetch_usage ;;
@@ -191,6 +192,8 @@ cmd_help() {
         logs)       usage_logs ;;
         ls)         usage_ls ;;
         rotate)     usage_rotate ;;
+          snapshot)   usage_snapshot ;;
+          snapshots)  usage_snapshots ;;
         version)    printf 'uml4termux version — print the version and where the tree lives.\n' ;;
         dist-info)  printf 'uml4termux dist-info — machine-readable paths, assets and configuration.\n' ;;
         help)       usage ;;
@@ -520,6 +523,42 @@ usage: uml4termux logs [--name NAME] [-n LINES] [-f] [--console|--daemon]
 EOF
 }
 
+usage_snapshot() {
+  cat <<'EOF'
+uml4termux snapshot <label>   take a snapshot of the instance's disk state
+
+  Stops the guest cleanly (unless --no-stop), copies the instance COW -- the only
+  file that holds guest writes -- into <runtime>/snapshots/<label>.cow, and
+  records what it was taken against (base image size, mtime and digest, COW digest,
+  guest kernel). Snapshots are cold state: the filesystem comes back, RAM does not,
+  and resuming costs a boot.
+
+  --name <n>      instance name (default: $UML4TERMUX_INSTANCE_NAME or 'default')
+  --runtime <dir> runtime directory (default: the instance's, else $UML4TERMUX_RUNTIME)
+  --image <file>  backing image to record (default: the instance's)
+  --no-stop       snapshot without stopping the guest (only safe when it is stopped)
+  --rm <label>    remove a snapshot instead of taking one
+  -h, --help      this text
+
+  Resume with: uml4termux up --from <label>
+  Snapshots are immutable: every resume copies, so the same label can be resumed
+  twice without the two guests overwriting each other. When the newest snapshots
+  exceed UML4TERMUX_SNAPSHOT_KEEP (default 5), the oldest are dropped.
+EOF
+}
+
+usage_snapshots() {
+  cat <<'EOF'
+uml4termux snapshots          list the snapshots of an instance
+
+  --name <n>      instance name (default: $UML4TERMUX_INSTANCE_NAME or 'default')
+  --runtime <dir> runtime directory (default: the instance's)
+  -h, --help      this text
+
+  Columns: LABEL, CREATED (UTC), COW-BYTES, BASE (backing image size), GUEST.
+EOF
+}
+
 usage_ls() {
   cat <<'EOF'
 uml4termux ls — list registered instances (live and stale).
@@ -607,6 +646,8 @@ main() {
     status)         cmd_status "${argv[@]}" ;;
     logs)           cmd_logs "${argv[@]}" ;;
     rotate)         cmd_rotate "${argv[@]}" ;;
+      snapshot)       cmd_snapshot "${argv[@]}" ;;
+      snapshots)      cmd_snapshots "${argv[@]}" ;;
     ls)             cmd_ls "${argv[@]}" ;;
     doctor)         cmd_doctor "${argv[@]}" ;;
     fetch)          cmd_fetch "${argv[@]}" ;;

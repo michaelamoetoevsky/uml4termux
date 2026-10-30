@@ -192,7 +192,41 @@ Kontrak ini dipakai `uml4termux up|down|status|logs|ls` (`lib/launch.sh`,
 - Port ssh default dipilih dari daftar bebas (2222, lalu 12222–12229) dan
   dicatat per instance, sehingga invarian §6.2 ditegakkan mesin, bukan ingatan.
 
-## 9. Batas yang tidak dijanjikan
+## 9. Snapshot & resume
+
+Snapshot adalah **state dingin**: guest dihentikan bersih, COW-nya (satu-satunya
+berkas yang memuat tulisan guest) disalin ke `<runtime>/snapshots/<label>.cow`
+beserta catatan `<label>.meta`. Resume menyalinnya kembali ke COW kerja.
+
+- **Immutable / copy-on-resume.** Snapshot tidak pernah ditulis lagi: setiap
+  resume menyalinnya. Karena itu label yang sama boleh di-resume dua kali tanpa
+  boot kedua melihat tulisan boot pertama — syarat yang diuji, bukan diasumsikan.
+- **Yang kembali adalah filesystem, bukan RAM.** Proses yang berjalan di guest
+  tidak hidup lagi, dan biaya kembali = satu boot. Tidak ada save/restore RAM di
+  port ini, jadi jangan janjikan "resume instan".
+- **Kebijakan header COW pindah ke satu tempat.** Jalur boot daemon hanya menulis
+  header bila berkas COW **hilang atau bukan v3 yang valid**; header yang valid
+  dibiarkan. Keputusan fresh-vs-resume ada di launcher: `up` (fresh) menghapus
+  COW kerja, `up --from <label>` menaruh salinan snapshot di sana. Sebelum ini
+  daemon selalu me-reset header, sehingga resume tidak mungkin.
+- **Identitas image dasar dicatat dan diperiksa di depan.** `size` + `mtime`
+  (dua angka yang juga disimpan header COW) selalu diperiksa; `sha256` dicatat
+  saat snapshot dan diperiksa bila `UML4TERMUX_SNAPSHOT_VERIFY_DIGEST=1`. Mismatch
+  menolak **sebelum satu byte dipindahkan**, dengan pesan yang menyebut angka yang
+  dicatat dan yang terlihat sekarang. Mengandalkan penolakan UML berarti
+  kegagalannya baru muncul setelah satu boot.
+- **Rotasi** menyimpan `UML4TERMUX_SNAPSHOT_KEEP` (default 5) snapshot terbaru
+  menurut mtime; selebihnya dibuang bersama COW-nya.
+- **Label** dibatasi `[A-Za-z0-9._-]+`: label menjadi nama berkas, jadi ia
+  ditolak, bukan diloloskan lewat escape.
+
+Ditegakkan oleh `tests/test-snapshot.sh` (level berkas, tanpa daemon), oleh hook
+parity `cow-ensure` (C vs Rust: memutuskan *reuse* vs *write*, lalu
+membandingkan byte), dan oleh bukti device `soak/snapshot-check.sh` (boot nyata:
+berkas yang ditulis sebelum snapshot terbaca sesudah resume, resume kedua tidak
+melihat tulisan resume pertama, image berbeda ditolak sebelum boot).
+
+## 10. Batas yang tidak dijanjikan
 
 - Tidak ada **PID 1**: kontrak ini mengatur launcher, bukan boot Android.
 - Tidak ada **D-Bus** di jalur kritis (opsional di masa depan, feature-gated).

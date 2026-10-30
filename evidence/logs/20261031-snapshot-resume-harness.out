@@ -1,0 +1,41 @@
+c: md5 isi A=881da598db B=178d9775c9 (dihitung di host, dicocokkan dengan keluaran guest)
+== langkah 1: boot bersih (image privat) ==
+  PASS: instance siap (up rc=0)
+  PASS: registry instance terisi
+  PASS: guest hidup (WEB_UP_MARKER)
+== langkah 2: tulis berkas penanda DI DALAM guest ==
+  PASS: berkas ditulis dengan isi yang benar (md5 881da598db muncul dari eksekusi, bukan dari echo)
+== langkah 3: snapshot (C1) ==
+  PASS: snapshot rc=0
+  PASS: COW snapshot ada
+  PASS: BASE_SIZE tercatat = 3221225472
+  PASS: BASE_SHA256 tercatat
+     snapshot COW sha256=73c73b832a137c13... size=3222016512
+== langkah 4: resume pertama (C2) -- berkas harus masih ada ==
+  PASS: resume rc=0
+  PASS: guest hidup lagi dari snapshot
+  PASS: berkas yang ditulis SEBELUM snapshot terbaca SETELAH resume (md5 sama, state kembali)
+== langkah 5: tulis penanda kedua, lalu resume snapshot yang SAMA lagi (C2) ==
+  PASS: penanda kedua ditulis (md5 178d9775c9)
+  PASS: snapshot tidak berubah setelah resume pertama (immutable)
+  PASS: resume kedua rc=0
+  PASS: guest hidup dari snapshot yang sama
+  PASS: penanda pertama kembali lagi (dua boot dari satu snapshot)
+  PASS: penanda kedua TIDAK ada (md5-nya nol kemunculan): tulisan resume pertama tidak bocor
+  PASS: snapshot tetap utuh setelah dua resume
+== langkah 6: daftar, penolakan image berbeda, hapus (C3/C4) ==
+  PASS: 'snapshots' mendaftar snap-a
+  PASS: resume dengan image berbeda DITOLAK (rc=1)
+  PASS: pesan penolakan menyebut angka yang dicatat dan yang terlihat
+  PASS: pesan menyebut sebabnya (backing image berbeda)
+  PASS: penolakan terjadi SEBELUM boot (tidak ada daemon baru)
+  PASS: snapshot --rm membersihkan COW + metadata
+== langkah 7: teardown bersih ==
+soak/snapshot-check.sh: line 278: /proc/32521/cmdline: No such file or directory
+soak/snapshot-check.sh: line 278: /proc/3449/cmdline: No such file or directory
+  PASS: 0 proses tersisa milik run ini
+     catatan: proses uml se-device sekarang = 1 (layanan operator ikut terhitung)
+  PASS: image dasar tidak berubah (sha256 sama) -- tulisan guest masuk ke COW
+c: hasil -> /data/data/com.termux/files/usr/tmp/c-check/c-snapshot.json
+C: OK
+rc=0

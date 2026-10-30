@@ -269,6 +269,9 @@ jobs:
       - name: Log rotation (no svlogd)
         run: bash tests/test-log-rotation.sh
 
+      - name: Snapshot & resume contract (direction C)
+        run: bash tests/test-snapshot.sh
+
       - name: Launcher adapters (systemd/s6/plain)
         run: bash tests/test-adapters.sh /tmp/uml4termuxd
 
@@ -315,6 +318,20 @@ jobs:
           /tmp/u4t-cow cow-header /tmp/cow/c.cow /tmp/cow/base.ext4
           rust/target/release/uml4termux-rs cow-header /tmp/cow/r.cow /tmp/cow/base.ext4
           cmp /tmp/cow/c.cow /tmp/cow/r.cow
+          # The boot-path policy, not only the bytes: a valid COW must be left ALONE
+          # (that is what turns `up --from` into a resume), a missing or broken one must
+          # be written, and both implementations must agree on which of the two happened.
+          printf '  C    reuse -> '; /tmp/u4t-cow cow-ensure /tmp/cow/c.cow /tmp/cow/base.ext4
+          cmp /tmp/cow/c.cow /tmp/cow/r.cow
+          printf '  Rust reuse -> '; rust/target/release/uml4termux-rs cow-ensure /tmp/cow/r.cow /tmp/cow/base.ext4
+          cmp /tmp/cow/c.cow /tmp/cow/r.cow
+          /tmp/u4t-cow cow-ensure /tmp/cow/c-fresh.cow /tmp/cow/base.ext4 >/dev/null
+          rust/target/release/uml4termux-rs cow-ensure /tmp/cow/r-fresh.cow /tmp/cow/base.ext4 >/dev/null
+          cmp /tmp/cow/c-fresh.cow /tmp/cow/r-fresh.cow
+          head -c 100 /tmp/cow/c.cow > /tmp/cow/broken.cow
+          printf '  C    broken -> '; /tmp/u4t-cow cow-ensure /tmp/cow/broken.cow /tmp/cow/base.ext4
+          cmp /tmp/cow/broken.cow /tmp/cow/c-fresh.cow
+          echo "cow-ensure parity: reuse untouched, write byte-identical, broken rewritten"
           echo "cow header identical: $(stat -c%s /tmp/cow/c.cow) bytes, sha256 $(sha256sum /tmp/cow/c.cow | cut -d' ' -f1)"
 
       - name: Daemon parity (C daemon vs Rust daemon, same runtime + client)

@@ -18,7 +18,7 @@
 // which leaves the whole bitmap zeroed without writing it.
 
 use std::fs::{self, OpenOptions};
-use std::io::{self, Seek, SeekFrom, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
@@ -81,6 +81,42 @@ impl CowHeader {
 
 /// Write the header for `image` into `cow`, leaving the file sparse.
 /// Mirrors the C function: realpath(), stat(), header, then the EOF poke.
+/// What the boot path did with the COW: reused an existing header (resume) or
+/// wrote a fresh one (clean state).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CowEnsure {
+    Reused,
+    Written,
+}
+
+/// True when `cow` already carries a v3 header this code wrote; mirrors
+/// cow_is_formatted() in src/uml4termuxd.c.
+pub fn cow_is_formatted(cow: &Path) -> bool {
+    let Ok(mut f) = fs::File::open(cow) else {
+        return false;
+    };
+    let Ok(meta) = f.metadata() else {
+        return false;
+    };
+    if meta.len() < HEADER_LEN as u64 {
+        return false;
+    }
+    let mut head = [0u8; 8];
+    if f.read_exact(&mut head).is_err() {
+        return false;
+    }
+    head[0..4] == MAGIC && head[4..8] == [0, 0, 0, VERSION as u8]
+}
+
+/// Boot-path policy: never overwrite a valid header, because a COW staged by
+/// the launcher is exactly the state a resume means to boot from.
+pub fn ensure_cow_header(cow: &Path, image: &Path) -> io::Result<CowEnsure> {
+    if cow_is_formatted(cow) {
+        return Ok(CowEnsure::Reused);
+    }
+    write_cow_header(cow, image).map(|_| CowEnsure::Written)
+}
+
 pub fn write_cow_header(cow: &Path, image: &Path) -> io::Result<CowHeader> {
     let abs = fs::canonicalize(image)?;
     let meta = fs::metadata(&abs)?;

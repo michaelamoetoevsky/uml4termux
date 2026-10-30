@@ -284,7 +284,7 @@ impl Daemon {
         // fresh v3 header (guests only; the selftest child has no disk).
         if !self.selftest && !self.cow.is_empty() {
             if let Err(e) =
-                crate::cow::write_cow_header(Path::new(&self.cow), Path::new(&self.image))
+                crate::cow::ensure_cow_header(Path::new(&self.cow), Path::new(&self.image))
             {
                 logf(&format!(
                     "cow header write failed: {e}; booting without COW"

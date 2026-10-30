@@ -313,13 +313,55 @@ Tiga konsekuensi yang mengubah rencana:
    **akan dipakai**, dan pesan penolakan menyebut path + mtime + digest
    keduanya supaya bisa dibandingkan langsung oleh pengguna.
 
-**Desain yang dipilih.** Pembagian tugas mengikuti lapisan yang sudah ada, bukan
-menambah daemon baru: perintah `snapshot` adalah perintah **protokol daemon**
-(ia yang memiliki COW dan tahu kapan guest benar-benar berhenti), sedangkan
-`up --from` di launcher (ia yang memiliki registry, nama, dan port). Penambahan
-perintah protokol **tidak** menaikkan `protocol` (kontrak: penambahan tidak
-menaikkan versi), tetapi daftar `commands` di balasan `protocol` bertambah dan
-gate parity wajib diperbarui di commit yang sama.
+**Desain yang dipilih — dikoreksi saat implementasi.** Rencana di atas
+mengusulkan `snapshot` sebagai perintah protokol daemon. Setelah dikerjakan,
+pembagiannya bergeser ke **launcher**, dan alasannya ditulis di sini: isi snapshot
+adalah siklus hidup instance -- hentikan guest dengan bersih, salin COW, catat
+metadata -- dan seluruh bahannya sudah dimiliki launcher (registry, nama,
+direktori runtime, jalur COW `${rt}/${name}.cow`). Menaruhnya di daemon berarti
+menulis logika yang sama dua kali (C dan Rust) untuk keuntungan nol, sekaligus
+menambah permukaan protokol yang harus dijaga parity-nya selamanya.
+
+**Satu perubahan daemon tetap diperlukan, dan itulah yang membuat C mungkin.**
+Jalur boot dulu menulis header COW **tanpa syarat** setiap boot, sehingga resume
+mustahil: keadaan selalu di-reset. Sekarang header hanya ditulis bila berkas COW
+hilang atau bukan v3 yang valid, dan keputusan fresh-vs-resume tinggal di satu
+tempat -- `up` (fresh) menghapus COW kerja, `up --from` menaruh salinan snapshot di
+sana. Perubahan itu parity-gated: hook `cow-ensure` menjalankan kedua implementasi
+(C dan Rust) pada COW valid / hilang / rusak, lalu membandingkan **keputusan**
+(reuse vs write) sekaligus byte hasilnya.
+
+### Hasil C (2026-10-31) — C1–C4 SELESAI
+
+Bukti: `evidence/20261031-snapshot-resume.json` (11 artefak) + gate
+`tests/test-snapshot.sh` (28 asersi; `ci/local-ci.sh` 20/20).
+
+| Item | Bukti di device (3 boot nyata) |
+|---|---|
+| C1 | snapshot menghentikan guest dengan bersih, menulis `snapshots/snap-a.cow`, mencatat BASE_SIZE (= 3.221.225.472), BASE_MTIME, dan BASE_SHA256 |
+| C2 | berkas yang ditulis **sebelum** snapshot terbaca **sesudah** resume dengan md5 identik (`881da598db`); COW snapshot `73c73b83…` tidak berubah setelah dua resume; penanda kedua yang ditulis pada resume-1 **nol kemunculan** pada resume-2 |
+| C3 | `snapshots` mendaftar label; `snapshot --rm` menghapus COW + metadata; rotasi menyimpan N terbaru (dibuktikan di gate) |
+| C4 | resume dengan image berbeda **ditolak rc=1 sebelum boot**, pesan menyebut `recorded: size …` dan `now : size …`, dan tidak ada daemon baru di registry |
+| lain | image dasar tidak berubah (sha256 sama) -- tulisan guest masuk ke COW; 0 proses tersisa milik run ini |
+
+Verdict record: `pass`. Snapshot tetap **state dingin**: yang kembali adalah
+filesystem, bukan RAM; biayanya satu boot; "resume instan" tidak dijanjikan.
+
+**Tiga cacat harness yang harus diperbaiki sebelum angka di atas sah** -- dicatat
+karena masing-masing sempat menghasilkan kesimpulan palsu:
+
+1. `up` **mengadopsi** daemon yang masih hidup dan membalas `rc=0` tanpa boot, jadi
+   "resume kedua" ternyata menguji guest pertama. Setiap resume kini didahului
+   `down`.
+2. Menghapus log konsol saat daemon hidup membuat berkas ter-unlink dan seluruh
+   keluaran guest lenyap; log diarsipkan **setelah** `down`.
+3. Konsol **meng-echo** perintah yang diketik, jadi penanda literal membuktikan
+   apa pun. Semua payload dan penanda kini base64 di teks perintah, dan bukti
+   terkuatnya adalah **md5 isi berkas** yang tidak pernah diketik sama sekali.
+
+**Biaya nyata.** 1 sesi (bukan 1–2), sebagian besar habis di tiga perbaikan
+harness di atas. **Risiko.** Rendah: jalur lama tidak berubah, dan `up` tanpa
+`--from` tetap berperilaku sama (COW dihapus sebelum boot).
 
 **Biaya.** 1–2 sesi. **Risiko.** Rendah (fitur baru, jalur lama tak berubah).
 
@@ -513,10 +555,10 @@ multi-instance yang hari ini masih berupa peringatan di dokumen.
 
 | Urut | Item | Alasan | Risiko |
 |---|---|---|---|
-| **berikutnya** | A (benchmark pin vs HEAD) | Menentukan pin rilis berikutnya; data sudah setengah tersedia | Nol |
-| 2 | B (soak v2) | Arsitektur berubah (daemon + COW) → butuh bukti baru | Nol |
-| 3 | C (snapshot/resume) | Fitur pembeda termurah yang memanfaatkan COW | Rendah |
-| 4 | E (keamanan) | Prasyarat sebelum orang lain menjalankan image | Rendah |
+| ~~1~~ | ~~A (benchmark pin vs HEAD)~~ **SELESAI** | Menentukan pin rilis berikutnya; hasil direksional, pin tetap | — |
+| ~~2~~ | ~~B (soak v2)~~ **SELESAI B1/B2/B3** | Arsitektur berubah (daemon + COW) → butuh bukti baru | — |
+| ~~3~~ | ~~C (snapshot/resume)~~ **SELESAI C1–C4** | Fitur pembeda termurah yang memanfaatkan COW | — |
+| **berikutnya** | E (keamanan) | Prasyarat sebelum orang lain menjalankan image | Rendah |
 | 5 | D (ekosistem) | Perluasan audiens setelah fondasi stabil | Rendah |
 | 6 | F (hulu) | Paralel, tanpa menahan apa pun | Sedang |
 | ~~7~~ | ~~G (runtime mandiri)~~ **SELESAI G1–G5** | Portabilitas ke host non-Termux + penegakan invarian multi-instance | — |

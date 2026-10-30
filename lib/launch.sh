@@ -38,7 +38,7 @@ uml4termux_require_instance_dirs() {
 }
 
 cmd_up() {
-  local name fg=0 no_gvproxy=0 selftest=0 mem="" cpus="" image="" ssh_port="" timeout="" rt=""
+  local name fg=0 no_gvproxy=0 selftest=0 mem="" cpus="" image="" ssh_port="" timeout="" rt="" from=""
   name="$(uml4termux_instance_name)"
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -47,6 +47,7 @@ cmd_up() {
       --mem)         mem="${2:?--mem needs a value}"; shift ;;
       --cpus)        cpus="${2:?--cpus needs a value}"; shift ;;
       --image)       image="${2:?--image needs a value}"; shift ;;
+      --from)        from="${2:?--from needs a snapshot label}"; shift ;;
       --runtime)     rt="${2:?--runtime needs a value}"; shift ;;
       --ssh-port)    ssh_port="${2:?--ssh-port needs a value}"; shift ;;
       --timeout)     timeout="${2:?--timeout needs a value}"; shift ;;
@@ -84,6 +85,13 @@ cmd_up() {
 
   [ -n "${rt}" ] || rt="${UML4TERMUX_RUNTIME}"
   uml4termux_check_runtime_path "${rt}" || return 64
+
+  # C2/C4: a resume is checked against the snapshot record before a single byte
+  # is staged -- a mismatch must name its numbers, not surface as a kernel
+  # refusal after a 30 s boot.
+  if [ -n "${from}" ]; then
+    uml4termux_snap_verify "${rt}" "${from}" "${image}" || return 1
+  fi
 
   # G4: bound the logs BEFORE starting, so an instance never inherits an
   # unbounded daemon.log / console log from a previous run. Copy+truncate keeps
@@ -141,6 +149,18 @@ cmd_up() {
     uml4termux_print_cmd "${cmd[@]}"
     [ "${fg}" = "1" ] || printf '+ (registry write %s, then wait for readiness)\n' "${name}"
     return 0
+  fi
+
+  # The fresh/resume decision lives here and nowhere else. The daemon writes a
+  # COW header only when the file is missing or invalid, so whatever this branch
+  # leaves on disk is the state the guest boots from: a fresh header for a fresh
+  # boot, the snapshot copy for a resume. Copy-on-resume keeps the snapshot
+  # itself immutable, which is what lets the same label be resumed twice.
+  local cow="${rt}/${name}.cow"
+  if [ -n "${from}" ]; then
+    uml4termux_snap_swap_in "${rt}" "${from}" "${cow}" || return 1
+  else
+    rm -f "${cow}"
   fi
 
   if [ "${fg}" = "1" ]; then

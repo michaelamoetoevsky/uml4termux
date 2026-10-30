@@ -431,6 +431,45 @@ static int spawn_gvproxy(void)
    magic MOOO be32, version 3 be32, mtime be32, size be64, sectorsize be32,
    alignment be32, cow_format(=COW_BITMAP 0) be32, backing[4096] packed) ---- */
 #define COW_PATH_V3 4096
+#define COW_HDR_SIZE (12 + 8 + 12 + COW_PATH_V3) /* packed v3 = 4128 */
+static int write_cow_header_file(const char *cowpath, const char *image);
+
+/* A COW file this daemon wrote: magic "MOOO" followed by version 3. Read
+   rather than assumed, because the whole resume feature rests on leaving such a
+   file alone. */
+static int cow_is_formatted(const char *cowpath)
+{
+	unsigned char head[8];
+	struct stat st;
+	int fd, n;
+
+	if (stat(cowpath, &st) != 0 || st.st_size < (off_t)COW_HDR_SIZE)
+		return 0;
+	fd = open(cowpath, O_RDONLY);
+	if (fd < 0)
+		return 0;
+	n = (int)read(fd, head, sizeof(head));
+	close(fd);
+	if (n != (int)sizeof(head))
+		return 0;
+	return memcmp(head, "\x4f\x4f\x4f\x4d\x00\x00\x00\x03", sizeof(head)) == 0;
+}
+
+/* Boot-path header policy: write one only when the COW is absent or not a
+   valid v3 file. An existing header is left ALONE -- that is what turns
+   `up --from <label>` into a resume instead of a reset. A fresh boot removes the
+   working COW in the launcher, so the fresh/resume decision lives in one place
+   instead of being duplicated here and in the Rust port. */
+static int ensure_cow_header(const char *cowpath, const char *image)
+{
+	if (cow_is_formatted(cowpath)) {
+		logf_("cow: reusing the header in %s (resume semantics)", cowpath);
+		return 0;
+	}
+	logf_("cow: writing a fresh header for %s (fresh state)", cowpath);
+	return write_cow_header_file(cowpath, image);
+}
+
 static int write_cow_header_file(const char *cowpath, const char *image)
 {
 	unsigned char hdr[12 + 8 + 12 + COW_PATH_V3]; /* packed v3 = 4128 */
@@ -541,10 +580,11 @@ static int spawn_child(void)
 		}
 		argv[i] = NULL;
 
-		/* B2: this port's ubd driver requires a FORMATTED COW file -- it
-		   stats and reads the header but never creates one.  Reset the
-		   COW per boot (fresh state) by writing a v3 header. */
-		if (g_cow[0] && write_cow_header_file(g_cow, g_image) != 0) {
+		/* B2/C2: this port's ubd driver requires a FORMATTED COW file -- it
+		   stats and reads the header but never creates one. Provide one, but
+		   never overwrite a valid one: a COW staged by the launcher IS the
+		   state a resume wants to boot from. */
+		if (g_cow[0] && ensure_cow_header(g_cow, g_image) != 0) {
 			logf_("cow header write failed; booting without COW");
 		}
 
@@ -1151,6 +1191,16 @@ int main(int argc, char **argv)
 	   against this implementation byte-for-byte (ci parity gate). */
 	if (argc >= 4 && strcmp(argv[1], "cow-header") == 0)
 		return write_cow_header_file(argv[2], argv[3]) == 0 ? 0 : 1;
+	/* Test hook: the boot-path policy, so the Rust port can be compared with
+	   this implementation on the DECISION (reuse vs write), not only on bytes. */
+	if (argc >= 4 && strcmp(argv[1], "cow-ensure") == 0) {
+		int reuse = cow_is_formatted(argv[2]);
+
+		if (ensure_cow_header(argv[2], argv[3]) != 0)
+			return 1;
+		printf("%s\n", reuse ? "reuse" : "write");
+		return 0;
+	}
 	if (argc >= 2 && strcmp(argv[1], "daemon") == 0)
 		return daemon_main(argc >= 3 && strcmp(argv[2], "--selftest") == 0);
 	if (argc >= 2 && (strcmp(argv[1], "status") == 0 || strcmp(argv[1], "stop") == 0))

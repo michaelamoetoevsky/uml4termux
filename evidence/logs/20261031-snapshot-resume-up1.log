@@ -1,0 +1,8 @@
+[info] instance 'c1' is up (pid 12563, runtime /data/data/com.termux/files/usr/tmp/c-check/work/rt-c)
+instance  : c1
+state     : yes (phase running)
+pid       : 12563 (alive)
+runtime   : /data/data/com.termux/files/usr/tmp/c-check/work/rt-c
+image     : /data/data/com.termux/files/usr/tmp/c-check/work/img.ext4
+ssh port  : 12640
+logs      : 8.0 KiB

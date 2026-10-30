@@ -173,7 +173,7 @@ UML4TERMUX_RUNTIME=~/.uml4termux/runtime ./bin/uml4termuxd daemon
 ./bin/uml4termuxd stop                   # clean poweroff via console channel
 ```
 
-## Launcher without runit (v0.5.0: `up` / `down` / `status` / `logs` / `ls` / `rotate`)
+## Launcher without runit (`up` / `down` / `status` / `logs` / `ls` / `rotate` / `snapshot` / `snapshots`)
 
 `lib/launch.sh` + `lib/registry.sh` give the daemon a portable front end. Nothing
 in that path calls runit: readiness is *polled* (the socket answers `protocol`
@@ -210,11 +210,45 @@ phase vocabulary -- is `docs/RUNTIME-CONTRACT.md`, enforced by
 `tests/test-runtime-contract.sh`, `tests/test-launcher.sh`,
 `tests/test-log-rotation.sh` and `tests/test-adapters.sh`.
 
+### Snapshot & resume (direction C)
+
+A snapshot is **cold state**: the guest is stopped cleanly, its COW -- the only
+file that holds guest writes -- is copied aside together with a record of what it
+was taken against, and `up --from <label>` copies that back as the working COW.
+
+```sh
+./bin/uml4termux snapshot before-upgrade --name dev    # stop cleanly, copy, record
+./bin/uml4termux snapshots --name dev                  # label, time, sizes, guest kernel
+./bin/uml4termux up --from before-upgrade --name dev   # resume (costs one boot)
+./bin/uml4termux snapshot --rm before-upgrade
+```
+
+Snapshots are **immutable**: every resume copies, so the same label can be resumed
+twice and the two guests never see each other's writes. What comes back is the
+filesystem, **not RAM** -- processes that were running do not come back, and
+resuming costs one boot. This port has no RAM save/restore, so do not read
+"resume" as "instant".
+
+A resume is refused **before anything is staged** when the backing image no longer
+matches the snapshot's record (size + mtime always; `sha256` as well when
+`UML4TERMUX_SNAPSHOT_VERIFY_DIGEST=1`), and the message names both numbers.
+Rotation keeps the newest `UML4TERMUX_SNAPSHOT_KEEP` (default 5) by mtime.
+
+The daemon side of that promise is one rule: the boot path writes a COW header only
+when the file is missing or is not a valid v3 header, so a COW the launcher staged
+is what the guest boots from. A fresh `up` deletes the working COW first, which
+keeps the fresh-vs-resume decision in exactly one place (`lib/launch.sh`) instead
+of duplicating it in C and Rust -- and the `cow-ensure` parity gate in CI checks
+that both implementations reach the same decision.
+
+Enforced by `tests/test-snapshot.sh` (file level, no daemon), the `cow-ensure`
+parity gate, and `soak/snapshot-check.sh` on a device with real boots.
+
 Useful daemon knobs (env, all per-instance):
 
 | knob | effect |
 | --- | --- |
-| `UML4TERMUXD_COW=<path>` | ephemeral boot: writes go to a UML copy-on-write file (reset per boot); the backing image stays pristine |
+| `UML4TERMUXD_COW=<path>` | UML copy-on-write file for guest writes; the backing image stays pristine. A header is written only when the file is missing or invalid, so a staged snapshot (`up --from`) is resumed rather than reset -- a fresh `up` deletes the file first |
 | `UML4TERMUXD_HTTP=127.0.0.1:9110` | optional loopback HTTP health endpoint, `GET /status` → JSON |
 | `UML4TERMUXD_MEM=512M` / `UML4TERMUXD_NCPUS=4` | guest memory / vCPU budget |
 | `UML4TERMUX_RUNTIME=<dir>` | control socket + state + console log (one dir per guest instance) |
