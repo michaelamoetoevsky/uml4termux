@@ -135,7 +135,25 @@ yang sudah pernah terjadi di proyek ini:
 - Nama berkas, path socket, dan exit code di dokumen ini adalah bagian dari
   kontrak — mengubahnya berarti perubahan tak-kompatibel.
 
-## 8. Batas yang tidak dijanjikan
+## 8. Launcher dan registry instance
+
+Kontrak ini dipakai `uml4termux up|down|status|logs|ls` (`lib/launch.sh`,
+`lib/registry.sh`) — perintah yang menjalankan daemon **tanpa runit**:
+
+- `up` menyalakan daemon, menunggu kesiapan §5, dan menulis catatan registry
+  (`$UML4TERMUX_STATE_DIR/instances/<name>.env`: NAME, RUNTIME, IMAGE,
+  SSH_PORT, PID, STARTED).
+- `up` **menolak** tiga hal, bukan sekadar memperingatkan: image yang sudah
+  dipakai instance hidup (invarian §6.1), port ssh host yang sudah dipegang
+  (§6.2), dan direktori runtime milik instance lain.
+- `--foreground` adalah kail adapter: supervisor apa pun (runit, systemd, s6)
+  cukup meng-`exec` dan me-restart perintah itu.
+- Liveness sebuah catatan = pid hidup **dan** socket instance menjawab
+  `protocol`; catatan basi dibuang otomatis oleh `ls`/`down`.
+- Port ssh default dipilih dari daftar bebas (2222, lalu 12222–12229) dan
+  dicatat per instance, sehingga invarian §6.2 ditegakkan mesin, bukan ingatan.
+
+## 9. Batas yang tidak dijanjikan
 
 - Tidak ada **PID 1**: kontrak ini mengatur launcher, bukan boot Android.
 - Tidak ada **D-Bus** di jalur kritis (opsional di masa depan, feature-gated).

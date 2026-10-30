@@ -38,6 +38,7 @@
 
 #define SOCK_PATH_DEFAULT "/data/data/com.termux/files/home/.uml4termux/daemon.sock"
 #define SELFTEST_CHILD_DEFAULT "/data/data/com.termux/files/usr/bin/sleep"
+#define SELFTEST_SECONDS_DEFAULT "30"
 /* Runtime contract v1 (docs/RUNTIME-CONTRACT.md). Bumped only when the
  * documented protocol/paths change in a way old clients cannot handle. */
 #define UML4TERMUXD_PROTOCOL 1
@@ -52,6 +53,7 @@ static pid_t g_child = -1;
 static int g_restarts = 0;
 static char g_sockpath[512];
 static char g_statepath[512];
+static char g_selftest_seconds[16] = SELFTEST_SECONDS_DEFAULT;
 static char g_child_argv0[512];
 static char g_consolelog[512];
 
@@ -526,7 +528,11 @@ static int spawn_child(void)
 			return -1;
 		}
 		if (pid == 0) {
-			char *argv[] = { g_child_argv0, "30", NULL };
+			/* How long the fake child lives. The selftest exists to exercise
+			   supervision, so its lifetime must be settable: a child that
+			   exits with 0 means "session completed" and the daemon then
+			   exits, which makes any test longer than the default flaky. */
+			char *argv[] = { g_child_argv0, g_selftest_seconds, NULL };
 
 			execv(argv[0], argv);
 			_exit(127);
@@ -958,9 +964,15 @@ static int daemon_main(int selftest)
 	}
 
 	if (selftest) {
+		const char *secs;
+
 		snprintf(g_child_argv0, sizeof(g_child_argv0), "%s",
 			 env_or("UML4TERMUXD_SELFTEST_CHILD", SELFTEST_CHILD_DEFAULT));
-		logf_("selftest: supervising %s", g_child_argv0);
+		secs = env_or("UML4TERMUXD_SELFTEST_SECONDS", SELFTEST_SECONDS_DEFAULT);
+		snprintf(g_selftest_seconds, sizeof(g_selftest_seconds), "%s",
+			 secs[0] ? secs : SELFTEST_SECONDS_DEFAULT);
+		logf_("selftest: supervising %s for %ss", g_child_argv0,
+		      g_selftest_seconds);
 	} else {
 		char err[256];
 

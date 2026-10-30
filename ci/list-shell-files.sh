@@ -11,6 +11,11 @@
 # Pruned trees: .git, build, dist, .uml, tmp, node_modules, __pycache__, and
 # anything holding downloaded binaries.
 #
+# evidence/logs is pruned on purpose: it holds CAPTURED RUN ARTIFACTS (driver
+# scripts and console logs) whose sha256 is recorded inside the evidence
+# records. They are data, not source -- editing one to satisfy a linter would
+# break the very thing they exist to prove.
+#
 # Usage: ci/list-shell-files.sh [repo-root]
 set -uo pipefail
 
@@ -27,7 +32,8 @@ cd "$root" || exit 1
 
 find . \
   \( -name .git -o -name build -o -name dist -o -name .uml -o -name tmp \
-     -o -name node_modules -o -name __pycache__ -o -name '.venv' \) -prune -o \
+     -o -name node_modules -o -name __pycache__ -o -name '.venv' \
+     -o -path ./evidence/logs \) -prune -o \
   -type f -print 2>/dev/null |
 sort |
 while IFS= read -r f; do

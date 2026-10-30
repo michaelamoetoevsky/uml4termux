@@ -286,6 +286,11 @@ run_meta "shell: runtime contract v1" '
   bash '"$ROOT"'/tests/test-runtime-contract.sh >/dev/null
 '
 
+run_meta "shell: launcher + registry (no runit)" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-launcher.sh >/dev/null
+'
+
 # ---------------------------------------------------------------------------
 # 8. Print summary table and exit
 # ---------------------------------------------------------------------------

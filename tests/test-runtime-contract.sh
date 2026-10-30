@@ -49,6 +49,7 @@ probe() {
   # daemon start would silently point the client at the default socket.
   export UML4TERMUX_RUNTIME="$rt"
   export UML4TERMUXD_SELFTEST_CHILD="$SELFTEST_SLEEP"
+  export UML4TERMUXD_SELFTEST_SECONDS="${UML4TERMUXD_SELFTEST_SECONDS:-300}"
 
   "$daemon" daemon --selftest >"$work/$label.daemon.log" 2>&1 &
   local dp=$!

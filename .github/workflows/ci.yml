@@ -263,6 +263,9 @@ jobs:
       - name: Runtime contract v1 (C and Rust, both implementations)
         run: bash tests/test-runtime-contract.sh
 
+      - name: Launcher + instance registry (no runit)
+        run: bash tests/test-launcher.sh /tmp/uml4termuxd
+
   # ---------------------------------------------------------------------------
   rust:
     name: rust (fmt + clippy + tests + daemon parity)

@@ -27,6 +27,7 @@ export UML4TERMUX_STATE_DIR="$work/state"; mkdir -p "$UML4TERMUX_STATE_DIR"
 export UML4TERMUXD_BIN="$DAEMON"
 SELFTEST_SLEEP="$(command -v sleep || echo /bin/sleep)"
 export UML4TERMUXD_SELFTEST_CHILD="$SELFTEST_SLEEP"
+export UML4TERMUXD_SELFTEST_SECONDS="${UML4TERMUXD_SELFTEST_SECONDS:-300}"
 export NO_COLOR=1
 
 "$DAEMON" daemon --selftest >"$work/daemon.log" 2>&1 &

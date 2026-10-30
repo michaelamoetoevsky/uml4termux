@@ -1,0 +1,68 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261030-launcher-instances",
+ "project_version": "0.5.0",
+ "generated_at": "2026-10-30T16:46:28+0700",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "7.2.0-rc4-g169b17ff3f66-dirty",
+  "mode": "seccomp",
+  "ncpus": 4
+ },
+ "capabilities": {
+  "boot": {
+   "ok": true,
+   "evidence": "A real guest booted through the launcher (not `--selftest`): `uml4termux up` -> console WEB_UP_MARKER=1, UML4TERMUX_INIT root_mounted=1, NO_DISK=0, kernel banner 'Linux 7.2.0-rc4-g169b17ff3f66-dirty aarch64', docker demo container reachable from the host through the exposed port ('gvproxy-bess-ok'). Kernel is the pinned release asset (sha256 6970ada592e49c03...), running on a per-instance PRIVATE image copy, gvproxy on its own ssh port (12224) so no host-port collision with the runit service's gvproxy (2222)."
+  },
+  "launcher_up_without_runit": {
+   "ok": true,
+   "evidence": "`uml4termux up` started the daemon, waited for readiness per runtime-contract §5 and returned rc=0 in 2s. The whole run had FAILING SHIMS for sv/runsv/runsvdir/svlogd/chpst FIRST on PATH, so any runit call would have printed SHIM_FIRED and exited 111; SHIM_FIRED count in the run output is 0. lib/launch.sh and lib/registry.sh also contain no runit reference in code (static check in tests/test-launcher.sh, both front ends)."
+  },
+  "registry_and_invariants": {
+   "ok": true,
+   "evidence": "up wrote $UML4TERMUX_STATE_DIR/instances/g2.env (NAME/RUNTIME/IMAGE/SSH_PORT/PID/STARTED) and `ls` reported it live (pid alive AND its socket answering the protocol handshake). tests/test-launcher.sh (run against BOTH the C and the Rust front end) proves the three enforced invariants are refusals, not warnings: same runtime dir, same backing image (F_SETLK), same gvproxy ssh port -- each returned rc=1 with the offending instance named."
+  },
+  "real_guest_through_launcher": {
+   "ok": true,
+   "evidence": "The instance booted the real guest on a private image with the pinned release kernel (sha256 6970ada592e49c03...): console showed WEB_UP_MARKER=1, UML4TERMUX_INIT root_mounted=1, NO_DISK=0, kernel 'Linux 7.2.0-rc4-g169b17ff3f66-dirty aarch64'. `logs --console` surfaced the marker through the launcher; `expose 18127:8123` returned {\"exposed\":\"127.0.0.1:18127 -> 192.168.127.2:8123\"}; the host fetched http://127.0.0.1:18127/ and received the guest's demo body 'gvproxy-bess-ok' (phone -> gvproxy -> BESS -> guest -> docker DNAT -> container). The backing image sha256 was unchanged afterwards."
+  },
+  "launcher_teardown_clean": {
+   "ok": true,
+   "evidence": "`down` returned rc=0, the daemon process was gone, the registry record was pruned and a later check found ZERO processes for that runtime dir (the 2-change check 2s after `down` still saw the guest/gvproxy shutting down -- re-checked afterwards: clean). Backing image sha256 identical before/after; COW recorded docker writes."
+  },
+  "selftest_lifetime_was_a_trap": {
+   "ok": false,
+   "evidence": "Both daemons run the selftest child as `sleep 30`, then treat exit 0 as 'session completed' and exit themselves, so any selftest daemon dies at ~30s. A long-running launcher suite was therefore FLAKY (two different failures across runs) until the lifetime became configurable. Fix: UML4TERMUXD_SELFTEST_SECONDS (default 30, identical in C and Rust; Rust has a unit test for the argv); all four gates set it explicitly. Recorded as a limit because the default remains bounded on purpose."
+  },
+  "self_inflicted_segv_regression": {
+   "ok": false,
+   "evidence": "Refactoring the selftest argv into a pure helper made the NON-selftest branch return an EMPTY argv, so a real guest exec'd nothing and died with SIGSEGV in ~0.1s -- while all unit tests passed and the selftest path stayed green. Only the launcher's real-guest run exposed it. Fixed by keeping the two modes separate; new regression test guest_mode_never_yields_an_empty_argv asserts a non-empty UML command line with ubd0=/initrd= and argv[0]=kernel."
+  }
+ },
+ "verdict": "partial",
+ "artifacts": [
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-launcher-instances-device.log",
+   "sha256": "b8364a6ca9e02ac3fbe11a14a98fd2b54f134552af2a18d0580bfe20ebe2eb58"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-launcher-instances-device.sh",
+   "sha256": "cb3ac6b56970bee1965a80d4f62da16a19f15536857a72d4792485a2182b0f04"
+  }
+ ],
+ "notes": "Direction G2/G3 (docs/NEXT-STEPS.md), contract in docs/RUNTIME-CONTRACT.md. The launcher drives the daemon directly; the runit service survives only as an adapter (up --foreground is the hook). verdict=partial because the selftest lifetime default stays bounded (recorded above) and because the very same launcher on a device where another instance already runs is covered by tests, not by a second simultaneous real guest.",
+ "known_limits_observed": [
+  "a --selftest daemon exits with its child after UML4TERMUXD_SELFTEST_SECONDS (default 30s) -- raise it for long tests",
+  "the runit-service guest and any launcher instance must use different backing images (F_SETLK) and different gvproxy ssh ports; the registry now enforces both"
+ ]
+}

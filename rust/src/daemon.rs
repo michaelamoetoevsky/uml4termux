@@ -22,6 +22,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant, SystemTime};
 
 const SELFTEST_CHILD_DEFAULT: &str = "/data/data/com.termux/files/usr/bin/sleep";
+const SELFTEST_SECONDS_DEFAULT: &str = "30";
 const RESTART_BACKOFF_S: u32 = 2;
 const RESTART_MAX: u32 = 5;
 
@@ -86,6 +87,10 @@ pub struct Daemon {
     /// the initramfs and every write is then lost -- a docker run would appear
     /// to work while nothing persists).
     strict_ubd: bool,
+    /// How long the selftest child lives (UML4TERMUXD_SELFTEST_SECONDS).
+    /// A child that exits 0 means "session completed" and the daemon exits, so
+    /// anything testing the daemon for longer than this must raise it.
+    selftest_seconds: String,
     /// gvproxy's SSH port forwarder binds a FIXED host port (default 2222),
     /// so a second gvproxy on the same device dies with "address already in
     /// use". Override it per instance with UML4TERMUXD_GVPROXY_SSH_PORT.
@@ -143,6 +148,7 @@ impl Daemon {
             console_tail: Vec::new(),
             ubd_failed: false,
             ubd_aborted: false,
+            selftest_seconds: env_or("UML4TERMUXD_SELFTEST_SECONDS", SELFTEST_SECONDS_DEFAULT),
             gvproxy_ssh_port: match std::env::var("UML4TERMUXD_GVPROXY_SSH_PORT") {
                 Ok(v) => v.trim().parse::<u16>().unwrap_or(2222),
                 Err(_) => 2222,
@@ -273,21 +279,25 @@ impl Daemon {
     }
 
     fn spawn_child(&mut self) -> io::Result<i32> {
-        let (argv, use_pty) = if self.selftest {
-            (vec![self.child_argv0.clone(), "30".to_string()], false)
-        } else {
-            // B2: this port's ubd driver needs a FORMATTED COW file -- it
-            // stats and reads the header but never creates one. Reset it per
-            // boot by writing a fresh v3 header.
-            if !self.cow.is_empty() {
-                if let Err(e) =
-                    crate::cow::write_cow_header(Path::new(&self.cow), Path::new(&self.image))
-                {
-                    logf(&format!(
-                        "cow header write failed: {e}; booting without COW"
-                    ));
-                }
+        // B2: this port's ubd driver needs a FORMATTED COW file -- it stats and
+        // reads the header but never creates one. Reset it per boot by writing a
+        // fresh v3 header (guests only; the selftest child has no disk).
+        if !self.selftest && !self.cow.is_empty() {
+            if let Err(e) =
+                crate::cow::write_cow_header(Path::new(&self.cow), Path::new(&self.image))
+            {
+                logf(&format!(
+                    "cow header write failed: {e}; booting without COW"
+                ));
             }
+        }
+        // The guest branch MUST build the UML command line: an earlier refactor
+        // returned an empty argv here, so the child exec'd nothing and died with
+        // SIGSEGV in ~0.1s -- while every unit test still passed, because the
+        // selftest path was the only one covered.
+        let (argv, use_pty) = if self.selftest {
+            self.selftest_argv()
+        } else {
             (self.guest_argv(), true)
         };
 
@@ -816,6 +826,16 @@ impl Daemon {
         let _ = write_all_fd(fd, response.as_bytes());
     }
 
+    /// The child command line for the current mode. Pure so the selftest
+    /// lifetime (which decides how long a `--selftest` daemon stays up) is
+    /// asserted in a test rather than discovered by a flaky suite.
+    fn selftest_argv(&self) -> (Vec<String>, bool) {
+        (
+            vec![self.child_argv0.clone(), self.selftest_seconds.clone()],
+            false,
+        )
+    }
+
     /// Pure command dispatch: separated from the socket so it is unit-testable
     /// without a client, a PTY or a child process.
     pub fn dispatch(&mut self, line: &str) -> String {
@@ -1255,6 +1275,18 @@ mod tests {
     }
 
     #[test]
+    fn selftest_child_argv_carries_its_lifetime() {
+        let mut d = test_daemon(true);
+        d.selftest_seconds = "4242".to_string();
+        let (argv, use_pty) = d.selftest_argv();
+        assert_eq!(argv.len(), 2);
+        assert_eq!(argv[1], "4242");
+        assert!(!use_pty, "the selftest child is not run on a PTY");
+        // default must match the C daemon
+        assert_eq!(SELFTEST_SECONDS_DEFAULT, "30");
+    }
+
+    #[test]
     fn protocol_reply_is_the_v1_contract() {
         let mut d = test_daemon(true);
         assert_eq!(
@@ -1445,6 +1477,32 @@ mod tests {
             d.dispatch("expose 8124"),
             "{\"error\":\"usage: expose <host-port> <guest-port>\"}\n"
         );
+    }
+
+    /// Regression: a refactor once routed the NON-selftest branch through the
+    /// selftest helper, which returned an empty argv -- the child then exec'd
+    /// nothing and died with SIGSEGV in ~0.1s while every unit test passed.
+    /// The two modes must stay separate: the guest mode always builds a real
+    /// UML command line and uses a PTY console.
+    #[test]
+    fn guest_mode_never_yields_an_empty_argv() {
+        let d = test_daemon(false);
+        let (argv, use_pty) = if d.selftest {
+            d.selftest_argv()
+        } else {
+            (d.guest_argv(), true)
+        };
+        assert!(!argv.is_empty(), "guest argv must never be empty");
+        assert!(use_pty, "the guest console is driven through a PTY");
+        assert!(
+            argv.iter().any(|a| a.starts_with("ubd0=")),
+            "the guest needs its disk option: {argv:?}"
+        );
+        assert!(
+            argv.iter().any(|a| a.starts_with("initrd=")),
+            "the guest needs its initramfs: {argv:?}"
+        );
+        assert_eq!(argv[0], d.kernel, "argv[0] is the kernel path");
     }
 
     #[test]

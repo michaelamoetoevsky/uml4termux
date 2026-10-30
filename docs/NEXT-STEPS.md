@@ -211,14 +211,20 @@ manager** (yang memiliki siklus hidup daemon), **registry multi-instance**,
   `ci/local-ci.sh` dan CI). Protokol kontrol diberi versi (v1),
   path socket, skema state file, exit code, dan definisi *ready* ditulis
   sebagai kontrak (bukan tersirat di kode). Gate: contract test.
-- **G2. `uml4termux up|down|status|logs` tanpa runit.** Jalur invokasi
-  langsung; service runit menyusut jadi adapter 2 baris. Gate: boot + stop +
-  teardown bersih **dijalankan tanpa `sv` di PATH**, direkam sebagai evidence.
-- **G3. Manajer multi-instance.** Registry instance (direktori runtime),
-  `uml4termux ls`, state per-instance, dan **penegakan invarian** yang kini
-  hanya jadi peringatan dokumen: satu guest per image (lock `F_SETLK`) dan
-  satu gvproxy per port 2222 → dikelola supervisor, bukan diingat manusia.
-  Gate: 2 instance bersamaan, port berbeda, tanpa tabrakan, teardown bersih.
+- **G2. `uml4termux up|down|status|logs` tanpa runit — SELESAI.**
+  `lib/launch.sh` menjalankan daemon langsung (tanpa `sv`/runsvdir); kesiapan
+  mengikuti kontrak §5 (socket + `protocol` + fase `running`, diputar bukan
+  `sleep` tetap); `up --foreground` adalah kail adapter untuk runit/systemd/s6.
+  Gate `tests/test-launcher.sh`: seluruh siklus dengan **shim `sv`/`runsv`/
+  `runsvdir`/`svlogd` yang gagal keras di depan PATH** + cek statis bahwa
+  `lib/launch.sh`/`lib/registry.sh` tidak menyebut runit di kode.
+- **G3. Manajer multi-instance — SELESAI.** `lib/registry.sh` menyimpan satu
+  catatan per instance (`$UML4TERMUX_STATE_DIR/instances/<name>.env`), dan
+  `up` **menolak** melanggar tiga invarian: satu guest per image (`F_SETLK`),
+  satu gvproxy per port ssh host, satu direktori runtime per instance —
+  ketiganya dulu hanya peringatan dokumen. Port ssh dipilih otomatis dari
+  daftar bebas (2222, 12222–12229). Catatan basi dibersihkan `ls`
+  (liveness = pid hidup **dan** socket menjawab handshake).
 - **G4. Layout log & state sendiri.** Rotasi tanpa svlogd, retensi, `logs -f`.
   Gate: tes rotasi dengan batas byte.
 - **G5. Adapter launcher.** runit (ada), systemd unit, s6, dan "plain/CI".
@@ -237,6 +243,13 @@ manager** (yang memiliki siklus hidup daemon), **registry multi-instance**,
   service) dari nol — daemon sudah menangani yang kita butuhkan.
 - **Menghapus jalur runit.** Ia tetap adapter pertama dan tetap yang
   terverifikasi di device ini; menghapusnya akan merusak pengguna yang ada.
+
+**Bukti device (G1–G3).** `evidence/20261030-launcher-instances.json` — boot
+guest nyata lewat `up` (kernel ter-pin, image privat, ssh port 12224), marker
+`WEB_UP_MARKER`, `root_mounted`, inbound `gvproxy-bess-ok`, teardown bersih,
+dan **shim runit 0 kali dipanggil**; dua capability sengaja dicatat `ok=false`
+sebagai batas + regresi yang ditemukan sendiri (umur selftest 30 s; argv guest
+kosong akibat refactor).
 
 **Kriteria lulus.** G1: kontrak tertulis + dites. G2: satu boot penuh tanpa
 runit, evidence terekam. G3: 2 instance bersamaan tanpa tabrakan. G4: rotasi

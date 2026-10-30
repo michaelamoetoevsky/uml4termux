@@ -1,0 +1,37 @@
+== 1. aset ter-pin di home terisolasi ==
+KERNEL_SHA256 6970ada592e49c03 match=yes size=15104544
+== 2. initramfs docker + image privat ==
+INITRAMFS built 3847723
+IMAGE_BEFORE 7e1127d18ed826aa (3221225472 byte)
+== 3. shim runit yang gagal keras ==
+== 4. up (launcher, tanpa runit) ==
+UP_RC 0 after 2s
+  status: state     : yes (phase running)
+  registry: NAME=g2 RUNTIME=/data/data/com.termux/files/usr/tmp/g23-proof/rt IMAGE=/data/data/com.termux/files/usr/tmp/g23-proof/img.ext4 SSH_PORT=12224 PID=28746 STARTED=2026-10-30T16:41:18+0700 
+== 5. guest benar-benar jalan ==
+WEB_UP_MARKER 1
+DISK_ATTACHED 1
+NO_DISK 0
+KERNEL_LINE Linux 7.2.0-rc4-g169b17ff3f66-dirty aarch64
+== 6. logs lewat launcher ==
+LOGS_RC 0 lines=3
+  marker lewat logs --console: 1
+== 7. expose + inbound ==
+{
+  "exposed": "127.0.0.1:18127 -> 192.168.127.2:8123"
+CURL_BODY [gvproxy-bess-ok]
+== 8. status/ls ==
+{"name":"g2","live":"yes","phase":"running","pid":"28746","runtime":"/data/data/com.termux/files/usr/tmp/g23-proof/rt","image":"/data/data/com.termux/files/usr/tmp/g23-proof/img.ext4","ssh_port":"12224"}
+NAME         LIVE  PHASE     SSH-PORT  RUNTIME
+g2           yes   running   12224     /data/data/com.termux/files/usr/tmp/g23-proof/rt
+== 9. down + teardown ==
+[info] instance 'g2' is down
+DOWN_RC 0
+DAEMON_GONE yes
+GVPROXY_MINE 1
+GUEST_MINE 1
+REGISTRY_AFTER 0
+IMAGE_UNCHANGED yes
+SHIM_FIRED 0 (dari up.out; 0 = runit tidak pernah dipanggil)
+COW_BYTES 3222016512
+rc=0

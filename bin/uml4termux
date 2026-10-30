@@ -44,6 +44,10 @@ unset _uml4_self _uml4_link 2>/dev/null || true
 . "${UML4TERMUX_ROOT}/lib/service.sh"
 # shellcheck source=../lib/doctor.sh
 . "${UML4TERMUX_ROOT}/lib/doctor.sh"
+# shellcheck source=../lib/registry.sh
+. "${UML4TERMUX_ROOT}/lib/registry.sh"
+# shellcheck source=../lib/launch.sh
+. "${UML4TERMUX_ROOT}/lib/launch.sh"
 
 UML4TERMUX_VERSION="${UML4TERMUX_VERSION:-0.1.0}"
 
@@ -169,7 +173,7 @@ cmd_help() {
   local topic="${1:-}"
   if [ -z "${topic}" ]; then usage; return 0; fi
   case "${topic}" in
-    doctor|fetch|init-image|boot|docker|expose|stop|service|version|dist-info|help)
+    doctor|fetch|init-image|boot|docker|expose|stop|service|up|down|status|logs|ls|version|dist-info|help)
       case "${topic}" in
         doctor)     doctor_usage ;;
         fetch)      cmd_fetch_usage ;;
@@ -179,6 +183,11 @@ cmd_help() {
         expose)     usage_expose ;;
         stop)       usage_stop ;;
         service)    usage_service ;;
+        up)         usage_up ;;
+        down)       usage_down ;;
+        status)     usage_status ;;
+        logs)       usage_logs ;;
+        ls)         usage_ls ;;
         version)    printf 'uml4termux version — print the version and where the tree lives.\n' ;;
         dist-info)  printf 'uml4termux dist-info — machine-readable paths, assets and configuration.\n' ;;
         help)       usage ;;
@@ -449,6 +458,75 @@ cmd_docker() {
   return 0
 }
 
+# --- launcher (arah G2): tanpa runit -------------------------------------
+usage_up() {
+  cat <<'EOF'
+uml4termux up — start an instance by running the daemon directly (no runit).
+
+usage: uml4termux up [options]
+
+  --name NAME      instance name (default: $UML4TERMUX_INSTANCE_NAME or "default")
+  --foreground,-f  run in the foreground; this is the adapter hook a supervisor
+                   (runit/systemd/s6) execs and restarts
+  --mem M          guest memory, e.g. --mem 1024
+  --cpus N         guest CPUs
+  --image PATH     backing image (default: the fetched disk image)
+  --ssh-port P     host ssh port for gvproxy (default: first free of 2222,12222-12229)
+  --no-gvproxy     do not start gvproxy (no inbound networking)
+  --timeout S      readiness timeout in seconds (default 90)
+  --selftest       run the daemon in selftest mode (test hook: no guest boot)
+
+Readiness follows the runtime contract: socket present AND `protocol` answering
+AND state phase "running". Refuses to start when it would break an invariant:
+one guest per backing image, one gvproxy per host ssh port.
+EOF
+}
+
+usage_down() {
+  cat <<'EOF'
+uml4termux down — stop an instance cleanly over the control socket.
+
+usage: uml4termux down [--name NAME] [--timeout S]
+
+Asks the daemon to stop (tiered shutdown: guest console -> SIGTERM -> SIGKILL),
+waits for the process to disappear, then drops the registry record. Exits
+non-zero if the instance is still running after the timeout.
+EOF
+}
+
+usage_status() {
+  cat <<'EOF'
+uml4termux status — report one instance's state from the registry and state file.
+
+usage: uml4termux status [--name NAME] [--json]
+
+Works with or without a supervisor. Exit status is 0 only when the instance is
+live and answering the protocol handshake.
+EOF
+}
+
+usage_logs() {
+  cat <<'EOF'
+uml4termux logs — show the daemon log or the guest console.
+
+usage: uml4termux logs [--name NAME] [-n LINES] [-f] [--console|--daemon]
+
+  --console   guest console (uml-console.log)
+  --daemon    daemon log (default)
+  -f          follow
+EOF
+}
+
+usage_ls() {
+  cat <<'EOF'
+uml4termux ls — list registered instances (live and stale).
+
+usage: uml4termux ls [--json]
+
+Stale records (pid gone or socket not answering) are pruned automatically.
+EOF
+}
+
 usage_service() {
   cat <<'EOF'
 uml4termux service install|remove|status|start|stop|logs [N]
@@ -521,6 +599,11 @@ main() {
 
   case "${cmd}" in
     -h|--help)      usage ; return 0 ;;
+    up)             cmd_up "${argv[@]}" ;;
+    down)           cmd_down "${argv[@]}" ;;
+    status)         cmd_status "${argv[@]}" ;;
+    logs)           cmd_logs "${argv[@]}" ;;
+    ls)             cmd_ls "${argv[@]}" ;;
     doctor)         cmd_doctor "${argv[@]}" ;;
     fetch)          cmd_fetch "${argv[@]}" ;;
     init-image)     cmd_init_image "${argv[@]}" ;;

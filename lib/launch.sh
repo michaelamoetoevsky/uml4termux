@@ -1,0 +1,317 @@
+#!/bin/sh
+# ---------------------------------------------------------------------------
+# Launcher commands (direction G2): up / down / status / logs / ls.
+#
+# These drive the daemon directly -- no `sv`, no runsvdir, no termux-services.
+# The same commands therefore work under runit, under systemd, under s6, or
+# from a bare shell, which is the actual prize of direction G: portability, not
+# "independence from runit" for its own sake.
+#
+# `up --foreground` is the adapter hook: a supervisor only has to exec it and
+# restart it when it exits.
+#
+# SPDX-License-Identifier: GPL-2.0-only
+# ---------------------------------------------------------------------------
+
+uml4termux_instance_name() { printf '%s' "${UML4TERMUX_INSTANCE_NAME:-default}"; }
+
+# Contract §5: ready = socket exists AND protocol answers AND phase is running.
+# Polled, never a fixed sleep. Returns 1 as soon as the daemon gives up, so a
+# doomed start fails fast instead of burning the whole timeout.
+uml4termux_wait_ready() { # <runtime> <daemon-bin> <timeout-seconds>
+  local rt="$1" bin="$2" timeout="${3:-60}" i=0 phase
+  while [ "${i}" -lt "${timeout}" ]; do
+    phase="$(uml4termux_state_phase "${rt}")"
+    case "${phase}" in failed|completed|exited|stopped) return 1 ;; esac
+    if [ -S "${rt}/daemon.sock" ] && [ "${phase}" = "running" ] \
+       && UML4TERMUX_RUNTIME="${rt}" "${bin}" protocol 2>/dev/null \
+          | grep -qE '"protocol"[[:space:]]*:[[:space:]]*1'; then
+      return 0
+    fi
+    sleep 1
+    i=$((i + 1))
+  done
+  return 1
+}
+
+uml4termux_require_instance_dirs() {
+  uml4termux_dirs_init >/dev/null 2>&1 || true
+  uml4termux_runtime_init >/dev/null 2>&1 || true
+}
+
+cmd_up() {
+  local name fg=0 no_gvproxy=0 selftest=0 mem="" cpus="" image="" ssh_port="" timeout="" rt=""
+  name="$(uml4termux_instance_name)"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --name)        name="${2:?--name needs a value}"; shift ;;
+      --foreground|-f) fg=1 ;;
+      --mem)         mem="${2:?--mem needs a value}"; shift ;;
+      --cpus)        cpus="${2:?--cpus needs a value}"; shift ;;
+      --image)       image="${2:?--image needs a value}"; shift ;;
+      --runtime)     rt="${2:?--runtime needs a value}"; shift ;;
+      --ssh-port)    ssh_port="${2:?--ssh-port needs a value}"; shift ;;
+      --timeout)     timeout="${2:?--timeout needs a value}"; shift ;;
+      --no-gvproxy)  no_gvproxy=1 ;;
+      --selftest)    selftest=1 ;;
+      -h|--help)     usage_up; return 0 ;;
+      *)             die "up: unknown option '$1' (try 'uml4termux help up')" ;;
+    esac
+    shift
+  done
+  uml4termux_require_instance_dirs
+  [ -n "${timeout}" ] || timeout="${UML4TERMUX_BOOT_TIMEOUT:-90}"
+
+  local dbin
+  dbin="$(uml4termux_daemon_bin)" || die "daemon binary not found (run 'uml4termux fetch' first, or set UML4TERMUXD_BIN)"
+
+  if uml4termux_reg_live "${name}"; then
+    warn "instance '${name}' is already up"
+    cmd_status --name "${name}"
+    return 0
+  fi
+
+  if [ "${selftest}" = "1" ]; then
+    : # test hook: no guest boot, so no assets are needed
+  else
+    uml4termux_require_assets kernel stub
+    [ "${no_gvproxy}" = "1" ] || uml4termux_require_assets gvproxy
+  fi
+
+  [ -n "${image}" ] || image="$(uml4termux_asset_path disk)"
+  [ -n "${mem}" ] || mem="${UML4TERMUX_MEM}"
+  [ -n "${cpus}" ] || cpus="${UML4TERMUX_CPUS}"
+  case "${mem}" in *[!0-9]*) mem="${mem%[Mm]}" ;; esac
+  case "${cpus}" in *[!0-9]*) cpus="${cpus%[Mm]}" ;; esac
+
+  [ -n "${rt}" ] || rt="${UML4TERMUX_RUNTIME}"
+  local holder
+  # --- invariant 3: one runtime directory per instance ---
+  if holder="$(uml4termux_reg_live_runtime "${rt}")" && [ "${holder}" != "${name}" ]; then
+    die "runtime ${rt} is owned by live instance '${holder}'; pass --runtime with a directory of its own"
+  fi
+  # --- invariant 1: one guest per backing image (F_SETLK) ---
+  if holder="$(uml4termux_reg_live_image "${image}")"; then
+    die "image ${image} is used by live instance '${holder}': UML holds an exclusive lock, a second guest would boot WITHOUT a disk. Copy the image per instance (see docs/RUNTIME-CONTRACT.md §6)."
+  fi
+  # --- invariant 2: one gvproxy per host ssh port ---
+  if [ -z "${ssh_port}" ] && [ "${no_gvproxy}" != "1" ]; then
+    ssh_port="$(uml4termux_reg_pick_ssh_port)" \
+      || die "no free gvproxy ssh port (2222 and 12222-12229 are taken by live instances)"
+  fi
+  if [ -n "${ssh_port}" ] && holder="$(uml4termux_reg_live_ssh_port "${ssh_port}")"; then
+    die "host ssh port ${ssh_port} is held by live instance '${holder}'; pass --ssh-port with a free port"
+  fi
+
+  local -a env
+  env=(
+    "UML4TERMUX_RUNTIME=${rt}"
+    "UML4TERMUXD_KERNEL=$(uml4termux_asset_path kernel)"
+    "UML4TERMUXD_STUB=$(uml4termux_asset_path stub)"
+    "UML4TERMUXD_IMAGE=${image}"
+    "UML4TERMUXD_INITRAMFS=${UML4TERMUX_INITRAMFS_DIR}/docker.cpio.gz"
+    "UML4TERMUXD_COW=${rt}/${name}.cow"
+    "UML4TERMUXD_MEM=${mem}M"
+    "UML4TERMUXD_NCPUS=${cpus}"
+    "UML4TERMUXD_BESS=${rt}/bess.sock"
+    "UML4TERMUXD_STRICT_UBD=1"
+  )
+  [ "${no_gvproxy}" = "1" ] || env+=("UML4TERMUXD_GVPROXY=$(uml4termux_asset_path gvproxy)")
+  [ -z "${ssh_port}" ] || env+=("UML4TERMUXD_GVPROXY_SSH_PORT=${ssh_port}")
+  [ -r "${UML4TERMUXD_INITRAMFS:-}" ] || true
+
+  local -a cmd=(env "${env[@]}" "${dbin}" daemon)
+  [ "${selftest}" = "1" ] && cmd+=("--selftest")
+
+  if uml4termux_is_dry_run; then
+    uml4termux_print_cmd "${cmd[@]}"
+    [ "${fg}" = "1" ] || printf '+ (registry write %s, then wait for readiness)\n' "${name}"
+    return 0
+  fi
+
+  if [ "${fg}" = "1" ]; then
+    info "instance '${name}': running the daemon in the foreground (adapter hook)"
+    exec "${cmd[@]}"
+  fi
+
+  uml4termux_spawn uml4termuxd "${rt}/daemon.log" "${cmd[@]}"
+  local pid
+  pid="$(uml4termux_read_pid uml4termuxd)"
+  [ -n "${pid}" ] || die "the daemon did not stay up (see ${rt}/daemon.log)"
+  uml4termux_reg_write "${name}" "${rt}" "${image}" "${ssh_port:-}" "${pid}"
+
+  if uml4termux_wait_ready "${rt}" "${dbin}" "${timeout}"; then
+    info "instance '${name}' is up (pid ${pid}, runtime ${rt})"
+    cmd_status --name "${name}"
+    return 0
+  fi
+
+  err "instance '${name}' did not become ready within ${timeout}s"
+  sed -n '1,20p' "${rt}/daemon.log" 2>/dev/null | sed 's/^/  /'
+  cmd_down --name "${name}" >/dev/null 2>&1 || true
+  return 1
+}
+
+cmd_down() {
+  local name timeout="${UML4TERMUX_STOP_TIMEOUT:-30}"
+  name="$(uml4termux_instance_name)"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --name)    name="${2:?--name needs a value}"; shift ;;
+      --timeout) timeout="${2:?--timeout needs a value}"; shift ;;
+      -h|--help) usage_down; return 0 ;;
+      *)         die "down: unknown option '$1'" ;;
+    esac
+    shift
+  done
+  uml4termux_require_instance_dirs
+
+  local rt pid dbin
+  rt="$(uml4termux_reg_get "${name}" RUNTIME)" || rt="${UML4TERMUX_RUNTIME}"
+  pid="$(uml4termux_reg_get "${name}" PID)" || pid="$(uml4termux_read_pid uml4termuxd)"
+  dbin="$(uml4termux_daemon_bin)" || dbin=""
+
+  if ! uml4termux_reg_live "${name}"; then
+    uml4termux_is_dry_run || rm -f "$(uml4termux_reg_path "${name}")"
+    info "instance '${name}' is not running"
+    return 0
+  fi
+
+  if uml4termux_is_dry_run; then
+    printf '+ UML4TERMUX_RUNTIME=%s %s stop\n' "${rt}" "${dbin}"
+    printf '+ (wait up to %ss for the socket to disappear)\n' "${timeout}"
+    return 0
+  fi
+
+  UML4TERMUX_RUNTIME="${rt}" "${dbin}" stop >/dev/null 2>&1 || true
+
+  local i=0
+  while [ "${i}" -lt "${timeout}" ]; do
+    if ! uml4termux_pid_alive "${pid}" uml4termux || [ ! -S "${rt}/daemon.sock" ]; then
+      rm -f "$(uml4termux_reg_path "${name}")"
+      info "instance '${name}' is down"
+      return 0
+    fi
+    sleep 1
+    i=$((i + 1))
+  done
+
+  err "instance '${name}' did not stop within ${timeout}s (pid ${pid}); it is still running"
+  return 1
+}
+
+cmd_status() {
+  local name json=0
+  name="$(uml4termux_instance_name)"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --name) name="${2:?--name needs a value}"; shift ;;
+      --json) json=1 ;;
+      -h|--help) usage_status; return 0 ;;
+      *) die "status: unknown option '$1'" ;;
+    esac
+    shift
+  done
+  uml4termux_require_instance_dirs
+
+  local rt pid image ssh_port phase live="no"
+  rt="$(uml4termux_reg_get "${name}" RUNTIME 2>/dev/null)" || rt="${UML4TERMUX_RUNTIME}"
+  pid="$(uml4termux_reg_get "${name}" PID 2>/dev/null)" || pid="$(uml4termux_read_pid uml4termuxd)"
+  image="$(uml4termux_reg_get "${name}" IMAGE 2>/dev/null)" || image=""
+  ssh_port="$(uml4termux_reg_get "${name}" SSH_PORT 2>/dev/null)" || ssh_port=""
+  phase="$(uml4termux_state_phase "${rt}")"
+  uml4termux_reg_live "${name}" && live="yes"
+
+  if [ "${json}" = "1" ]; then
+    printf '{"name":"%s","live":"%s","phase":"%s","pid":"%s","runtime":"%s","image":"%s","ssh_port":"%s"}\n' \
+      "${name}" "${live}" "${phase:-none}" "${pid}" "${rt}" "${image}" "${ssh_port}"
+    return 0
+  fi
+
+  printf 'instance  : %s\n' "${name}"
+  printf 'state     : %s%s\n' "${live}" "$([ "${live}" = "yes" ] && printf ' (phase %s)' "${phase:-unknown}" || printf '')"
+  printf 'pid       : %s%s\n' "${pid:-none}" "$([ -n "${pid}" ] && uml4termux_pid_alive "${pid}" uml4termux && printf ' (alive)' || true)"
+  printf 'runtime   : %s\n' "${rt}"
+  printf 'image     : %s\n' "${image:-none}"
+  printf 'ssh port  : %s\n' "${ssh_port:-none}"
+  [ "${live}" = "yes" ] || return 1
+  return 0
+}
+
+cmd_logs() {
+  local name lines=30 follow=0 which="daemon"
+  name="$(uml4termux_instance_name)"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --name)    name="${2:?--name needs a value}"; shift ;;
+      -l)        lines="${2:?-l needs a value}"; shift ;;
+      --lines)   lines="${2:?--lines needs a value}"; shift ;;
+      -f|--follow) follow=1 ;;
+      --console) which="console" ;;
+      --daemon)  which="daemon" ;;
+      -h|--help) usage_logs; return 0 ;;
+      *) die "logs: unknown option '$1'" ;;
+    esac
+    shift
+  done
+  uml4termux_require_instance_dirs
+
+  local rt file
+  rt="$(uml4termux_reg_get "${name}" RUNTIME 2>/dev/null)" || rt="${UML4TERMUX_RUNTIME}"
+  if [ "${which}" = "console" ]; then
+    file="${rt}/uml-console.log"
+  else
+    file="${rt}/daemon.log"
+  fi
+  if [ -z "$(uml4termux_reg_get "${name}" RUNTIME 2>/dev/null)" ] && [ ! -r "${file}" ]; then
+    err "instance '${name}' is not registered (see 'uml4termux ls')"
+    return 1
+  fi
+  [ -r "${file}" ] || { err "no ${which} log at ${file}"; return 1; }
+  if [ "${follow}" = "1" ]; then
+    tail -n "${lines}" -f "${file}"
+  else
+    tail -n "${lines}" "${file}"
+  fi
+}
+
+cmd_ls() {
+  local json=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json) json=1 ;;
+      -h|--help) usage_ls; return 0 ;;
+      *) die "ls: unknown option '$1'" ;;
+    esac
+    shift
+  done
+  uml4termux_require_instance_dirs
+  local pruned=0
+  pruned="$(uml4termux_reg_prune)"
+
+  if [ "${json}" = "1" ]; then
+    local name first=1
+    printf '{"instances":['
+    for name in $(uml4termux_reg_names); do
+      [ "${first}" = "1" ] || printf ','
+      first=0
+      cmd_status --name "${name}" --json | tr -d '\n'
+    done
+    printf '],"pruned":%s}\n' "${pruned}"
+    return 0
+  fi
+
+  local name any=0
+  printf '%-12s %-5s %-9s %-9s %s\n' "NAME" "LIVE" "PHASE" "SSH-PORT" "RUNTIME"
+  for name in $(uml4termux_reg_names); do
+    any=1
+    local rt phase ssh_port live="no"
+    rt="$(uml4termux_reg_get "${name}" RUNTIME 2>/dev/null)"
+    ssh_port="$(uml4termux_reg_get "${name}" SSH_PORT 2>/dev/null)"
+    phase="$(uml4termux_state_phase "${rt}")"
+    uml4termux_reg_live "${name}" && live="yes"
+    printf '%-12s %-5s %-9s %-9s %s\n' "${name}" "${live}" "${phase:-none}" "${ssh_port:-none}" "${rt}"
+  done
+  [ "${any}" = "1" ] || info "no instances registered (start one with 'uml4termux up')"
+  [ "${pruned}" = "0" ] || info "pruned ${pruned} stale record(s)"
+}

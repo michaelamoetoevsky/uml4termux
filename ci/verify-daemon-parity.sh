@@ -41,6 +41,9 @@ RT="$work/rt"
 mkdir -p "$RT"
 export UML4TERMUX_RUNTIME="$RT"
 export UML4TERMUXD_SELFTEST_CHILD="$SELFTEST_CHILD"
+# The selftest child lives for UML4TERMUXD_SELFTEST_SECONDS (default 30); raise
+# it so a slow query sequence never races the daemon's own clean exit.
+export UML4TERMUXD_SELFTEST_SECONDS="${UML4TERMUXD_SELFTEST_SECONDS:-300}"
 export UML4TERMUXD_HTTP="127.0.0.1:19119"
 export NO_COLOR=1
 
