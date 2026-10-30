@@ -346,6 +346,10 @@ jobs:
       - name: Daemon parity (C client vs Rust client on one socket)
         env:
           UML4TERMUX_RUNTIME: ${{ runner.temp }}/rt
+          # The same command is sent twice in a tight loop (once per client), so the
+          # daemon's exec rate limit would decide the comparison. The limit is a
+          # client-facing control; a parity harness is not that client.
+          UML4TERMUXD_EXEC_MIN_INTERVAL_MS: "0"
         run: |
           set -euo pipefail
           mkdir -p "$UML4TERMUX_RUNTIME"
