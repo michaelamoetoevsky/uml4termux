@@ -36,7 +36,11 @@ def main(argv: list[str]) -> int:
         ts = [r.get("t_epoch", 0) for r in mine]
         drss = [r["daemon_rss_kb"] for r in mine if r["daemon_rss_kb"]]
         krss = [r["kernel_rss_kb"] for r in mine if r["kernel_rss_kb"]]
-        third = max(1, len(drss) // 3)
+        # Fixed windows, not thirds: a "third" shrinks and shifts as cycles are
+        # added, so the same run reported +4% at 66 cycles and +12% at 73. Ten
+        # samples at each end answer the question the plan asks -- is RSS
+        # climbing over the run -- without that artefact.
+        third = min(10, max(1, len(drss) // 3))
         per_label[label] = {
             "cycles": len(mine),
             "cycles_failed": sum(1 for r in mine if r["up_rc"] != 0),
@@ -44,8 +48,8 @@ def main(argv: list[str]) -> int:
             "leftover_processes_total": sum(r["leftover_processes"] for r in mine),
             "image_unchanged_all_cycles": all(r["image_unchanged"] for r in mine),
             "restart_checks": [r["restart_check"] for r in mine if r["restart_check"] != "n/a"],
-            "daemon_rss_kb_first_third_median": statistics.median(drss[:third]) if drss else None,
-            "daemon_rss_kb_last_third_median": statistics.median(drss[-third:]) if drss else None,
+            "daemon_rss_kb_first_window_median": statistics.median(drss[:third]) if drss else None,
+            "daemon_rss_kb_last_window_median": statistics.median(drss[-third:]) if drss else None,
             "daemon_rss_kb_max": max(drss) if drss else None,
             "kernel_rss_kb_max": max(krss) if krss else None,
             "dockerd_ready_cycles": sum(1 for r in mine if "ready=yes" in r["dockerd"]),
@@ -54,10 +58,10 @@ def main(argv: list[str]) -> int:
             "seconds_per_cycle": round((max(ts) - min(ts)) / (len(ts) - 1), 1) if len(ts) > 1 else 0,
         }
         p = per_label[label]
-        if p["daemon_rss_kb_first_third_median"] and p["daemon_rss_kb_last_third_median"]:
-            delta = p["daemon_rss_kb_last_third_median"] - p["daemon_rss_kb_first_third_median"]
+        if p["daemon_rss_kb_first_window_median"] and p["daemon_rss_kb_last_window_median"]:
+            delta = p["daemon_rss_kb_last_window_median"] - p["daemon_rss_kb_first_window_median"]
             p["daemon_rss_trend_kb"] = delta
-            p["daemon_rss_trend_pct"] = round(delta / p["daemon_rss_kb_first_third_median"] * 100, 1)
+            p["daemon_rss_trend_pct"] = round(delta / p["daemon_rss_kb_first_window_median"] * 100, 1)
 
     summary = {
         "cycles_total": len(rows),

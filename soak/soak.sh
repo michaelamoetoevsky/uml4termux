@@ -46,8 +46,9 @@ done
 [ -x "${BIN}" ] || { echo "soak: no ${BIN}" >&2; exit 1; }
 OUT="${OUT:-${TMPDIR:-/tmp}/soak-$(date +%Y%m%d-%H%M%S)}"
 W="${OUT}/work"
-IMG_SRC="${UML4TERMUX_HOME:-$HOME/.uml4termux}/${UML4TERMUX_DISK_FILE:-debian-docker.ext4}"
-BASE="${UML4TERMUX_HOME:-$HOME/.uml4termux}/initramfs-alpine.cpio.gz"
+ASSETS="${UML4TERMUX_HOME:-$HOME/.uml4termux}"
+IMG_SRC="${ASSETS}/${UML4TERMUX_DISK_FILE:-debian-docker.ext4}"
+BASE="${ASSETS}/initramfs-alpine.cpio.gz"
 
 mkdir -p "${W}/guest" "${W}/initramfs" "${OUT}"
 export NO_COLOR=1
@@ -67,19 +68,43 @@ env -u LD_LIBRARY_PATH python3 "${ROOT}/scripts/build-initramfs.py" \
   --out "${W}/initramfs/docker.cpio.gz" --force >"${OUT}/build.log" 2>&1 \
   || { echo "soak: initramfs build failed (${OUT}/build.log)" >&2; exit 1; }
 
-[ -s "${IMG_SRC}" ] || { echo "soak: image missing at ${IMG_SRC}" >&2; exit 1; }
+# Precheck EVERY asset before the first cycle. -e follows symlinks on purpose: a
+# DANGLING symlink (an asset pointing at a directory that was cleaned up) passed
+# an earlier check that only looked at the link, and the soak then burned four
+# cycles x 420 s of tick-wait before anyone noticed.
+missing=0
+for f in "${ASSETS}/${UML4TERMUX_KERNEL_FILE:-linux-bionic}" "${ASSETS}/stub_exe" "${BASE}" "${IMG_SRC}"; do
+  if [ ! -e "${f}" ]; then
+    echo "soak: missing asset (or dangling symlink): ${f}" >&2
+    missing=$((missing + 1))
+  fi
+done
+[ "${missing}" -eq 0 ] || { echo "soak: ${missing} asset(s) unusable, refusing to start" >&2; exit 1; }
 
 img_sha() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
 img_mtime() { stat -c '%Y' "$1" 2>/dev/null; }
 exe_of() { readlink "/proc/$1/exe" 2>/dev/null; }
 
 # processes still running the guest kernel or the daemon binary
-count_leftovers() {
+# Leftovers belonging to THIS instance: its recorded daemon pid and its guest
+# kernel pid. A device-wide count would report the sibling instance's processes
+# as leftovers the moment two guests run in parallel (measured: each B2 worker
+# saw "2 leftovers" that were the other worker's daemon and guest).
+count_leftovers_for() { # <daemon_pid> <kernel_pid>
+  local n=0
+  [ -n "${1:-}" ] && [ -d "/proc/$1" ] && n=$((n + 1))
+  [ -n "${2:-}" ] && [ -d "/proc/$2" ] && n=$((n + 1))
+  printf '%s' "${n}"
+}
+
+# Device-wide check, used once after every worker has finished: this is the
+# claim that actually matters ("nothing left behind").
+count_all_uml() {
   local n=0 p exe
   for p in /proc/[0-9]*; do
     exe="$(exe_of "${p#/proc/}")" || continue
     case "${exe}" in
-      *linux-bionic*|*uml4termuxd*|*${KERNEL_FILE##*/}*) n=$((n + 1)) ;;
+      *linux-bionic*|*uml4termuxd*|*gvproxy*) n=$((n + 1)) ;;
     esac
   done
   printf '%s' "${n}"
@@ -123,11 +148,18 @@ except Exception: print("")' "${rt}/daemon.sock.state" 2>/dev/null)"
     [ -n "${kernel_pid}" ] && krss="$(rss_kb "${kernel_pid}")"
 
     local waited=0
-    while [ "${waited}" -lt "${TICK_TIMEOUT}" ]; do
-      grep -qs 'SOAK_TICK_DONE' "${console}" 2>/dev/null && break
-      sleep 5; waited=$((waited + 5))
-    done
-    grep -qs 'SOAK_TICK_DONE' "${console}" 2>/dev/null && tick_ok=yes || tick_ok=no
+    if [ "${rc}" -ne 0 ]; then
+      # Fail fast: waiting for a tick from a guest that never started just burns
+      # the whole tick timeout (420 s per cycle was measured during an outage).
+      waited=0
+      tick_ok=no
+    else
+      while [ "${waited}" -lt "${TICK_TIMEOUT}" ]; do
+        grep -qs 'SOAK_TICK_DONE' "${console}" 2>/dev/null && break
+        sleep 5; waited=$((waited + 5))
+      done
+      grep -qs 'SOAK_TICK_DONE' "${console}" 2>/dev/null && tick_ok=yes || tick_ok=no
+    fi
 
     local dockerline runline
     dockerline="$(grep -a 'SOAK_DOCKERD' "${console}" 2>/dev/null | tail -1 | tr -d '\r')"
@@ -140,7 +172,7 @@ except Exception: print("")' "${rt}/daemon.sock.state" 2>/dev/null)"
     UML4TERMUX_RUNTIME="${rt}" "${BIN}" down --name "${name}" >>"${OUT}/${label}-cycle${i}.up.log" 2>&1
     sleep 3
     local leftovers
-    leftovers="$(count_leftovers)"
+    leftovers="$(count_leftovers_for "${daemon_pid}" "${kernel_pid}")"
     local sha_after mtime_after
     sha_after="$(img_sha "${img}")"; mtime_after="$(img_mtime "${img}")"
 
@@ -182,5 +214,17 @@ for k in $(seq 1 "${PARALLEL}"); do
 done
 for p in "${pids[@]}"; do wait "${p}"; done
 
+sleep 5
+all_left="$(count_all_uml)"
+echo "soak: proses uml tersisa setelah semua worker selesai: ${all_left}"
+env -u LD_LIBRARY_PATH python3 - "${OUT}" "${all_left}" <<'PY'
+import json, sys, pathlib
+out, left = sys.argv[1], int(sys.argv[2])
+meta_path = pathlib.Path(out) / "run-meta.json"
+meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+meta["device_wide_processes_after_run"] = left
+meta_path.write_text(json.dumps(meta, indent=1) + "\n")
+print(f"soak: meta diperbarui (device_wide_processes_after_run={left})")
+PY
 env -u LD_LIBRARY_PATH python3 "${ROOT}/soak/summarise.py" "${OUT}" --start "$(date +%s)" || true
 echo "soak: summary -> ${OUT}/summary.json"
