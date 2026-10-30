@@ -478,6 +478,10 @@ usage: uml4termux up [options]
   --cpus N         guest CPUs
   --image PATH     backing image (default: the fetched disk image)
   --ssh-port P     host ssh port for gvproxy (default: first free of 2222,12222-12229)
+  --from LABEL     resume a snapshot instead of booting a clean COW (see
+                   'uml4termux snapshots'). The snapshot itself is never modified,
+                   so the same label can be resumed twice. Refused while the
+                   instance is live -- stop it with 'down' first
   --no-gvproxy     do not start gvproxy (no inbound networking)
   --timeout S      readiness timeout in seconds (default 90)
   --selftest       run the daemon in selftest mode (test hook: no guest boot)
