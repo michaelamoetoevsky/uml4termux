@@ -37,6 +37,8 @@ def load(out: pathlib.Path) -> list[dict]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--record", required=True)
+    ap.add_argument("--min-minutes", type=float, default=60.0,
+                    help="plan requirement for this run (B1: 120, B2: 60)")
     ap.add_argument("dirs", nargs="+")
     args = ap.parse_args()
 
@@ -138,13 +140,14 @@ def main() -> int:
                              f"storage driver each cycle."),
             },
             "duration": {
-                "ok": total_wall >= 120,
+                "ok": total_wall >= args.min_minutes,
                 "evidence": (f"Measured wall-clock: {total_wall:.1f} minutes across {per_dir}; "
                              f"{json.dumps(per_dir)}"),
             },
         },
         "verdict": "pass" if (not failures and not incomplete and leftovers == 0 and untouched
-                              and (trend_pct is None or abs(trend_pct) < 10)) else "partial",
+                              and (trend_pct is None or abs(trend_pct) < 10)
+                              and total_wall >= args.min_minutes) else "partial",
         "artifacts": [{"kind": "console-log" if p.suffix in (".log", ".txt", ".jsonl") else "other",
                        "path": f"logs/{p.name}", "sha256": sha(p)} for p in sorted(artifacts)],
         "notes": "Direction B (docs/NEXT-STEPS.md). B3 (restart + exposure re-apply) has its own "

@@ -174,6 +174,37 @@ container), daemon di-`SIGKILL`, forwarder ikut mati, instance dihidupkan ulang
 adapter plain (pid 7573 → 10336), lalu **curl yang sama mencapai container lagi**
 (exposure di-*re-apply*, bukan dibuat ulang manual), teardown 0 proses.
 
+**Hasil B1 dan B2 (2026-10-30/31).** Bukti: `evidence/20261030-soak-b1.json`
+dan `evidence/20261030-soak-b2.json`.
+
+| | B1 (soak 2 jam, 1 guest) | B2 (2 guest paralel) |
+|---|---|---|
+| siklus | **105** | **80** (40 + 40) |
+| durasi terukur | **167,4 menit** | **73,2 menit** |
+| siklus gagal | **4** (#74–77) | **0** |
+| container berjalan | 101/105 | 80/80 |
+| tren RSS daemon | **−0,6%** (4.786 → 4.758 KB) | +1,3% (maks 5.360 / 5.448 KB) |
+| proses tersisa per siklus | 0 | 0 |
+| proses tersisa se-device setelah run | **0** | **0** |
+| image dasar | sha **dan** mtime tak berubah di semua siklus | idem |
+| verdict | `partial` | `pass` |
+
+**Empat kegagalan B1 bukan cacat daemon, dan sebabnya dicatat.** Antara siklus
+73 dan 78, symlink `bench-assets/linux-bionic` menunjuk ke direktori kerja yang
+baru dihapus saat pembersihan, sehingga launcher benar-benar menolak start
+(`asset 'kernel' not present`). Bukti bahwa itu bukan bug intermiten: setelah
+kernel pin dipasang ulang sebagai **berkas nyata** (sha `6970ada5…` cocok dengan
+pin rilis), **19 siklus berikutnya bersih berturut-turut**, dan B2 (80 siklus,
+dua guest sekaligus) tidak gagal sekali pun. Angka 101/105 dan verdict `partial`
+tetap ditulis apa adanya — menyembunyikannya akan membuat laporan ini tak bisa
+dipakai.
+
+**Yang dibuktikan B2 secara khusus:** dua guest benar-benar hidup bersamaan
+(2 daemon + 2 guest teramati serentak), laju kedua instance identik (~113 s),
+port SSH berbeda (12501/12502) tanpa tabrakan, RSS daemon dua-guest hanya naik
+~0,2 MB dibanding satu-guest, dan **0 proses tersisa** setelah run selesai —
+yaitu klaim yang gagal diuji oleh penghitung device-wide lama.
+
 **Catatan pengukuran.** `/proc/net/tcp` **tidak terbaca** oleh app Termux, jadi
 "apakah port LISTEN?" harus dijawab dengan permintaan nyata — bukan parsing
 `/proc`. Guest yang mematikan diri setelah tugasnya membuat daemon keluar normal
