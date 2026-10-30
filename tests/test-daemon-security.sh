@@ -83,8 +83,17 @@ if [ ! -x "${DBIN}" ] || ! runnable "${DBIN}"; then
 fi
 echo "daemon under test: ${DBIN}"
 
+# Every daemon-driven test in this repo names the selftest child explicitly: the
+# built-in default is a Termux path, which does not exist on a CI runner (exec then
+# fails 127 and the daemon gives up).
+SELFTEST_SLEEP="${UML4TERMUXD_SELFTEST_CHILD:-$(command -v sleep || echo /bin/sleep)}"
+export UML4TERMUXD_SELFTEST_CHILD="${SELFTEST_SLEEP}"
+
 runtime="${work}/rt"
 mkdir -p "${runtime}"
+# Created 0700 so the assertion below tests the DAEMON (it must not loosen it,
+# umask 0077) instead of testing this script's own mkdir.
+chmod 700 "${runtime}"
 start_daemon() { # [env assignments...]
   UML4TERMUX_RUNTIME="${runtime}" UML4TERMUXD_SELFTEST_SECONDS="${SELFTEST_SECONDS:-120}" \
     env "$@" "${DBIN}" daemon --selftest >"${work}/daemon.log" 2>&1 &
