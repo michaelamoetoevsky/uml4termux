@@ -34,10 +34,49 @@ didaftarkan di bawah.
 |---|---|---|
 | `daemon.sock` | socket kontrol unix | **mode 0600**; umask 0077 saat dibuat |
 | `daemon.sock.state` | state JSON satu baris | ditulis atomik (`*.tmp` lalu `rename`) |
-| `uml-console.log` | konsol guest mentah (append) | sumber diagnostik utama |
+| `daemon.log` | stdout/stderr daemon (append) | ditulis oleh spawn launcher; **dirotasi** (lihat §1a) |
+| `uml-console.log` | konsol guest mentah (append) | sumber diagnostik utama; **dirotasi** |
+| `bess.sock.gv.log` | log gvproxy sendiri (append) | **dirotasi** |
 | `exposures.jsonl` | registry exposure, satu JSON per baris | dimiliki **hanya** oleh daemon |
 | `bess.sock` | transport BESS ke gvproxy | milik gvproxy |
 | `bess.sock.gv.sock` | API kontrol gvproxy | dipakai daemon saat `expose` |
+
+### 1a. Log dibatasi oleh CLI, bukan oleh daemon log
+
+Tiga log di atas adalah **permukaan yang dijanjikan ada**, dan ukurannya dijaga:
+
+- batas `UML4TERMUX_LOG_MAX_BYTES` (default 10 MiB) per berkas;
+- retensi `UML4TERMUX_LOG_KEEP` (default 3) generasi `<berkas>.1 .. .K`;
+- `uml4termux up` merotasi **sebelum** setiap start, dan
+  `uml4termux rotate [--name N | --all] [--max-bytes B] [--keep K]` adalah
+  perintah publik untuk tick supervisor atau cron;
+- rotasi memakai **copy+truncate**, sehingga inode berkas aktif tidak berubah
+  dan proses yang sudah memegangnya tetap menulis ke berkas yang sama. Rename
+  tidak dipakai justru karena itu.
+
+Konsekuensi yang boleh diandalkan: sebuah instance tidak pernah mewarisi log tak
+terbatas dari run sebelumnya, dan tidak ada daemon log eksternal yang perlu
+hidup. Yang **tidak** dijanjikan: rotasi berjalan sendiri saat instance hidup
+tanpa pemanggil (tak ada thread rotator di daemon).
+
+### 1b. Kail adapter launcher
+
+Setiap supervisor eksternal harus memakai **satu** kail ini dan tidak yang lain:
+
+```
+uml4termux up --foreground [--name NAME] [opsi up lain]
+```
+
+- proses tetap di depan sampai instance benar-benar berhenti;
+- **exit 0** = penghentian yang disengaja (`uml4termux down`) → supervisor tidak
+  boleh menyalakan ulang;
+- exit selain 0 = crash → supervisor boleh menyalakan ulang dengan backoff;
+- catatan registry ditulis **sebelum** `exec` (memakai `$$`, yang menjadi pid
+  daemon setelah exec), jadi instance yang dijalankan supervisor tetap terlihat
+  oleh `status`, `ls` dan `down`.
+
+Adapter rujukan ada di `packaging/adapters/{systemd,s6,plain,runit}`; hanya
+adapter runit yang boleh menyebut alat runit.
 | `bess.sock.gv.log` | log gvproxy | milik gvproxy |
 | `<label>.pid` | pid proses yang dilacak shell (`gvproxy`, `uml`) | jalur shell lama |
 

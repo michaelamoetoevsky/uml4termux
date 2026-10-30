@@ -38,9 +38,35 @@ syscall dibanding seccomp; beban syscall-heavy paling menderita.
   terhadap profil yang sama — hanya yang terbukti berpengaruh yang masuk
   dokumentasi.
 
+**Harness sudah siap dan terbukti jalan** (bukan rencana di atas kertas):
+
+```sh
+# sekali: bangun kernel HEAD dari sumber yang sama (input ksrc_ref/ksrc_repo)
+gh workflow run kernel-build.yml -f ksrc_ref=32e5e10b81d8 \
+   -f ksrc_repo=https://github.com/zalexdev/linux-um-arm64
+bash bench/fetch-head-kernel.sh <run_id> $TMPDIR/bench-assets   # -> linux-head
+
+# kampanye: 2 kernel x 3 run, ketiga profil, median + rentang
+UML4TERMUX_HOME=$TMPDIR/bench-assets UML4TERMUXD_BIN=$PWD/bin/uml4termuxd \
+UML4TERMUXD_MEM=2048M bash bench/bench.sh \
+  --kernels "pin=linux-bionic,head=linux-head" --runs 3 \
+  --image $TMPDIR/bench-assets/debian-docker.ext4 --out bench/out/campaign-1
+```
+
+`bench/bench.sh` menyalakan guest nyata lewat launcher (tanpa runit), menunggu
+`BENCH_DONE` dari guest sendiri, dan menulis `summary.json` + `summary.md`.
+Profil disk **read-only** (`dd if=/dev/ubda`) supaya benchmark tak pernah
+menyentuh image atau baseline digest. `BENCH_SCALE=0.1` untuk kalibrasi cepat
+(terbukti: satu run 0.1 selesai <1 menit), `=1` untuk angka kampanye.
+
 **Kriteria lulus.** Tabel sebelum/sesudah dengan ≥3 run per sel, median +
 rentang, dan pernyataan jelas: "HEAD lebih cepat X% / lebih lambat / setara"
 pada tiap profil. Keputusan pin rilis berikutnya mengikuti hasil ini.
+
+**Kalibrasi awal (pin, skala 0.1, 1 run) — bukan hasil kampanye.** forkexec
+1500/10 = 150 exec: 4900 ms; pagefault 51,2 MB bs=4k: 380 ms; diskread 102,4 MB
+dari ubda: 720 ms. Angka ini hanya untuk memastikan harness bekerja dan
+mengukur biaya per run (~80 s pada skala 1), bukan untuk memutuskan pin.
 
 **Biaya.** 1 sesi benchmark (perlu baterai cukup). **Risiko.** Nol (hanya baca
 dan ukur; tak mengubah jalur rilis).
@@ -283,13 +309,14 @@ multi-instance yang hari ini masih berupa peringatan di dokumen.
 
 | Urut | Item | Alasan | Risiko |
 |---|---|---|---|
-| 1 | A (benchmark pin vs HEAD) | Menentukan pin rilis berikutnya; data sudah setengah tersedia | Nol |
+| **berikutnya** | A (benchmark pin vs HEAD) | Menentukan pin rilis berikutnya; data sudah setengah tersedia | Nol |
 | 2 | B (soak v2) | Arsitektur berubah (daemon + COW) → butuh bukti baru | Nol |
 | 3 | C (snapshot/resume) | Fitur pembeda termurah yang memanfaatkan COW | Rendah |
 | 4 | E (keamanan) | Prasyarat sebelum orang lain menjalankan image | Rendah |
 | 5 | D (ekosistem) | Perluasan audiens setelah fondasi stabil | Rendah |
 | 6 | F (hulu) | Paralel, tanpa menahan apa pun | Sedang |
-| 7 | G (runtime mandiri) | Portabilitas ke host non-Termux + penegakan invarian multi-instance; butuh kontrak stabil dulu | Sedang |
+| ~~7~~ | ~~G (runtime mandiri)~~ **SELESAI G1–G5** | Portabilitas ke host non-Termux + penegakan invarian multi-instance | — |
+| 8 | G6 (facade D-Bus, opsional) | Hanya bila ada konsumen nyata; bukan jalur kritis | Rendah |
 
 ## Di luar lingkup (jangan dijanjikan)
 

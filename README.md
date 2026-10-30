@@ -173,6 +173,43 @@ UML4TERMUX_RUNTIME=~/.uml4termux/runtime ./bin/uml4termuxd daemon
 ./bin/uml4termuxd stop                   # clean poweroff via console channel
 ```
 
+## Launcher without runit (v0.5.0: `up` / `down` / `status` / `logs` / `ls` / `rotate`)
+
+`lib/launch.sh` + `lib/registry.sh` give the daemon a portable front end. Nothing
+in that path calls runit: readiness is *polled* (the socket answers `protocol`
+**and** reports `phase=running`), not assumed, and each instance gets a registry
+record under `$UML4TERMUX_STATE_DIR/instances/<name>.env`.
+
+```sh
+./bin/uml4termux up --name dev --image ~/uml/debian-docker.ext4
+./bin/uml4termux status --name dev      # phase, pid, ssh port, log size
+./bin/uml4termux logs --name dev --console -f
+./bin/uml4termux rotate --name dev      # or --all, from a supervisor tick/cron
+./bin/uml4termux ls                     # every registered instance + liveness
+./bin/uml4termux down --name dev
+```
+
+Three invariants are **refused**, not merely warned about, because each of them
+was a silent failure once already: one guest per backing image (UML holds an
+exclusive `F_SETLK`), one gvproxy per host ssh port (`2222` is taken once; the
+next instance needs `UML4TERMUXD_GVPROXY_SSH_PORT`), one runtime directory per
+instance.
+
+Any supervisor can drive it -- every adapter execs the same hook,
+`uml4termux up --foreground` (exit 0 = deliberate stop, non-zero = crash):
+
+| Supervisor | Adapter |
+|---|---|
+| systemd | `packaging/adapters/systemd/uml4termux@.service` |
+| s6 | `packaging/adapters/s6/{run,finish}` |
+| plain shell / CI | `packaging/adapters/plain/supervise.sh` |
+| runit | `packaging/adapters/runit/run` |
+
+The contract behind all of it -- exit codes, state file, log layout and rotation,
+phase vocabulary -- is `docs/RUNTIME-CONTRACT.md`, enforced by
+`tests/test-runtime-contract.sh`, `tests/test-launcher.sh`,
+`tests/test-log-rotation.sh` and `tests/test-adapters.sh`.
+
 Useful daemon knobs (env, all per-instance):
 
 | knob | effect |

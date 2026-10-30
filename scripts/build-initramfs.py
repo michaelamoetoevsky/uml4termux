@@ -117,7 +117,8 @@ def substitute_tokens(text: str, subs: Dict[str, str]) -> str:
 
 def build_initramfs(guest_dir: Path, base: Optional[Path], out: Path,
                     mode: str, entry: str, defines: Dict[str, str],
-                    force: bool, no_gzip: bool) -> None:
+                    force: bool, no_gzip: bool,
+                    extra_files: Optional[List[str]] = None) -> None:
     if out.exists() and not force:
         raise FileExistsError(f'output exists: {out} (use --force)')
 
@@ -129,7 +130,7 @@ def build_initramfs(guest_dir: Path, base: Optional[Path], out: Path,
     }
 
     # Guest scripts to inject (relative to guest_dir)
-    guest_files = ['init', 'docker-init.sh', 'forensic.sh']
+    guest_files = ['init', 'docker-init.sh', 'forensic.sh'] + list(extra_files or [])
     guest_data: Dict[str, bytes] = {}
     for fname in guest_files:
         p = guest_dir / fname
@@ -191,6 +192,8 @@ def main() -> int:
     p.add_argument('--base', type=Path, default=None, help='base initramfs .cpio or .cpio.gz (optional)')
     p.add_argument('--entry', default='/docker-init.sh', help='entry point after switch_root')
     p.add_argument('--define', action='append', default=[], help='KEY=VALUE substitutions')
+    p.add_argument('--extra-file', action='append', default=[],
+                   help='additional guest file (name relative to --guest-dir) embedded at /<name>')
     p.add_argument('--force', action='store_true', help='overwrite output')
     p.add_argument('--no-gzip', action='store_true', help='write raw .cpio instead of .cpio.gz')
     args = p.parse_args()
@@ -213,6 +216,7 @@ def main() -> int:
             defines=defines,
             force=args.force,
             no_gzip=args.no_gzip,
+            extra_files=args.extra_file,
         )
     except Exception as e:
         import traceback
