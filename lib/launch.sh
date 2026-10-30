@@ -83,6 +83,12 @@ cmd_up() {
   case "${cpus}" in *[!0-9]*) cpus="${cpus%[Mm]}" ;; esac
 
   [ -n "${rt}" ] || rt="${UML4TERMUX_RUNTIME}"
+
+  # G4: bound the logs BEFORE starting, so an instance never inherits an
+  # unbounded daemon.log / console log from a previous run. Copy+truncate keeps
+  # any writer on the same inode.
+  uml4termux_log_rotate_runtime "${rt}" >/dev/null 2>&1 || true
+
   local holder
   # --- invariant 3: one runtime directory per instance ---
   if holder="$(uml4termux_reg_live_runtime "${rt}")" && [ "${holder}" != "${name}" ]; then
@@ -137,6 +143,10 @@ cmd_up() {
   fi
 
   if [ "${fg}" = "1" ]; then
+    # Register BEFORE exec: under exec the shell IS the daemon afterwards (same
+    # pid), so $$ is the daemon's pid -- and without this record `status`, `ls`
+    # and `down` could not find an instance started by a supervisor adapter.
+    uml4termux_reg_write "${name}" "${rt}" "${image}" "${ssh_port:-}" "$$"
     info "instance '${name}': running the daemon in the foreground (adapter hook)"
     exec "${cmd[@]}"
   fi
@@ -243,6 +253,7 @@ cmd_status() {
   printf 'runtime   : %s\n' "${rt}"
   printf 'image     : %s\n' "${image:-none}"
   printf 'ssh port  : %s\n' "${ssh_port:-none}"
+  printf 'logs      : %s\n' "$(uml4termux_human_size "$(uml4termux_log_total "${rt}")")"
   [ "${live}" = "yes" ] || return 1
   return 0
 }
@@ -323,4 +334,66 @@ cmd_ls() {
   done
   [ "${any}" = "1" ] || info "no instances registered (start one with 'uml4termux up')"
   [ "${pruned}" = "0" ] || info "pruned ${pruned} stale record(s)"
+}
+
+# --- log rotation (arah G4) ------------------------------------------------
+usage_rotate() {
+  cat <<'EOF'
+uml4termux rotate — rotate an instance's logs without an external log daemon.
+
+usage: uml4termux rotate [--name NAME] [--runtime DIR] [--max-bytes B] [--keep K]
+                         [--all]
+
+  --max-bytes B   rotate a file once it exceeds B bytes (default 10 MiB, or
+                  $UML4TERMUX_LOG_MAX_BYTES)
+  --keep K        generations kept as <file>.1 .. <file>.K (default 3, or
+                  $UML4TERMUX_LOG_KEEP)
+  --all           rotate every registered instance
+
+Files: daemon.log, uml-console.log, bess.sock.gv.log. Rotation uses
+copy+truncate, so a process holding the log open keeps writing to the same
+inode -- a rename would silently divert it into the rotated generation.
+
+`up` already rotates before each start; call this from a supervisor tick (or a
+cron job) for continuous rotation -- that is the whole rotation role, done by
+this CLI instead of a log daemon.
+EOF
+}
+
+cmd_rotate() {
+  local name all=0 max="${UML4TERMUX_LOG_MAX_BYTES}" keep="${UML4TERMUX_LOG_KEEP}" rt=""
+  name="$(uml4termux_instance_name)"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --name)      name="${2:?--name needs a value}"; shift ;;
+      --runtime)   rt="${2:?--runtime needs a value}"; shift ;;
+      --max-bytes) max="${2:?--max-bytes needs a value}"; shift ;;
+      --keep)      keep="${2:?--keep needs a value}"; shift ;;
+      --all)       all=1 ;;
+      -h|--help)   usage_rotate; return 0 ;;
+      *) die "rotate: unknown option '$1' (try 'uml4termux help rotate')" ;;
+    esac
+    shift
+  done
+  uml4termux_require_instance_dirs
+
+  local rc=0 out
+  if [ "${all}" = "1" ]; then
+    local n
+    if [ -z "$(uml4termux_reg_names)" ]; then info "no instances registered"; return 0; fi
+    for n in $(uml4termux_reg_names); do
+      info "instance ${n}"
+      uml4termux_log_rotate_runtime "$(uml4termux_reg_get "${n}" RUNTIME)" "${max}" "${keep}" | sed 's/^/  /'
+    done
+    return 0
+  fi
+
+  [ -n "${rt}" ] || rt="$(uml4termux_reg_get "${name}" RUNTIME 2>/dev/null)" || rt="${UML4TERMUX_RUNTIME}"
+  if [ ! -d "${rt}" ]; then err "no runtime directory at ${rt}"; return 1; fi
+  out="$(uml4termux_log_rotate_runtime "${rt}" "${max}" "${keep}")"
+  if [ -z "${out}" ]; then info "no logs in ${rt}"; return 0; fi
+  printf '%s\n' "${out}" | while read -r file before action; do
+    printf '%-46s %10s byte  %s\n' "${file#"${rt}"/}" "${before}" "${action}"
+  done
+  return "${rc}"
 }

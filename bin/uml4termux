@@ -48,6 +48,8 @@ unset _uml4_self _uml4_link 2>/dev/null || true
 . "${UML4TERMUX_ROOT}/lib/registry.sh"
 # shellcheck source=../lib/launch.sh
 . "${UML4TERMUX_ROOT}/lib/launch.sh"
+# shellcheck source=../lib/logs.sh
+. "${UML4TERMUX_ROOT}/lib/logs.sh"
 
 UML4TERMUX_VERSION="${UML4TERMUX_VERSION:-0.1.0}"
 
@@ -173,7 +175,7 @@ cmd_help() {
   local topic="${1:-}"
   if [ -z "${topic}" ]; then usage; return 0; fi
   case "${topic}" in
-    doctor|fetch|init-image|boot|docker|expose|stop|service|up|down|status|logs|ls|version|dist-info|help)
+    doctor|fetch|init-image|boot|docker|expose|stop|service|up|down|status|logs|ls|rotate|version|dist-info|help)
       case "${topic}" in
         doctor)     doctor_usage ;;
         fetch)      cmd_fetch_usage ;;
@@ -188,6 +190,7 @@ cmd_help() {
         status)     usage_status ;;
         logs)       usage_logs ;;
         ls)         usage_ls ;;
+        rotate)     usage_rotate ;;
         version)    printf 'uml4termux version — print the version and where the tree lives.\n' ;;
         dist-info)  printf 'uml4termux dist-info — machine-readable paths, assets and configuration.\n' ;;
         help)       usage ;;
@@ -603,6 +606,7 @@ main() {
     down)           cmd_down "${argv[@]}" ;;
     status)         cmd_status "${argv[@]}" ;;
     logs)           cmd_logs "${argv[@]}" ;;
+    rotate)         cmd_rotate "${argv[@]}" ;;
     ls)             cmd_ls "${argv[@]}" ;;
     doctor)         cmd_doctor "${argv[@]}" ;;
     fetch)          cmd_fetch "${argv[@]}" ;;

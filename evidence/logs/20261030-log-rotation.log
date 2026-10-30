@@ -1,0 +1,30 @@
+# log rotation (G4)
+== berkas kecil tidak disentuh ==
+[ok] aksi berkas kecil
+[ok] isi berkas kecil utuh
+[ok] tidak ada generasi
+== berkas besar dirotasi ==
+[ok] aksi berkas besar
+[ok] berkas aktif dikosongkan di tempat
+[ok] generasi .1 berisi isi lama
+== rantai generasi bergeser, retensi dijaga ==
+[ok] generasi .1 ada
+[ok] generasi .2 ada
+[ok] generasi .3 ada
+[ok] generasi .4 TIDAK dibuat (keep=3)
+== inode tidak berubah (penulis tidak kehilangan berkasnya) ==
+[ok] inode sama setelah rotasi
+== rotate pada direktori runtime (tanpa daemon) ==
+[ok] rotate rc
+[ok] daemon.log dirotasi
+[ok] console log kecil dibiarkan
+[ok] rotate melaporkan berkas
+== total ukuran dilaporkan ==
+[ok] uml4termux_log_total mengembalikan angka (500)
+== dry-run tidak mengubah apa pun ==
+[ok] dry-run melaporkan rencana + aksi
+[ok] dry-run tidak mengubah isi
+
+log rotation: OK
+
+rc=0

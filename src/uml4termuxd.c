@@ -54,6 +54,8 @@ static int g_restarts = 0;
 static char g_sockpath[512];
 static char g_statepath[512];
 static char g_selftest_seconds[16] = SELFTEST_SECONDS_DEFAULT;
+/* Listening socket of the control channel; children must never inherit it. */
+static int g_lfd = -1;
 static char g_child_argv0[512];
 static char g_consolelog[512];
 
@@ -515,6 +517,7 @@ static int spawn_child(void)
 			return -1;
 		}
 		if (pid == 0) {
+			if (g_lfd >= 0) close(g_lfd);
 			execv(g_kernel, argv);
 			_exit(127);
 		}
@@ -528,6 +531,7 @@ static int spawn_child(void)
 			return -1;
 		}
 		if (pid == 0) {
+			if (g_lfd >= 0) close(g_lfd);
 			/* How long the fake child lives. The selftest exists to exercise
 			   supervision, so its lifetime must be settable: a child that
 			   exits with 0 means "session completed" and the daemon then
@@ -1003,7 +1007,11 @@ static int daemon_main(int selftest)
 	}
 
 	unlink(g_sockpath);
-	lfd = socket(AF_UNIX, SOCK_STREAM, 0);
+	/* CLOEXEC matters: the supervised child must NOT inherit the listening
+	   socket. If it does, killing the daemon leaves an orphan holding the
+	   socket open -- clients still connect, then block forever waiting for a
+	   reply nobody will ever write (found via the plain supervisor adapter). */
+	lfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if (lfd < 0) {
 		logf_("socket: %s", strerror(errno));
 		return 1;
@@ -1021,6 +1029,7 @@ static int daemon_main(int selftest)
 		close(lfd);
 		return 1;
 	}
+	g_lfd = lfd;
 	chmod(g_sockpath, 0600);
 	logf_("control socket: %s", g_sockpath);
 

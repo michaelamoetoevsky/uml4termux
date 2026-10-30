@@ -1,0 +1,11 @@
+#!/bin/sh
+# uml4termux, s6 finish script (direction G5).
+#
+# s6 calls this after `run` exits, with $1 = exit code and $2 = signal. A clean
+# exit (0, no signal) means someone ran `uml4termux down`, so tell s6 not to
+# restart by exiting 125; anything else is a crash and should be retried.
+# SPDX-License-Identifier: GPL-2.0-only
+if [ "$1" -eq 0 ] && [ "$2" -eq 0 ]; then
+  exit 125
+fi
+exit 0

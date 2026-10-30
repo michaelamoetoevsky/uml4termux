@@ -225,10 +225,20 @@ manager** (yang memiliki siklus hidup daemon), **registry multi-instance**,
   ketiganya dulu hanya peringatan dokumen. Port ssh dipilih otomatis dari
   daftar bebas (2222, 12222–12229). Catatan basi dibersihkan `ls`
   (liveness = pid hidup **dan** socket menjawab handshake).
-- **G4. Layout log & state sendiri.** Rotasi tanpa svlogd, retensi, `logs -f`.
-  Gate: tes rotasi dengan batas byte.
-- **G5. Adapter launcher.** runit (ada), systemd unit, s6, dan "plain/CI".
-  Gate: minimal satu adapter non-runit dijalankan di CI + didokumentasikan.
+- **G4. Layout log & state sendiri — SELESAI.** `lib/logs.sh` merotasi
+  `daemon.log` / `uml-console.log` / `bess.sock.gv.log` dengan **copy+truncate**
+  (inode dipertahankan, jadi penulis yang memegang berkas tidak "pindah" ke
+  generasi lama seperti pada rename), retensi `UML4TERMUX_LOG_KEEP` (default 3),
+  batas `UML4TERMUX_LOG_MAX_BYTES` (default 10 MiB). Dipanggil `up` sebelum
+  setiap start dan `uml4termux rotate [--all]` untuk tick supervisor/cron.
+  Gate: `tests/test-log-rotation.sh` (14 asersi, tanpa daemon).
+- **G5. Adapter launcher — SELESAI.** `packaging/adapters/{systemd,s6,plain,runit}`
+  semuanya mengeksekusi kail yang sama (`up --foreground`); hanya adapter runit
+  yang menyebut runit. `plain/supervise.sh` dibuktikan **fungsional**: setelah
+  daemon di-SIGKILL ia menyalakan ulang dengan pid baru (15466 → 15544), dan
+  setelah `down` bersih (exit 0) ia berhenti, bukan berputar.
+  Gate: `tests/test-adapters.sh` (statis + fungsional; `systemd-analyze verify`
+  dijalankan di CI).
 - **G6. (Opsional) facade D-Bus** — feature-gated, mati secara default,
   memetakan `status/up/down` ke session bus untuk integrasi desktop.
 
@@ -243,6 +253,13 @@ manager** (yang memiliki siklus hidup daemon), **registry multi-instance**,
   service) dari nol — daemon sudah menangani yang kita butuhkan.
 - **Menghapus jalur runit.** Ia tetap adapter pertama dan tetap yang
   terverifikasi di device ini; menghapusnya akan merusak pengguna yang ada.
+
+**Bukti device (G4–G5).** `evidence/20261030-log-rotation-adapters.json` — dua
+capability `ok=false` di sana adalah **cacat produk yang ditemukan lewat
+pekerjaan ini**: daemon C mewariskan socket listener ke anaknya (anak yatim
+memegang socket → klien menggantung setelah daemon dibunuh) dan
+`up --foreground` tidak menulis catatan registry (instance milik supervisor tak
+terlihat oleh `status`/`down`). Keduanya sudah diperbaiki.
 
 **Bukti device (G1–G3).** `evidence/20261030-launcher-instances.json` — boot
 guest nyata lewat `up` (kernel ter-pin, image privat, ssh port 12224), marker

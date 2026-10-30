@@ -1,0 +1,12 @@
+#!/bin/sh
+# uml4termux instance, runit adapter (direction G5).
+#
+# Drop this at $PREFIX/var/service/<name>/run and `sv up <name>`. It replaces
+# the historical shell-flow run script: the daemon now owns the guest lifecycle,
+# so the supervisor only has to exec the documented hook.
+#
+# A clean exit (0) means `uml4termux down` was requested; runit would restart it
+# anyway, so the file `down` (or `sv down`) is the way to stop it deliberately.
+# SPDX-License-Identifier: GPL-2.0-only
+set -u
+exec uml4termux up --foreground --name "${UML4TERMUX_INSTANCE_NAME:-default}"

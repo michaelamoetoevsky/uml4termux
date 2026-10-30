@@ -1,0 +1,14 @@
+#!/bin/sh
+# uml4termux instance, s6 adapter (direction G5).
+#
+# Layout:
+#   /etc/s6/uml4termux/run        this file
+#   /etc/s6/uml4termux/finish     optional
+#   s6-svscan /etc/s6
+#
+# The service only execs the documented launcher hook in the foreground; the
+# daemon supervises the guest itself and `up --foreground` only returns when the
+# instance has really stopped, which is exactly what s6 expects from run.
+# SPDX-License-Identifier: GPL-2.0-only
+set -u
+exec uml4termux up --foreground --name "${UML4TERMUX_INSTANCE_NAME:-default}"

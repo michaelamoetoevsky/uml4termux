@@ -1,0 +1,30 @@
+# adapters (G5)
+== adapter ada ==
+  PASS: ada: systemd/uml4termux@.service
+  PASS: ada: s6/run
+  PASS: ada: s6/finish
+  PASS: ada: plain/supervise.sh
+  PASS: ada: runit/run
+== setiap adapter memakai kail resmi up --foreground ==
+  PASS: systemd/uml4termux@.service memakai kail
+  PASS: s6/run memakai kail
+  PASS: plain/supervise.sh memakai kail
+  PASS: runit/run memakai kail
+== hanya adapter runit yang menyebut runit ==
+  PASS: systemd/uml4termux@.service bersih dari runit
+  PASS: s6/run bersih dari runit
+  PASS: s6/finish bersih dari runit
+  PASS: plain/supervise.sh bersih dari runit
+== unit systemd valid (bila systemd-analyze ada) ==
+  SKIP: systemd-analyze tidak tersedia
+== s6 finish: eksit bersih harus menahan restart ==
+  PASS: finish(0,0) -> 125 (jangan restart)
+  PASS: finish(1,0) -> 0 (restart)
+== plain supervisor menghidupkan ulang setelah daemon dibunuh ==
+  PASS: supervisor menyalakan instance
+  PASS: supervisor menghidupkan ulang (pid 15973 -> 16031)
+  PASS: supervisor berhenti setelah stop bersih
+
+adapters: OK
+
+rc=0

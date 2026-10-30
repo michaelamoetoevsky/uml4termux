@@ -266,6 +266,12 @@ jobs:
       - name: Launcher + instance registry (no runit)
         run: bash tests/test-launcher.sh /tmp/uml4termuxd
 
+      - name: Log rotation (no svlogd)
+        run: bash tests/test-log-rotation.sh
+
+      - name: Launcher adapters (systemd/s6/plain)
+        run: bash tests/test-adapters.sh /tmp/uml4termuxd
+
   # ---------------------------------------------------------------------------
   rust:
     name: rust (fmt + clippy + tests + daemon parity)

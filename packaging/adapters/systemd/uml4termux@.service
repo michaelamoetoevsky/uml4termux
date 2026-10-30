@@ -1,0 +1,30 @@
+# uml4termux instance, systemd adapter (direction G5).
+#
+# Install:
+#   sudo install -m 0644 uml4termux@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now uml4termux@default
+#
+# The unit only knows the documented launcher hook: `up --foreground` runs the
+# daemon in the foreground and the daemon already supervises the guest, so
+# systemd's job is to keep THAT process alive -- one supervisor per layer.
+[Unit]
+Description=uml4termux instance %i (rootless Docker via User-Mode Linux)
+Documentation=https://github.com/michaelamoetoevsky/uml4termux
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=UML4TERMUX_INSTANCE_NAME=%i
+ExecStart=/usr/local/bin/uml4termux up --foreground --name %i
+ExecStop=/usr/local/bin/uml4termux down --name %i
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=60
+KillMode=mixed
+# The guest is unprivileged userspace; never grant capabilities here.
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

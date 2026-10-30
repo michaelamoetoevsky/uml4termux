@@ -291,6 +291,17 @@ run_meta "shell: launcher + registry (no runit)" '
   bash '"$ROOT"'/tests/test-launcher.sh >/dev/null
 '
 
+run_meta "shell: log rotation (no svlogd)" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-log-rotation.sh >/dev/null
+'
+
+run_meta "shell: launcher adapters (systemd/s6/plain)" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-adapters.sh >/dev/null
+'
+
+
 # ---------------------------------------------------------------------------
 # 8. Print summary table and exit
 # ---------------------------------------------------------------------------

@@ -1,0 +1,71 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261030-log-rotation-adapters",
+ "project_version": "0.5.0",
+ "generated_at": "2026-10-30T19:15:05+0700",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "7.2.0-rc4-g169b17ff3f66-dirty",
+  "mode": "seccomp",
+  "ncpus": 4
+ },
+ "capabilities": {
+  "boot": {
+   "ok": true,
+   "evidence": "Guest boots are unchanged by this increment (no daemon boot path was touched beyond closing the inherited listener fd); the selftest daemons used by both suites supervise a bounded child and report phase=running, and the parity gate between the C and Rust daemons still passes with 7 identical lines."
+  },
+  "own_log_rotation": {
+   "ok": true,
+   "evidence": "lib/logs.sh rotates daemon.log / uml-console.log / bess.sock.gv.log by copy+truncate: the inode is preserved (verified: stat -c %i identical before/after) so a writer holding the file open keeps writing to the same inode instead of into a rotated generation. `up` rotates before every start, `uml4termux rotate` rotates on demand (per instance or --all), and retention keeps UML4TERMUX_LOG_KEEP generations (default 3) with the oldest dropped -- all asserted by tests/test-log-rotation.sh (14 checks, no daemon needed)."
+  },
+  "launcher_adapters": {
+   "ok": true,
+   "evidence": "packaging/adapters/ ships systemd (uml4termux@.service), s6 (run + finish), plain (supervise.sh) and runit (run) adapters that all exec the SAME documented hook `uml4termux up --foreground`. Only the runit adapter mentions runit (static check over non-comment lines). The plain adapter is proven functionally, not just statically: it started the instance, then after a SIGKILL of the daemon it restarted with a NEW pid (15466 -> 15544) and readiness came back, and after a deliberate `down` (exit 0) it exited instead of looping."
+  },
+  "orphan_child_kept_the_control_socket": {
+   "ok": false,
+   "evidence": "Found THROUGH the adapter work: the C daemon created its listening socket without SOCK_CLOEXEC, so the supervised child inherited it. After a SIGKILL of the daemon an orphaned child kept the socket open -- clients still connected and then blocked forever, so a supervisor restart looked like a hang and `down` reported 'not running'. Fixed in src/uml4termuxd.c: socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC) plus an explicit close in both child branches (guest PTY and selftest); recorded as ok=false because it was a real product defect found and fixed in this increment, not a capability that was designed in."
+  },
+  "foreground_up_did_not_register": {
+   "ok": false,
+   "evidence": "Also found by the adapters: `up --foreground` exec'd the daemon without writing a registry record, so an instance started by any supervisor was invisible to `status`, `ls` and `down` (down fell back to the default runtime dir and reported 'not running'). Fixed: the record is written immediately before exec using $$, which IS the daemon pid after exec; the suite now asserts a supervisor-started instance can be found and stopped by name."
+  }
+ },
+ "verdict": "partial",
+ "artifacts": [
+  {
+   "kind": "other",
+   "path": "logs/20261030-log-rotation.log",
+   "sha256": "ca5fb293e72a96c24fe85fe694e1f120dd203410324e8edbaa911bf33e046b06"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-log-rotation.sh",
+   "sha256": "b1158cfaa62e92d299c0c1e39fac03599436449b9c777c31abdb36b83e49016e"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-launcher-adapters.log",
+   "sha256": "10413abd3447cbb4f94da18b5039a73a79756c7b053e91ee7d31b2013e9cb94c"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-launcher-adapters.sh",
+   "sha256": "a1509cf57c8c13a196daefaba67adc50e2b3ac283827069c15fdb6ed0c7cc9c7"
+  }
+ ],
+ "notes": "Direction G4/G5 (docs/NEXT-STEPS.md). Rotation is pull-based: `up` rotates before each start and `uml4termux rotate` is the hook a supervisor tick or cron calls -- there is no in-daemon log rotator, which is deliberate (no C/Rust parity surface, no hidden threads).",
+ "known_limits_observed": [
+  "continuous rotation needs a caller: `up` covers start-up, `uml4termux rotate --all` covers a supervisor tick or cron job",
+  "the s6 adapter's finish script relies on s6 passing (exit code, signal) as $1/$2; verified textually here, not against a live s6 supervisor",
+  "systemd-analyze verify runs in CI only (not available on the device)"
+ ]
+}
