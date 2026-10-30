@@ -1,0 +1,144 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261030-bench-pin-vs-head-clean",
+ "project_version": "0.5.0",
+ "generated_at": "2026-10-30T21:12:35+0700",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "both: 7.2.0-rc4-g169b17ff3f66-dirty (pin) and 7.2.0-rc4-g32e5e10b81d8-dirty (HEAD)",
+  "mode": "seccomp",
+  "ncpus": 4
+ },
+ "capabilities": {
+  "boot": {
+   "ok": true,
+   "evidence": "Twelve guest boots on a QUIET device (the legacy runit service was stopped for the run, with the operator's approval, and no other uml4termux process was alive: verified by resolving /proc/<pid>/exe, not by pattern-matching cmdlines). Every run reached its three RESULT lines and BENCH_DONE, and every kernel release in the table is read from the GUEST's own uname: g169b17ff3f66 (pin) and g32e5e10b81d8 (HEAD)."
+  },
+  "campaign_meets_its_own_bar": {
+   "ok": true,
+   "evidence": "10 measured runs (5 per kernel) plus one discarded warm-up run per kernel, BENCH_WAIT=900, on a quiet device -- this is the repetition the previous campaign was missing. The driver emitted a verdict for all three profiles instead of INCOMPLETE."
+  },
+  "pagefault_direction_repeats": {
+   "ok": true,
+   "evidence": "Fault-heavy reads favour HEAD in BOTH campaigns: noisy campaign median 1180 ms vs 1545 ms (HEAD faster 31%), clean campaign median 1700 ms vs 3530 ms (HEAD faster 107.6%). The direction is repeatable; the magnitude is not. This is the behaviour predicted if upstream 257d23ee ('give libc back what it allocated inside physical memory') lowers the fault path cost, which is what the A1 hypothesis named."
+  },
+  "forkexec_equivalent": {
+   "ok": true,
+   "evidence": "fork-exec: clean campaign medians 30930 ms (pin) vs 34320 ms (HEAD), a 9.9% difference against per-cell spread of 40.5% (pin) and 51.6% (HEAD) -- inside the noise. The noisy campaign called the same cell 'equivalent'. Conclusion unchanged: no usable difference."
+  },
+  "diskread_inconclusive": {
+   "ok": false,
+   "evidence": "Sequential disk read flips direction between campaigns: noisy campaign favours HEAD by median (5580 vs 6169 ms), clean campaign favours the pin by 20.4% (5410 vs 6800 ms), and both have spread above 200% (clean: pin 551.9%, HEAD 226.0%). With direction unstable across repetitions, no verdict is justified."
+  },
+  "pin_decision": {
+   "ok": false,
+   "evidence": "The release pin stays 169b17ff. A decision-grade comparison now exists for the fault path (HEAD better, repeatable direction) but two of three profiles remain noise-bound, spread is 40-620% per cell even on a quiet device, and no upstream HEAD release has been cut -- moving the pin would trade a device-validated kernel for an unreleased one on the strength of one repeatable profile."
+  },
+  "residual_noise_source": {
+   "ok": false,
+   "evidence": "Recorded honestly: even with the device quiet the cells are not tight (HEAD pagefault min 1440 ms vs max 12020 ms, an 8x in-cell spread). Host-side scheduling/thermal state is uncontrolled by the harness, so a future campaign needs more runs and a per-run stability guard, not just a quiet device."
+  }
+ },
+ "verdict": "partial",
+ "artifacts": [
+  {
+   "kind": "other",
+   "path": "logs/20261030-bench2-bench-guest.sh",
+   "sha256": "03f939fda5794d6d0125446e1fb99728e379df2473a9108159b64bca7db53b43"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-bench2-bench.sh",
+   "sha256": "d1f456ed7b95c0e23c85dc1e53bf5792a81fa4b689b96708ee18bcaeb564d672"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-head-1.log",
+   "sha256": "08111bd03ed3a65d2f747a3526fe7a88edf6330b2793ca264fe76cf19df77a3b"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-head-2.log",
+   "sha256": "0ee6813234cde29ec6e0aa7b92581c43ce46b3317bd3296338d678815601b0ae"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-head-3.log",
+   "sha256": "1f1fc02310fb89d0c52222a131c8e5bd2204084cadaa389df2eba447830fe13a"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-head-4.log",
+   "sha256": "e9756fcf642c4424574524ecc25844b832361c4a21eda6ee7b1be3568fb366c2"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-head-5.log",
+   "sha256": "367ec50dd470fcd6039c69b42789fa1214379477ab275bfd8651ebb7f1d2ac9d"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-head-warmup1.log",
+   "sha256": "6692199691b51bb32ef0e27dda595f4e4a59e42c7482576d24db70e2585cc84e"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-pin-1.log",
+   "sha256": "bb112b7cd76cb58c274a17b41519df0ee9eef3b4effe01d39353a5365d4b8087"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-pin-2.log",
+   "sha256": "eb2a1316ea55f354d62a4c82da2a433ba2f25a6d2efdef72828f4878ab4ecae7"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-pin-3.log",
+   "sha256": "0cd7e12d91087bb50d78051f5da8733b7b9a5359c678e5ed20d2e8678c461089"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-pin-4.log",
+   "sha256": "1e65c525bf17cf50c384b26101c32dbf38d22daeed1163531a75510e6b4d2b00"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-pin-5.log",
+   "sha256": "fd404a71d3421c943f30f3d369ed63e048a13d3c149cf4df7e4f340221432073"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261030-bench2-pin-warmup1.log",
+   "sha256": "b189f9c02d9bf3e28cbdc349fa7ff86dd5966535cdaa2efe0f1a999845510d97"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-bench2-summarise.py",
+   "sha256": "5c4a41e034848862673e7d27f2a72cedd4af90d1caa678ce7af715ea6512a178"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-bench2-summary.json",
+   "sha256": "4167da2b5af2623dc78fa0867d4a180d72d6754381e64466921dfc9241ad4723"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261030-bench2-summary.md",
+   "sha256": "d80e659369525ed52afb7ffd9a468972b72a120db10cd8ce9555dc08fcf1ab5c"
+  }
+ ],
+ "notes": "Second A1 campaign (direction A, docs/NEXT-STEPS.md). The first, noisy campaign is evidence/20261030-bench-pin-vs-head.json and remains valid as-is; this record does not overwrite it. bench/bench.sh gained --warmup for exactly this run.",
+ "known_limits_observed": [
+  "the legacy runit service was stopped for the duration and restarted afterwards; that state change is part of the measurement conditions",
+  "warm-up runs are kept in the artifacts (warmup/*.log) but excluded from the cells",
+  "the pagefault profile reads a tmpfs file sequentially at bs=4k; it is not a random-access pattern"
+ ]
+}

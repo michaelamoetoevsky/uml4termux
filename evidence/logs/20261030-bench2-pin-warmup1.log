@@ -1,0 +1,130 @@
+[info] instance 'bench-pin-warmup1' is up (pid 28285, runtime /data/data/com.termux/files/usr/tmp/bench-campaign-2/work/rt-pin-warmup1)
+instance  : bench-pin-warmup1
+state     : yes (phase running)
+pid       : 28285 (alive)
+runtime   : /data/data/com.termux/files/usr/tmp/bench-campaign-2/work/rt-pin-warmup1
+image     : /data/data/com.termux/files/usr/tmp/bench-campaign-2/work/img.ext4
+ssh port  : 12401
+logs      : 1.3 KiB
+Address space: host top 0x8000000000, stub at 0x7fffff4000, guest TASK_SIZE 0x7fc0000000
+Core dump limits :
+	soft - 0
+	hard - NONE
+Stub signal stack: 16384 bytes, host AT_MINSIGSTKSZ 4720
+Checking environment variables for a tempdir.../data/data/com.termux/files/usr/tmp
+Checking if /data/data/com.termux/files/usr/tmp is on tmpfs...no
+Warning: tempdir /data/data/com.termux/files/usr/tmp is not on tmpfs
+Checking PROT_EXEC mmap in /data/data/com.termux/files/usr/tmp...OK
+Checking the stub's cycle counter...OK
+Checking that seccomp filters can be installed...OK
+Userspace mode: SECCOMP
+Linux version 7.2.0-rc4-g169b17ff3f66-dirty (uml4termux@pinned-source) (Android (13989888, +pgo, +bolt, +lto, +mlgo, based on r563880c) clang version 21.0.0 (https://android.googlesource.com/toolchain/llvm-project 5e96669f06077099aa41290cdb4c5e6fa0f59349), LLD 21.0.0 (/mnt/disks/build-disk/src/googleplex-android/llvm-r563880-release/out/llvm-project/llvm 5e96669f06077099aa41290cdb4c5e6fa0f59349)) #1 SMP Thu Oct 23 23:21:58 UTC 2026
+random: crng init done
+Zone ranges:
+  Normal   [mem 0x0000000000000000-0x000000009fffffff]
+Movable zone start for each node
+Early memory node ranges
+  node   0: [mem 0x0000000000000000-0x000000003fffffff]
+Initmem setup node 0 [mem 0x0000000000000000-0x000000003fffffff]
+percpu: Embedded 5 pages/cpu s37208 r8192 d36520 u81920
+Kernel command line: ubd0=/data/data/com.termux/files/usr/tmp/bench-campaign-2/work/rt-pin-warmup1/bench-pin-warmup1.cow,/data/data/com.termux/files/usr/tmp/bench-campaign-2/work/img.ext4 root=/dev/ubda rw panic=-1 con=null con0=fd:0,fd:1 console=tty0
+printk: log_buf_len individual max cpu contribution: 4096 bytes
+printk: log_buf_len total cpu_extra contributions: 12288 bytes
+printk: log_buf_len min size: 16384 bytes
+printk: log buffer data + meta data: 32768 + 114688 = 147456 bytes
+printk: early log buf free: 14968(91%)
+Dentry cache hash table entries: 131072 (order: 6, 1048576 bytes, linear)
+Inode-cache hash table entries: 65536 (order: 5, 524288 bytes, linear)
+Built 1 zonelists, mobility grouping on.  Total pages: 65536
+mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+SLUB: HWalign=32, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+rcu: Hierarchical RCU implementation.
+rcu: 	RCU restricting CPUs from NR_CPUS=16 to nr_cpu_ids=4.
+rcu: RCU calculated value of scheduler-enlistment delay is 10 jiffies.
+rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 64
+rcu: srcu_init: Setting srcu_struct sizes based on contention.
+clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+clocksource: timer: mask: 0xffffffffffffffff max_cycles: 0x1cd42e205, max_idle_ns: 881590404426 ns
+Calibrating delay loop... 3861.70 BogoMIPS (lpj=19308544)
+Checking that host ptys support output SIGIO...Yes
+pid_max: default: 32768 minimum: 301
+Mount-cache hash table entries: 2048 (order: 0, 16384 bytes, linear)
+Mountpoint-cache hash table entries: 2048 (order: 0, 16384 bytes, linear)
+VFS: Finished mounting rootfs on nullfs
+arm64: hwcap host 0xefffffff/0x273ff -> guest 0x2fbff7ff/0x0 (masked out 0xc0400800/0x273ff)
+arm64: host has SVE; not advertised, UML saves only FPSIMD state
+rcu: Hierarchical SRCU implementation.
+rcu: 	Max phase no-delay instances is 1000.
+Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+smp: Bringing up secondary CPUs ...
+smp: Brought up 1 node, 4 CPUs
+Memory: 1020976K/1048576K available (6339K kernel code, 1674K rwdata, 1600K rodata, 210K init, 1401K bss, 21376K reserved, 0K cma-reserved)
+devtmpfs: initialized
+posixtimers hash table entries: 2048 (order: 1, 32768 bytes, linear)
+futex hash table entries: 1024 (32768 bytes on 1 NUMA nodes, total 32 KiB, linear).
+NET: Registered PF_NETLINK/PF_ROUTE protocol family
+pps_core: LinuxPPS API ver. 1 registered
+pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+PTP clock support registered
+clocksource: Switched to clocksource timer
+VFS: Disk quotas dquot_6.6.0
+VFS: Dquot-cache hash table entries: 2048 (16384 bytes)
+NET: Registered PF_INET protocol family
+IP idents hash table entries: 16384 (order: 3, 131072 bytes, linear)
+tcp_listen_portaddr_hash hash table entries: 1024 (order: 0, 16384 bytes, linear)
+Table-perturb hash table entries: 65536 (order: 4, 262144 bytes, linear)
+TCP established hash table entries: 8192 (order: 2, 65536 bytes, linear)
+TCP bind hash table entries: 8192 (order: 4, 262144 bytes, linear)
+TCP: Hash tables configured (established 8192 bind 8192)
+UDP hash table entries: 512 (order: 1, 32768 bytes, linear)
+NET: Registered PF_UNIX/PF_LOCAL protocol family
+printk: legacy console [stderr0] disabled
+Checking host MADV_REMOVE support...OK
+mconsole (version 2) initialized on /data/data/com.termux/files/home/.uml/oDBl0W/mconsole
+Unpacking initramfs...
+workingset: timestamp_bits=46 (anon: 41) max_order=16 bucket_order=0 (anon: 0)
+9p: Installing v9fs 9p2000 file system support
+io scheduler mq-deadline registered
+io scheduler kyber registered
+io scheduler bfq registered
+loop: module loaded
+Freeing initrd memory: 3728K
+tun: Universal TUN/TAP device driver, 1.6
+PPP generic driver version 2.4.2
+SLIP: version 0.8.4-NET3.019-NEWTTY (dynamic channels, max=256).
+NET: Registered PF_INET6 protocol family
+Segment Routing with IPv6
+In-situ OAM (IOAM) with IPv6
+NET: Registered PF_PACKET protocol family
+Bridge firewalling registered
+9pnet: Installing 9P2000 support
+Initialized stdio console driver
+Console initialized on /dev/tty0
+printk: legacy console [tty0] enabled
+Initializing software serial port version 1
+printk: legacy console [mc-1] enabled
+Run /init as init process
+UML4TERMUX_INIT version=0.1.0 mode=docker entry=/bench.sh
+UML4TERMUX_INIT mounts_ok
+EXT4-fs (ubda): recovery complete
+EXT4-fs (ubda): mounted filesystem 96d67fdf-bdaa-4ff5-b170-32392456bb25 r/w with ordered data mode. Quota mode: none.
+UML4TERMUX_INIT root_mounted /dev/ubda -> /newroot
+UML4TERMUX_INIT copied /bench.sh -> /newroot/bench.sh
+UML4TERMUX_INIT SWITCH_ROOT_NOW /bench.sh
+BENCH_START kernel=7.2.0-rc4-g169b17ff3f66-dirty ncpu=4 page=16384 scale=1
+BENCH_PLAN forkexec_n=1500 pagefault_mb=512 diskread_mb=1024
+PHASE forkexec START
+RESULT profile=forkexec n=1500 ms=37900
+PHASE forkexec END
+PHASE pagefault FILL 512MiB
+PHASE pagefault START
+RESULT profile=pagefault bytes=536870912 bs=4096 ms=2690
+PHASE pagefault END
+PHASE diskread START
+RESULT profile=diskread bytes=1073741824 ms=7630
+PHASE diskread END
+BENCH_DONE
+reboot: Power down
+
+[info] instance 'bench-pin-warmup1' is down

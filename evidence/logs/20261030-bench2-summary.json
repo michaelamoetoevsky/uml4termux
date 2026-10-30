@@ -1,0 +1,111 @@
+{
+ "kernels": [
+  "head",
+  "pin"
+ ],
+ "profiles": [
+  "diskread",
+  "forkexec",
+  "pagefault"
+ ],
+ "kernel_releases": {
+  "head": [
+   "7.2.0-rc4-g32e5e10b81d8-dirty"
+  ],
+  "pin": [
+   "7.2.0-rc4-g169b17ff3f66-dirty"
+  ]
+ },
+ "cells": {
+  "head/diskread": {
+   "runs": 5,
+   "median_ms": 6800,
+   "min_ms": 4720,
+   "max_ms": 20090,
+   "spread_pct": 226.0,
+   "values": [
+    20090,
+    4720,
+    6800,
+    9490,
+    5070
+   ]
+  },
+  "head/forkexec": {
+   "runs": 5,
+   "median_ms": 34320,
+   "min_ms": 25070,
+   "max_ms": 42790,
+   "spread_pct": 51.6,
+   "values": [
+    42790,
+    36100,
+    34320,
+    25070,
+    28860
+   ]
+  },
+  "head/pagefault": {
+   "runs": 5,
+   "median_ms": 1700,
+   "min_ms": 1440,
+   "max_ms": 12020,
+   "spread_pct": 622.4,
+   "values": [
+    1440,
+    3020,
+    1700,
+    12020,
+    1581
+   ]
+  },
+  "pin/diskread": {
+   "runs": 5,
+   "median_ms": 5410,
+   "min_ms": 3970,
+   "max_ms": 33830,
+   "spread_pct": 551.9,
+   "values": [
+    5410,
+    33830,
+    27770,
+    5170,
+    3970
+   ]
+  },
+  "pin/forkexec": {
+   "runs": 5,
+   "median_ms": 30930,
+   "min_ms": 27420,
+   "max_ms": 39940,
+   "spread_pct": 40.5,
+   "values": [
+    39940,
+    27420,
+    30930,
+    33030,
+    30570
+   ]
+  },
+  "pin/pagefault": {
+   "runs": 5,
+   "median_ms": 3530,
+   "min_ms": 2010,
+   "max_ms": 9310,
+   "spread_pct": 206.8,
+   "values": [
+    3530,
+    9310,
+    2010,
+    2120,
+    5330
+   ]
+  }
+ },
+ "verdicts": [
+  "VERDICT diskread: head 6800 ms vs pin 5410 ms -> pin lebih cepat 20.4%",
+  "VERDICT forkexec: head 34320 ms vs pin 30930 ms -> pin lebih cepat 9.9%",
+  "VERDICT pagefault: head 1700 ms vs pin 3530 ms -> pin lebih lambat 107.6%"
+ ],
+ "min_runs": 5
+}

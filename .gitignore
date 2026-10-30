@@ -47,3 +47,4 @@ ci-kernel-artifact*/
 # Rust build outputs
 rust/target/
 bench/out/
+soak/out/

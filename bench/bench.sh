@@ -12,7 +12,11 @@
 #   --kernels  comma-separated label=filename pairs; the file is resolved in
 #              $UML4TERMUX_HOME (so put the second kernel there under its own
 #              name and let UML4TERMUX_KERNEL_FILE pick it per run)
-#   --runs     repetitions per kernel (default 3; the plan asks for >=3)
+#        MEASURED repetitions per kernel (default 3; the plan asks for >=3)
+#   --warmup   extra runs per kernel whose results are DISCARDED (default 0).
+#              A cold first run reads a cold image and can be 30x slower; that
+#              number is a property of the page cache, not of the kernel, so it
+#              must not sit inside a cell.
 #   --image    backing image (default: $UML4TERMUX_HOME/<disk file>)
 #   --out      output directory for raw logs + summary (default ./bench/out/<ts>)
 #
@@ -22,6 +26,7 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 KERNELS=""
 RUNS=3
+WARMUP=0
 IMAGE=""
 OUT=""
 KEEP=0
@@ -31,6 +36,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --kernels) KERNELS="${2:?}"; shift ;;
     --runs)    RUNS="${2:?}"; shift ;;
+    --warmup)  WARMUP="${2:?}"; shift ;;
     --image)   IMAGE="${2:?}"; shift ;;
     --out)     OUT="${2:?}"; shift ;;
     --keep)    KEEP=1 ;;
@@ -90,12 +96,19 @@ for pair in "${pairs[@]}"; do
   kfile="${pair#*=}"
   [ -s "${UML4TERMUX_HOME:-$HOME/.uml4termux}/${kfile}" ] \
     || { echo "bench: kernel '${label}' missing: ${UML4TERMUX_HOME:-$HOME/.uml4termux}/${kfile}" >&2; rc_all=1; continue; }
-  for run in $(seq 1 "${RUNS}"); do
+  for run in $(seq 1 $((RUNS + WARMUP))); do
     port=$((port + 1))
-    name="bench-${label}-${run}"
-    log="${OUT}/runs/${label}-${run}.log"
-    rt="${W}/rt-${label}-${run}"
-    echo "  -> ${label} run ${run}/${RUNS} (ssh ${port})"
+    if [ "${run}" -le "${WARMUP}" ]; then
+      mkdir -p "${OUT}/warmup"
+      tag="warmup${run}"
+      log="${OUT}/warmup/${label}-${tag}.log"
+    else
+      tag="$((run - WARMUP))"
+      log="${OUT}/runs/${label}-${tag}.log"
+    fi
+    name="bench-${label}-${tag}"
+    rt="${W}/rt-${label}-${tag}"
+    echo "  -> ${label} run ${tag}${WARMUP:+ (warmup ${WARMUP} discarded)} (ssh ${port})"
     UML4TERMUX_KERNEL_FILE="${kfile}" UML4TERMUX_RUNTIME="${rt}" \
       "${ROOT}/bin/uml4termux" up --name "${name}" --image "${W}/img.ext4" \
       --ssh-port "${port}" --no-gvproxy --timeout 180 >"${log}" 2>&1

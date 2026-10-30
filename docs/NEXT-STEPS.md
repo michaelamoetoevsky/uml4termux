@@ -95,9 +95,40 @@ Atribusi kernel diambil dari `uname` guest sendiri tiap run
   (load average 16–20). Satu run dingin (pin-1) bahkan tak menyelesaikan profil
   disk di dalam jendela tunggu dan harus diulang dengan `BENCH_WAIT=900`.
 
-**Yang dibutuhkan agar bisa dipakai memutuskan pin** (belum dilakukan): device
-tenang (tak ada CI/job paralel), satu run pemanasan dibuang per kernel, ≥5 run
-per sel, lalu median + interval. Sampai itu ada, **pin rilis tetap `169b17ff`**.
+**Kampanye kedua — device tenang, 5 run/sel, 1 run pemanasan dibuang
+(2026-10-30).** Layanan runit `uml4termux` dihentikan sementara (disetujui
+operator) dan tak ada proses uml4termux lain yang hidup (diverifikasi lewat
+resolusi `/proc/<pid>/exe`, bukan pencocokan cmdline). Bukti:
+`evidence/20261030-bench-pin-vs-head-clean.json`.
+
+| kernel | profil | run | median | min | max | sebaran |
+|---|---|---|---|---|---|---|
+| pin  | forkexec  | 5 | 30.930 ms | 27.420 | 39.940 | 40,5% |
+| head | forkexec  | 5 | 34.320 ms | 25.070 | 42.790 | 51,6% |
+| pin  | pagefault | 5 | 3.530 ms  | 2.010  | 9.310  | 206,8% |
+| head | pagefault | 5 | **1.700 ms** | 1.440 | 12.020 | 622,4% |
+| pin  | diskread  | 5 | 5.410 ms  | 3.970  | 33.830 | 551,9% |
+| head | diskread  | 5 | 6.800 ms  | 4.720  | 20.090 | 226,0% |
+
+- **pagefault: arah BERULANG** — HEAD lebih cepat di kedua kampanye (31% pada
+  kampanye berisik, 107,6% pada kampanye tenang). Arahnya konsisten; besarannya
+  tidak. Ini yang diprediksi hipotesis A1 (`257d23ee` menurunkan biaya fault).
+- **forkexec: setara** — selisih 9,9% dengan sebaran sel 40–52%, jadi di dalam
+  kebisingan (kampanye pertama menyebut sel yang sama "setara" juga).
+- **diskread: masih tak konklusif** — arahnya **berbalik** antar kampanye
+  (berisik: HEAD unggul; tenang: pin unggul 20,4%), sebaran >200% di keduanya.
+  Arah yang tak stabil = tak ada verdict.
+- **Kebisingan intrinsik belum hilang**: bahkan di device tenang, sel HEAD
+  pagefault bergerak 1.440 → 12.020 ms (8×). Jadi resep "device tenang" saja
+  tidak cukup; kampanye berikutnya butuh lebih banyak run + penjaga stabilitas
+  per run.
+- **Keputusan: pin tetap `169b17ff`.** Dua dari tiga profil masih noise-bound
+  dan belum ada rilis HEAD, jadi memindahkan pin berarti menukar kernel yang
+  sudah divalidasi di device dengan kernel yang belum dirilis, atas dasar satu
+  profil yang berulang.
+
+**Kampanye berikutnya (bila diperlukan).** Device tenang; ≥10 run/sel; buang 2
+run pemanasan; tolak sel yang sebarannya >50% alih-alih melaporkan mediannya.
 
 **Kalibrasi awal (pin, skala 0.1, 1 run) — bukan hasil kampanye.**
 
@@ -126,6 +157,17 @@ biner dan COW ada. Jadi belum ada bukti untuk arsitektur sekarang.
 **Evidence.** Satu record schema 1.1 + log mentah + tabel siklus.
 
 **Biaya.** 2–3 jam pasif (device menyala). **Risiko.** Nol.
+
+**Harness sudah tersedia.** `soak/soak.sh` menjalankan siklus
+boot → dockerd → `docker run` → stop bersih dengan **COW ephemeral** (launcher
+memasangnya otomatis), mencatat RSS daemon + RSS kernel guest tiap siklus ke
+`cycles.jsonl`, lalu `soak/summarise.py` menilai: 0 siklus gagal, 0 proses
+tertinggal (dihitung lewat resolusi `/proc/<pid>/exe`), image tak tersentuh
+(sha **dan** mtime sebelum/sesudah), dan tren RSS (median sepertiga awal vs
+sepertiga akhir). `--parallel 2` untuk B2. B3 punya skrip sendiri,
+`soak/restart-check.sh`, karena ia butuh gvproxy + port host nyata: kill daemon
+di tengah soak → restart lewat adapter plain → verifikasi exposure di-*re-apply*
+dan nol proses yatim.
 
 ---
 
