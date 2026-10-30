@@ -417,6 +417,32 @@ digest cocok. E3: koneksi dari uid lain ditolak (uji dengan `su`). E4: tabel
 batas yang benar-benar ditegakkan di device.
 **Biaya.** Sedang. **Risiko.** Rendah.
 
+### Hasil E (2026-10-31) — E1–E4 SELESAI
+
+Bukti: `docs/THREAT-MODEL.md` (E1) · `tests/test-signature.sh` (E2, 18 asersi) ·
+`tests/test-daemon-security.sh` (E3, 16 asersi + 1 SKIP lokal) ·
+`evidence/20261031-security-isolation.json` (E4, dua boot, verdict `pass`).
+
+| Item | Bukti yang benar-benar diukur |
+|---|---|
+| **E1** | `docs/THREAT-MODEL.md`: aset yang dilindungi, empat aktor beserta kemampuannya, tabel "dilindungi vs tidak", tabel kontrol → tes penegak, dan **risiko sisa** yang tidak dihilangkan (uid sama, guest root, tanpa enkripsi, kunci rilis bocor, endpoint HTTP tanpa autentikasi) |
+| **E2** | Tanda tangan atas `SHA256SUMS` (`lib/security.sh`, kunci publik di `packaging/keys/`). Digest cocok + tanda tangan salah → **ditolak**, di tingkat pustaka **dan** lewat `uml4termux fetch` (rc≠0). SUMS diubah sesudah ditandatangani → ditolak. Tanpa tanda tangan + `UML4TERMUX_REQUIRE_SIGNATURE=1` → ditolak. `make-dist` menandatangani hanya bila kunci tersedia, dan menyebut dirinya `UNSIGNED` bila tidak |
+| **E3** | Socket `0600`, direktori runtime `0700`, `audit.log` `0600`. `SO_PEERCRED` di **C dan Rust**: koneksi bukan pemilik ditolak daemon sendiri (bukan hanya oleh mode berkas), diuji nyata sebagai root ke daemon milik user lain — di CI, karena di device hanya ada satu uid. `exec` dibatasi (`rate-limited` + `min_interval_ms`), setiap kejadian tercatat satu baris, byte kontrol dinetralkan sehingga perintah tak bisa memalsukan entri kedua |
+| **E4** | `--mem 256M` → guest melaporkan **243 MiB**; `--mem 768M` → **752 MiB**; `--cpus 1` vs `--cpus 2` → `nproc` 1 vs 2; cgroup v2 `io.max` menerima `98:0 rbps=1048576` dan membacanya kembali di dalam guest; dua guest dengan memori berbeda → batas melekat **per guest**, bukan global |
+
+**Dua hal yang sengaja tidak diklaim.** (1) Uji "koneksi dari uid lain" **tidak
+bisa** dijalankan di device ini — aplikasi Android hanya punya satu uid, jadi
+tes itu SKIP dengan alasannya dan dijalankan sungguhan di CI (runner root,
+daemon dijalankan sebagai user lain, klien root ditolak `not the owner`).
+(2) Pengerasan ini **tidak** melindungi dari proses lain dengan uid yang sama:
+aktor itu bisa membaca `~/.ssh` dan menulis ulang audit log tanpa menyentuh
+uml4termux. Itu dinyatakan di model ancaman sebagai risiko sisa, bukan diklaim
+sebagai perlindungan.
+
+**Biaya nyata.** 1 sesi. **Risiko.** Rendah: semua kontrol baru bersifat menambah
+(socket/laju/audit/tanda tangan), dan `fetch` tanpa tanda tangan tetap bekerja
+seperti sebelumnya (memberi peringatan, bukan gagal).
+
 ---
 
 ## F. Hulu (upstream) — kontribusi tanpa ketergantungan
@@ -566,8 +592,8 @@ multi-instance yang hari ini masih berupa peringatan di dokumen.
 | ~~1~~ | ~~A (benchmark pin vs HEAD)~~ **SELESAI** | Menentukan pin rilis berikutnya; hasil direksional, pin tetap | — |
 | ~~2~~ | ~~B (soak v2)~~ **SELESAI B1/B2/B3** | Arsitektur berubah (daemon + COW) → butuh bukti baru | — |
 | ~~3~~ | ~~C (snapshot/resume)~~ **SELESAI C1–C4** | Fitur pembeda termurah yang memanfaatkan COW | — |
-| **berikutnya** | E (keamanan) | Prasyarat sebelum orang lain menjalankan image | Rendah |
-| 5 | D (ekosistem) | Perluasan audiens setelah fondasi stabil | Rendah |
+| ~~4~~ | ~~E (keamanan)~~ **SELESAI E1–E4** | Prasyarat sebelum orang lain menjalankan image | — |
+| **berikutnya** | D (ekosistem) | Perluasan audiens setelah fondasi stabil | Rendah |
 | 6 | F (hulu) | Paralel, tanpa menahan apa pun | Sedang |
 | ~~7~~ | ~~G (runtime mandiri)~~ **SELESAI G1–G5** | Portabilitas ke host non-Termux + penegakan invarian multi-instance | — |
 | 8 | G6 (facade D-Bus, opsional) | Hanya bila ada konsumen nyata; bukan jalur kritis | Rendah |

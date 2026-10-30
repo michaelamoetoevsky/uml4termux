@@ -32,6 +32,8 @@ unset _uml4_self _uml4_link 2>/dev/null || true
 
 # shellcheck source=../lib/common.sh
 . "${UML4TERMUX_ROOT}/lib/common.sh"
+# shellcheck source=../lib/security.sh
+. "${UML4TERMUX_ROOT}/lib/security.sh"
 # shellcheck source=../lib/fetch.sh
 . "${UML4TERMUX_ROOT}/lib/fetch.sh"
 # shellcheck source=../lib/net.sh

@@ -1,0 +1,152 @@
+Address space: host top 0x8000000000, stub at 0x7fffff4000, guest TASK_SIZE 0x7fc0000000
+Core dump limits :
+	soft - 0
+	hard - NONE
+Stub signal stack: 16384 bytes, host AT_MINSIGSTKSZ 4720
+Checking environment variables for a tempdir.../data/data/com.termux/files/usr/tmp
+Checking if /data/data/com.termux/files/usr/tmp is on tmpfs...no
+Warning: tempdir /data/data/com.termux/files/usr/tmp is not on tmpfs
+Checking PROT_EXEC mmap in /data/data/com.termux/files/usr/tmp...OK
+Checking the stub's cycle counter...OK
+Checking that seccomp filters can be installed...OK
+Userspace mode: SECCOMP
+Linux version 7.2.0-rc4-g169b17ff3f66-dirty (uml4termux@pinned-source) (Android (13989888, +pgo, +bolt, +lto, +mlgo, based on r563880c) clang version 21.0.0 (https://android.googlesource.com/toolchain/llvm-project 5e96669f06077099aa41290cdb4c5e6fa0f59349), LLD 21.0.0 (/mnt/disks/build-disk/src/googleplex-android/llvm-r563880-release/out/llvm-project/llvm 5e96669f06077099aa41290cdb4c5e6fa0f59349)) #1 SMP Thu Oct 23 23:21:58 UTC 2026
+random: crng init done
+Zone ranges:
+  Normal   [mem 0x0000000000000000-0x000000008fffffff]
+Movable zone start for each node
+Early memory node ranges
+  node   0: [mem 0x0000000000000000-0x000000002fffffff]
+Initmem setup node 0 [mem 0x0000000000000000-0x000000002fffffff]
+percpu: Embedded 5 pages/cpu s37208 r8192 d36520 u81920
+Kernel command line: ubd0=/data/data/com.termux/files/usr/tmp/e4-check/work/rt-e4/e4.cow,/data/data/com.termux/files/usr/tmp/e4-check/work/img.ext4 root=/dev/ubda rw panic=-1 con=null con0=fd:0,fd:1 vec0:transport=bess,dst=/data/data/com.termux/files/usr/tmp/e4-check/work/rt-e4/bess.sock,depth=128,gro=1,mac=5a:94:ef:e4:0c:ee console=tty0
+printk: log buffer data + meta data: 16384 + 57344 = 73728 bytes
+Dentry cache hash table entries: 131072 (order: 6, 1048576 bytes, linear)
+Inode-cache hash table entries: 65536 (order: 5, 524288 bytes, linear)
+Built 1 zonelists, mobility grouping on.  Total pages: 49152
+mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+SLUB: HWalign=32, Order=0-3, MinObjects=0, CPUs=2, Nodes=1
+rcu: Hierarchical RCU implementation.
+rcu: 	RCU restricting CPUs from NR_CPUS=16 to nr_cpu_ids=2.
+rcu: RCU calculated value of scheduler-enlistment delay is 10 jiffies.
+rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=2
+NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 64
+rcu: srcu_init: Setting srcu_struct sizes based on contention.
+clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+clocksource: timer: mask: 0xffffffffffffffff max_cycles: 0x1cd42e205, max_idle_ns: 881590404426 ns
+Calibrating delay loop... 4485.93 BogoMIPS (lpj=22429696)
+Checking that host ptys support output SIGIO...Yes
+pid_max: default: 32768 minimum: 301
+Mount-cache hash table entries: 2048 (order: 0, 16384 bytes, linear)
+Mountpoint-cache hash table entries: 2048 (order: 0, 16384 bytes, linear)
+VFS: Finished mounting rootfs on nullfs
+arm64: hwcap host 0xefffffff/0x273ff -> guest 0x2fbff7ff/0x0 (masked out 0xc0400800/0x273ff)
+arm64: host has SVE; not advertised, UML saves only FPSIMD state
+rcu: Hierarchical SRCU implementation.
+rcu: 	Max phase no-delay instances is 1000.
+Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+smp: Bringing up secondary CPUs ...
+smp: Brought up 1 node, 2 CPUs
+Memory: 761632K/786432K available (6339K kernel code, 1674K rwdata, 1600K rodata, 210K init, 1401K bss, 20048K reserved, 0K cma-reserved)
+devtmpfs: initialized
+posixtimers hash table entries: 1024 (order: 0, 16384 bytes, linear)
+futex hash table entries: 512 (16384 bytes on 1 NUMA nodes, total 16 KiB, linear).
+NET: Registered PF_NETLINK/PF_ROUTE protocol family
+pps_core: LinuxPPS API ver. 1 registered
+pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+PTP clock support registered
+clocksource: Switched to clocksource timer
+VFS: Disk quotas dquot_6.6.0
+VFS: Dquot-cache hash table entries: 2048 (16384 bytes)
+NET: Registered PF_INET protocol family
+IP idents hash table entries: 16384 (order: 3, 131072 bytes, linear)
+tcp_listen_portaddr_hash hash table entries: 1024 (order: 0, 16384 bytes, linear)
+Table-perturb hash table entries: 65536 (order: 4, 262144 bytes, linear)
+TCP established hash table entries: 8192 (order: 2, 65536 bytes, linear)
+TCP bind hash table entries: 8192 (order: 4, 262144 bytes, linear)
+TCP: Hash tables configured (established 8192 bind 8192)
+UDP hash table entries: 512 (order: 1, 32768 bytes, linear)
+NET: Registered PF_UNIX/PF_LOCAL protocol family
+printk: legacy console [stderr0] disabled
+Checking host MADV_REMOVE support...OK
+mconsole (version 2) initialized on /data/data/com.termux/files/home/.uml/fxunyi/mconsole
+Unpacking initramfs...
+workingset: timestamp_bits=46 (anon: 41) max_order=16 bucket_order=0 (anon: 0)
+9p: Installing v9fs 9p2000 file system support
+io scheduler mq-deadline registered
+io scheduler kyber registered
+io scheduler bfq registered
+loop: module loaded
+Freeing initrd memory: 3728K
+tun: Universal TUN/TAP device driver, 1.6
+PPP generic driver version 2.4.2
+SLIP: version 0.8.4-NET3.019-NEWTTY (dynamic channels, max=256).
+NET: Registered PF_INET6 protocol family
+Segment Routing with IPv6
+In-situ OAM (IOAM) with IPv6
+NET: Registered PF_PACKET protocol family
+Bridge firewalling registered
+9pnet: Installing 9P2000 support
+Initialized stdio console driver
+Console initialized on /dev/tty0
+printk: legacy console [tty0] enabled
+Initializing software serial port version 1
+printk: legacy console [mc-1] enabled
+Run /init as init process
+UML4TERMUX_INIT version=0.1.0 mode=docker entry=/docker-init.sh
+UML4TERMUX_INIT mounts_ok
+EXT4-fs (ubda): recovery complete
+EXT4-fs (ubda): mounted filesystem 96d67fdf-bdaa-4ff5-b170-32392456bb25 r/w with ordered data mode. Quota mode: none.
+UML4TERMUX_INIT root_mounted /dev/ubda -> /newroot
+UML4TERMUX_INIT copied /docker-init.sh -> /newroot/docker-init.sh
+UML4TERMUX_INIT SWITCH_ROOT_NOW /docker-init.sh
+=== UML4TERMUX_DOCKER_BEGIN ===
+UNAME: Linux 7.2.0-rc4-g169b17ff3f66-dirty aarch64
+uml-vector uml-vector.0 vec0: netif_napi_add_weight_locked() called with weight 128
+DHCPACK of 192.168.127.2 from 192.168.127.1
+bound to 192.168.127.2 -- renewal in 1490 seconds.
+ADDR: 3: vec0    inet 192.168.127.2/24 brd 192.168.127.255 scope global dynamic vec0\       valid_lft 3600sec preferred_lft 3600sec 3: vec0    inet6 fe80::5894:efff:fee4:cee/64 scope link tentative \       valid_lft forever preferred_lft forever 
+ROUTE: default via 192.168.127.1 dev vec0  192.168.127.0/24 dev vec0 proto kernel scope link src 192.168.127.2  
+RESOLV: nameserver 192.168.127.1 
+DNS_TEST: 2600:1f18:2148:bc01:c447:b014:4fac:bd8d registry-1.docker.io
+starting dockerd...
+SERVER=20.10.24+dfsg1 DRIVER=overlay2 CGROUPV=2
+--- fresh pull through gvproxy NAT/DNS ---
+Status: Image is up to date for busybox:latest
+docker.io/library/busybox:latest
+Status: Image is up to date for alpine:latest
+docker.io/library/alpine:latest
+--- run pulled image ---
+docker0: port 1(vetha3f8328) entered blocking state
+docker0: port 1(vetha3f8328) entered disabled state
+vetha3f8328: entered allmulticast mode
+vetha3f8328: entered promiscuous mode
+eth0: renamed from veth7e100b1
+docker0: port 1(vetha3f8328) entered blocking state
+docker0: port 1(vetha3f8328) entered forwarding state
+docker0: port 1(vetha3f8328) entered disabled state
+veth7e100b1: renamed from eth0
+docker0: port 1(vetha3f8328) entered disabled state
+vetha3f8328 (unregistering): left allmulticast mode
+vetha3f8328 (unregistering): left promiscuous mode
+docker0: port 1(vetha3f8328) entered disabled state
+BUSYBOX_RUN_OK
+Name:	registry-1.docker.io
+Address: 44.198.31.239
+
+--- published port container ---
+docker0: port 1(veth3a7b138) entered blocking state
+docker0: port 1(veth3a7b138) entered disabled state
+veth3a7b138: entered allmulticast mode
+veth3a7b138: entered promiscuous mode
+eth0: renamed from veth3cc827a
+docker0: port 1(veth3a7b138) entered blocking state
+docker0: port 1(veth3a7b138) entered forwarding state
+7c727b486a49a4c0b5f27ff1bca0608e34ef6ccc18be17a94689c6a03c20bf37
+web | Up 13 seconds | 0.0.0.0:8123->80/tcp, :::8123->80/tcp
+WEB_UP_MARKER
+exec:echo __EXEC_1_BEGIN__; printf "%s mem=%s ncpus=%s\n" "$(echo TElNSVRT | base64 -d)" "$(awk '/^MemTotal:/{print $2}' /proc/meminfo)" "$(nproc)"; echo __EXEC_1_DONE_$?
+__AGENT_GOT__: echo __EXEC_1_BEGIN__; printf "%s mem=%s ncpus=%s\n" "$(echo TElNSVRT | base64 -d)" "$(awk '/^MemTotal:/{print $2}' /proc/meminfo)" "$(nproc)"; echo __EXEC_1_DONE_$?
+__EXEC_1_BEGIN__
+LIMITS mem=770112 ncpus=2
+__EXEC_1_DONE_0

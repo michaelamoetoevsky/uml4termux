@@ -19,7 +19,7 @@ use std::io::{self, Read, Write};
 use std::os::unix::io::{FromRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const SELFTEST_CHILD_DEFAULT: &str = "/data/data/com.termux/files/usr/bin/sleep";
 const SELFTEST_SECONDS_DEFAULT: &str = "30";
@@ -61,6 +61,12 @@ pub struct Daemon {
     completed: bool,
     started_at: SystemTime,
     exec_seq: u32,
+    /// E3: audit writer (opened lazily next to the socket) and the exec rate
+    /// limit state. Mirrors the C daemon so the two implementations cannot
+    /// drift apart on hardening either.
+    audit_file: Option<File>,
+    last_exec: Option<Instant>,
+    exec_min_ms: Option<u64>,
 
     // Guest configuration (real-guest path).
     kernel: String,
@@ -132,6 +138,9 @@ impl Daemon {
             completed: false,
             started_at: SystemTime::now(),
             exec_seq: 0,
+            audit_file: None,
+            last_exec: None,
+            exec_min_ms: None,
             kernel: env_or("UML4TERMUXD_KERNEL", ""),
             stub: env_or("UML4TERMUXD_STUB", ""),
             image: env_or("UML4TERMUXD_IMAGE", ""),
@@ -751,7 +760,13 @@ impl Daemon {
                     let cfd =
                         unsafe { libc::accept(lfd, std::ptr::null_mut(), std::ptr::null_mut()) };
                     if cfd >= 0 {
-                        self.handle_client(cfd);
+                        if peer_is_owner(cfd) {
+                            self.handle_client(cfd);
+                        } else {
+                            self.audit("denied", "control socket connection from another uid");
+                            logf("control socket: refused a connection from a different uid");
+                            let _ = write_all_fd(cfd, b"{\"error\":\"not the owner\"}\n");
+                        }
                         unsafe { libc::close(cfd) };
                     }
                 }
@@ -808,6 +823,67 @@ impl Daemon {
         }
     }
 
+    /// E3: one line per event, same shape as the C daemon:
+    ///   <utc> <verb> uid=<uid> <detail>
+    /// Control characters in the detail become '_' so a crafted command cannot
+    /// forge a second entry.
+    fn audit(&mut self, verb: &str, detail: &str) {
+        if self.audit_file.is_none() {
+            let path = self.sock_path.with_file_name("audit.log");
+            match OpenOptions::new().create(true).append(true).open(&path) {
+                Ok(f) => self.audit_file = Some(f),
+                Err(e) => {
+                    logf(&format!("audit: cannot open {}: {e}", path.display()));
+                    return;
+                }
+            }
+        }
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let stamp = format_utc(now);
+        let safe: String = detail
+            .chars()
+            .take(240)
+            .map(|c| if (c as u32) < 0x20 || (c as u32) == 0x7f { '_' } else { c })
+            .collect();
+        let uid = unsafe { libc::geteuid() };
+        if let Some(f) = self.audit_file.as_mut() {
+            let _ = f.write_all(format!("{stamp} {verb} uid={uid} {safe}\n").as_bytes());
+        }
+    }
+
+    /// E3: a client can send `exec` as fast as it can write, and each one drives
+    /// a shell inside the guest. UML4TERMUXD_EXEC_MIN_INTERVAL_MS=0 turns it off.
+    fn exec_min_interval_ms(&mut self) -> u64 {
+        if let Some(v) = self.exec_min_ms {
+            return v;
+        }
+        let v = std::env::var("UML4TERMUXD_EXEC_MIN_INTERVAL_MS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(100);
+        self.exec_min_ms = Some(v);
+        v
+    }
+
+    fn exec_rate_limited(&mut self) -> bool {
+        let min_ms = self.exec_min_interval_ms();
+        if min_ms == 0 {
+            return false;
+        }
+        let now = Instant::now();
+        let limited = self
+            .last_exec
+            .map(|last| now.duration_since(last).as_millis() < min_ms as u128)
+            .unwrap_or(false);
+        if !limited {
+            self.last_exec = Some(now);
+        }
+        limited
+    }
+
     fn handle_client(&mut self, fd: RawFd) {
         let mut req = [0u8; 512];
         let n = unsafe { libc::read(fd, req.as_mut_ptr() as *mut libc::c_void, req.len() - 1) };
@@ -851,6 +927,7 @@ impl Daemon {
             return self.status_json();
         }
         if line.starts_with("stop") {
+            self.audit("stop", "requested");
             if self.child > 0 {
                 logf(&format!("stop requested: SIGTERM -> {}", self.child));
             }
@@ -858,7 +935,14 @@ impl Daemon {
             return "{\"state\":\"stopping\"}\n".to_string();
         }
         if let Some(rest) = line.strip_prefix("exec ") {
+            self.audit("exec", rest);
+            if self.exec_rate_limited() {
+                let min_ms = self.exec_min_interval_ms();
+                self.audit("exec-denied", "rate-limited");
+                return format!("{{\"error\":\"rate-limited\",\"min_interval_ms\":{min_ms}}}\n");
+            }
             if self.pty_master < 0 || self.child <= 0 {
+                self.audit("exec-denied", "guest not running");
                 return "{\"error\":\"guest not running\"}\n".to_string();
             }
             self.exec_seq += 1;
@@ -882,6 +966,7 @@ impl Daemon {
             );
         }
         if let Some(rest) = line.strip_prefix("expose ") {
+            self.audit("expose", rest);
             let parts: Vec<&str> = rest.split_whitespace().collect();
             if self.gvproxy_pid <= 0 {
                 return "{\"error\":\"gvproxy not running\"}\n".to_string();
@@ -1178,6 +1263,46 @@ fn write_all_fd(fd: RawFd, mut buf: &[u8]) -> io::Result<()> {
         buf = &buf[n as usize..];
     }
     Ok(())
+}
+
+/// UTC timestamp in the same shape the C daemon writes.
+fn format_utc(secs: u64) -> String {
+    let t = secs as libc::time_t;
+    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    if unsafe { libc::gmtime_r(&t, &mut tm) }.is_null() {
+        return format!("{secs}");
+    }
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        tm.tm_year + 1900,
+        tm.tm_mon + 1,
+        tm.tm_mday,
+        tm.tm_hour,
+        tm.tm_min,
+        tm.tm_sec
+    )
+}
+
+/// SO_PEERCRED: the kernel's answer about who connected, never the client's claim.
+/// Mirrors peer_is_owner() in src/uml4termuxd.c, including the fail-open path when
+/// the kernel will not tell us.
+fn peer_is_owner(fd: RawFd) -> bool {
+    let mut cr: libc::ucred = unsafe { std::mem::zeroed() };
+    let mut len = std::mem::size_of::<libc::ucred>() as libc::socklen_t;
+    let rc = unsafe {
+        libc::getsockopt(
+            fd,
+            libc::SOL_SOCKET,
+            libc::SO_PEERCRED,
+            &mut cr as *mut _ as *mut libc::c_void,
+            &mut len,
+        )
+    };
+    if rc != 0 {
+        logf("peer check: SO_PEERCRED unavailable; accepting this connection");
+        return true;
+    }
+    cr.uid == unsafe { libc::geteuid() }
 }
 
 fn logf(msg: &str) {

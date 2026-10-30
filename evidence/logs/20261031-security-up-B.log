@@ -1,0 +1,8 @@
+[info] instance 'e4' is up (pid 28502, runtime /data/data/com.termux/files/usr/tmp/e4-check/work/rt-e4)
+instance  : e4
+state     : yes (phase running)
+pid       : 28502 (alive)
+runtime   : /data/data/com.termux/files/usr/tmp/e4-check/work/rt-e4
+image     : /data/data/com.termux/files/usr/tmp/e4-check/work/img.ext4
+ssh port  : 12660
+logs      : 7.9 KiB

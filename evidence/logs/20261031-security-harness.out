@@ -1,0 +1,19 @@
+== boot A: mem=256M ncpus=1 (+ io.max) ==
+  PASS: A: instance siap (mem=256M ncpus=1)
+  PASS: A: guest hidup
+  PASS: A: MemTotal 243 MiB untuk --mem 256M (band 230-256)
+  PASS: A: guest melihat 1 CPU, sesuai --cpus 1
+  PASS: A: cgroup v2 io.max menerima rbps=1048576 dan membacanya kembali
+== boot B: mem=768M ncpus=2 ==
+  PASS: B: instance siap (mem=768M ncpus=2)
+  PASS: B: guest hidup
+  PASS: B: MemTotal 752 MiB untuk --mem 768M (band 691-768)
+  PASS: B: guest melihat 2 CPU, sesuai --cpus 2
+
+== batas per guest, bukan global ==
+  PASS: dua guest dengan memori berbeda (243 KB vs 752 KB): batas melekat per guest
+== teardown ==
+  PASS: 0 proses tersisa milik run ini
+e4: hasil -> /data/data/com.termux/files/usr/tmp/e4-check/e4-limits.json
+E4: OK
+rc=0

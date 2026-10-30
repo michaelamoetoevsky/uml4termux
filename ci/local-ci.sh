@@ -296,6 +296,16 @@ run_meta "shell: log rotation (no svlogd)" '
   bash '"$ROOT"'/tests/test-log-rotation.sh >/dev/null
 '
 
+run_meta "shell: release signature (direction E2)" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-signature.sh >/dev/null
+'
+
+run_meta "shell: daemon hardening (direction E3)" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-daemon-security.sh >/dev/null
+'
+
 run_meta "shell: snapshot & resume (direction C)" '
   set -euo pipefail
   bash '"$ROOT"'/tests/test-snapshot.sh >/dev/null

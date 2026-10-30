@@ -1,0 +1,101 @@
+{
+ "schema_version": "1.1",
+ "run_id": "20261031-security-isolation",
+ "project_version": "0.5.0",
+ "generated_at": "2026-10-31T05:41:59+0700",
+ "device": {
+  "model": "2406APNFAG",
+  "android_release": "16",
+  "abi": "aarch64",
+  "termux": true,
+  "unprivileged": true
+ },
+ "kernel": {
+  "arch": "um/arm64",
+  "booted": true,
+  "release": "7.2.0-rc4-g169b17ff3f66-dirty",
+  "mode": "seccomp",
+  "ncpus": 2
+ },
+ "capabilities": {
+  "boot": {
+   "ok": true,
+   "evidence": "Two boots of the pinned kernel with DIFFERENT limits (256M/1 cpu, then 768M/2 cpu), each reaching WEB_UP_MARKER with dockerd up."
+  },
+  "e4_memory_limit_enforced": {
+   "ok": true,
+   "evidence": "--mem 256M -> guest MemTotal 243 MiB; --mem 768M -> 752 MiB. The kernel always keeps a slice, so the assertion is a band: no more than asked, no less than 90% of it -- and the two guests differ, which is what \"per guest\" means."
+  },
+  "e4_cpu_limit_enforced": {
+   "ok": true,
+   "evidence": "nproc inside the guest reported exactly 1 with --cpus 1 and 2 with --cpus 2."
+  },
+  "e4_io_max_available": {
+   "ok": true,
+   "evidence": "Inside the guest, cgroup v2 io.max accepted \"98:0 rbps=1048576\" for the guest block device and reported it back on read -- the interface a container in the guest inherits. (Earlier capability rounds established that io.max needs the MAJ:MIN form, which is what this writes.)"
+  },
+  "e2_signature_gate": {
+   "ok": true,
+   "evidence": "Checked by tests/test-signature.sh in CI, not on the device: a SHA256SUMS whose signature does not verify is refused even when the digest inside it matches the asset, both at the library level and through `uml4termux fetch`; unsigned sums are refused when UML4TERMUX_REQUIRE_SIGNATURE=1."
+  },
+  "e3_daemon_hardening": {
+   "ok": true,
+   "evidence": "Checked by tests/test-daemon-security.sh: socket 0600, runtime dir 0700, audit.log 0600, exec rate limited (second exec inside the window refused with min_interval_ms), one audit line per event with control bytes neutralised, and the non-owner path (a daemon started as another user refusing a root client via SO_PEERCRED) exercised for real in CI where root is available."
+  },
+  "no_leftovers_from_this_run": {
+   "ok": true,
+   "evidence": "Zero processes belonging to this run work directory after teardown."
+  }
+ },
+ "verdict": "pass",
+ "artifacts": [
+  {
+   "kind": "other",
+   "path": "logs/20261031-security-e4-limits.json",
+   "sha256": "409bbc0e33732cfafae4f3b4901f4cb50ce32e76ef5643a7e694573d8734f6c1"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261031-security-harness.out",
+   "sha256": "eaa25960e4e9bb04f514b56f3226252ac80c801733e12d54e8ab85649cb69f26"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261031-security-up-A.log",
+   "sha256": "5b9b783fb5a72211dc0edc39171d1f88f56868c1f72ea69910756ca3896daee4"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261031-security-up-B.log",
+   "sha256": "59da83d0a61ee0532c1d8443e11ccf95e54115a89a059dd45b5483f248955bc9"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261031-security-observed-A.txt",
+   "sha256": "d179fb329af321511db1b82e9b26c856956981ba720d2a7065326968b6f16e8d"
+  },
+  {
+   "kind": "other",
+   "path": "logs/20261031-security-observed-B.txt",
+   "sha256": "1db8d241ccf59dae8f82994926e88a24e40bf56101223bcbb0e4970e441f359f"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261031-security-console-boot-2-final.log",
+   "sha256": "edc15414d2de31a890f609e8a4db9d0446f265f2b47d7a848e14ce5207b5556c"
+  },
+  {
+   "kind": "console-log",
+   "path": "logs/20261031-security-console-boot-2-previous.log",
+   "sha256": "7ce2b1ffc0f8328ec2398215d7190d0ef4e018aec8f4a094b97c746645deb459"
+  }
+ ],
+ "notes": "Direction E on the device: E4 (per-guest limits) is measured here because it needs a real guest; E2 and E3 are CI gates (tests/test-signature.sh, tests/test-daemon-security.sh) that need no guest, so their proof lives in the workflow rather than in this record. docs/THREAT-MODEL.md states what each control does NOT protect, including the two that cannot be fixed here: a process with the same uid, and guest root inside the guest.",
+ "known_limits_observed": [
+  "A process running as the same uid can read and rewrite everything, including this audit log: the log is for an honest operator, not a defence against that actor.",
+  "Guest root is root inside the guest; mem=/ncpus= bound the guest, not the containers inside it.",
+  "Nothing is encrypted at rest: image and COW are ordinary files under ~/.uml4termux.",
+  "A compromised release key defeats the signature; the digest pins remain the second, independent layer.",
+  "The HTTP health endpoint (UML4TERMUXD_HTTP) is unauthenticated on loopback when enabled."
+ ]
+}

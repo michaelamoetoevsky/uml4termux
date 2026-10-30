@@ -169,6 +169,36 @@ fi
   exit 1
 }
 
+# --- signature (E2) ---------------------------------------------------------
+# Signing needs the release key, which never lives in the repository. Without it
+# the tarball is still produced, and it says out loud that it is unsigned: an
+# artifact that quietly claims to be signed is worse than one that admits it.
+if [ -n "${UML4TERMUX_RELEASE_KEY:-}" ] && [ -r "${UML4TERMUX_RELEASE_KEY}" ]; then
+  if command -v openssl >/dev/null 2>&1; then
+    ( cd "$outdir" && openssl dgst -sha256 -sign "$UML4TERMUX_RELEASE_KEY" \
+        -out SHA256SUMS.sig SHA256SUMS ) || {
+      echo "make-dist: signing SHA256SUMS failed" >&2
+      exit 1
+    }
+    # Verify what was just produced, with the public key from the repo.
+    if [ -r "${root}/packaging/keys/release.pub.pem" ]; then
+      ( cd "$outdir" && openssl dgst -sha256 -verify "${root}/packaging/keys/release.pub.pem" \
+          -signature SHA256SUMS.sig SHA256SUMS >/dev/null 2>&1 ) || {
+        echo "make-dist: the signature just produced does not verify with packaging/keys/release.pub.pem" >&2
+        exit 1
+      }
+      say "make-dist: signed $outdir/SHA256SUMS (verified with packaging/keys/release.pub.pem)"
+    else
+      say "make-dist: signed $outdir/SHA256SUMS (no public key in the tree to verify against)"
+    fi
+  else
+    echo "make-dist: UML4TERMUX_RELEASE_KEY is set but openssl is missing" >&2
+    exit 1
+  fi
+else
+  say "make-dist: UNSIGNED (set UML4TERMUX_RELEASE_KEY to sign SHA256SUMS)"
+fi
+
 say "make-dist: wrote $tarball"
 say "make-dist: wrote $outdir/SHA256SUMS"
 cat "$outdir/SHA256SUMS"

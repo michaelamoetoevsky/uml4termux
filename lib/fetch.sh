@@ -181,7 +181,7 @@ cmd_fetch() {
 
   local sums="${UML4TERMUX_HOME}/SHA256SUMS"
   local sums_gv="${UML4TERMUX_HOME}/SHA256SUMS.gvproxy"
-  local have_sums=0 have_sums_gv=0
+  local have_sums=0 have_sums_gv=0 sums_sig=""
   if [ "${no_sums}" = "1" ]; then
     warn "--no-sums: verifying against the pinned digests only"
   else
@@ -191,6 +191,24 @@ cmd_fetch() {
       warn "SHA256SUMS is not available at ${UML4TERMUX_SHA256SUMS_URL}"
       warn "  -> falling back to the digests pinned in this build"
     fi
+    # E2: the sums file is only an authority if someone vouched for it. Verify
+    # BEFORE any asset is checked against it, and treat a bad signature as fatal
+    # rather than as a reason to fall back -- falling back would cost a forger
+    # nothing but a warning.
+    if [ "${have_sums}" = "1" ]; then
+      sums_sig="${sums}.sig"
+      if fetch_sha256sums "${UML4TERMUX_SHA256SUMS_URL}.sig" "${sums_sig}"; then
+        uml4termux_verify_signature "${sums}" "${sums_sig}" "$(uml4termux_release_pubkey)" \
+          || die "refusing a SHA256SUMS whose signature does not verify"
+        ok "SHA256SUMS signature ok (key $(uml4termux_key_fingerprint "$(uml4termux_release_pubkey)")…)"
+      elif uml4termux_signature_required; then
+        die "SHA256SUMS is unsigned, and UML4TERMUX_REQUIRE_SIGNATURE=1 (looked for ${UML4TERMUX_SHA256SUMS_URL}.sig)"
+      else
+        warn "SHA256SUMS is unsigned: its digests are cross-checks, the pins stay the authority"
+        warn "  set UML4TERMUX_REQUIRE_SIGNATURE=1 to refuse unsigned sums"
+      fi
+    fi
+
     if fetch_sha256sums "${UML4TERMUX_GVPROXY_SHA256SUMS_URL}" "${sums_gv}"; then
       have_sums_gv=1
     else

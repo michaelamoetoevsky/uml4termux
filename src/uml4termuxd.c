@@ -735,6 +735,111 @@ static int respond(int fd, const char *json)
 	return (int)write(fd, json, strlen(json));
 }
 
+/* ---- E3: hardening (peer credentials, audit log, exec rate limit) ----
+   The socket is already 0600 and the daemon runs under umask 0077, so the file
+   permissions are the first gate. These three are the second: what happens to a
+   connection that reaches the socket anyway, what a client can do as fast as it
+   likes, and what is left behind for an operator to read afterwards. */
+
+/* SO_PEERCRED is the kernel's answer about who connected -- not the client's
+   claim. Nothing in the protocol carries an identity, so this is the only place
+   a uid can be established. */
+static int peer_is_owner(int fd)
+{
+	struct ucred cr;
+	socklen_t len = sizeof(cr);
+
+	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cr, &len) != 0) {
+		/* No peer credentials: refusing every connection would break the owner
+		   too, so this stays open and says so out loud. */
+		logf_("peer check: SO_PEERCRED unavailable (%s); accepting this connection",
+		      strerror(errno));
+		return 1;
+	}
+	return (int)cr.uid == (int)geteuid();
+}
+
+static int g_auditfd = -1;
+
+static void audit_open(void)
+{
+	const char *rt = getenv("UML4TERMUX_RUNTIME");
+	char path[600];
+
+	if (!rt || !*rt)
+		return;
+	snprintf(path, sizeof(path), "%s/audit.log", rt);
+	g_auditfd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0600);
+	if (g_auditfd < 0)
+		logf_("audit: cannot open %s: %s", path, strerror(errno));
+}
+
+/* One line per event, always the same shape:
+     <utc> <verb> uid=<uid> <detail>
+   Control characters in the detail become '_' so a crafted command cannot forge
+   a second entry, and the detail is truncated: an audit log an attacker can
+   rewrite is worse than no audit log. */
+static void audit_line(const char *verb, const char *detail)
+{
+	char ts[32], line[400], safe[240];
+	struct tm tm;
+	time_t now;
+	size_t i, n;
+
+	if (g_auditfd < 0)
+		return;
+	now = time(NULL);
+	gmtime_r(&now, &tm);
+	strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", &tm);
+
+	n = strlen(detail ? detail : "");
+	if (n > sizeof(safe) - 1)
+		n = sizeof(safe) - 1;
+	for (i = 0; i < n; i++) {
+		unsigned char ch = (unsigned char)detail[i];
+		safe[i] = (ch < 0x20 || ch == 0x7f) ? '_' : (char)ch;
+	}
+	safe[n] = '\0';
+	snprintf(line, sizeof(line), "%s %s uid=%u %s\n", ts, verb,
+		 (unsigned)geteuid(), safe);
+	if (write(g_auditfd, line, strlen(line)) < 0)
+		; /* the audit log must never take the daemon down */
+}
+
+/* A client can send `exec` as fast as it can write; each one drives a shell
+   inside the guest. The limit is per daemon (there is one client at a time by
+   design), and UML4TERMUXD_EXEC_MIN_INTERVAL_MS=0 turns it off for benchmarks. */
+static long g_exec_min_ms = -1;
+static struct timespec g_last_exec;
+
+static int exec_rate_limited(long *min_ms_out)
+{
+	struct timespec now;
+	long min_ms, delta;
+
+	if (g_exec_min_ms < 0) {
+		const char *e = getenv("UML4TERMUXD_EXEC_MIN_INTERVAL_MS");
+
+		min_ms = (e && *e) ? strtol(e, NULL, 10) : 100;
+		g_exec_min_ms = (min_ms < 0) ? 0 : min_ms;
+	}
+	min_ms = g_exec_min_ms;
+	if (min_ms_out)
+		*min_ms_out = min_ms;
+	if (min_ms == 0)
+		return 0;
+	if (clock_gettime(CLOCK_MONOTONIC, &now) != 0)
+		return 0;
+	if (g_last_exec.tv_sec != 0 || g_last_exec.tv_nsec != 0) {
+		delta = (now.tv_sec - g_last_exec.tv_sec) * 1000L +
+			(now.tv_nsec - g_last_exec.tv_nsec) / 1000000L;
+		if (delta < min_ms)
+			return 1;
+	}
+	g_last_exec = now;
+	return 0;
+}
+
 static void handle_client(int fd)
 {
 	char req[512];
@@ -775,6 +880,7 @@ static void handle_client(int fd)
 			 (int)g_child, g_restarts, info);
 		respond(fd, resp);
 	} else if (strncmp(req, "stop", 4) == 0) {
+		audit_line("stop", "requested");
 		if (g_child > 0)
 			logf_("stop requested: SIGTERM -> %d", (int)g_child);
 		respond(fd, "{\"state\":\"stopping\"}\n");
@@ -782,8 +888,16 @@ static void handle_client(int fd)
 	} else if (strncmp(req, "exec ", 5) == 0) {
 		char line[1024];
 		int seq;
+		long min_ms = 0;
 
-		if (g_ptym < 0 || g_child <= 0) {
+		audit_line("exec", req + 5);
+		if (exec_rate_limited(&min_ms)) {
+			audit_line("exec-denied", "rate-limited");
+			snprintf(resp, sizeof(resp),
+				 "{\"error\":\"rate-limited\",\"min_interval_ms\":%ld}\n", min_ms);
+			respond(fd, resp);
+		} else if (g_ptym < 0 || g_child <= 0) {
+			audit_line("exec-denied", "guest not running");
 			respond(fd, "{\"error\":\"guest not running\"}\n");
 		} else {
 			seq = ++g_exec_seq;
@@ -803,6 +917,7 @@ static void handle_client(int fd)
 			}
 		}
 	} else if (strncmp(req, "expose ", 7) == 0) {
+		audit_line("expose", req + 7);
 		char hport[32] = "", gport[32] = "";
 		char err[128];
 
@@ -985,7 +1100,13 @@ static int serve_loop(int lfd)
 				int cfd = accept(lfd, NULL, NULL);
 
 				if (cfd >= 0) {
-					handle_client(cfd);
+					if (peer_is_owner(cfd)) {
+						handle_client(cfd);
+					} else {
+						audit_line("denied", "control socket connection from another uid");
+						logf_("control socket: refused a connection from a different uid");
+						respond(cfd, "{\"error\":\"not the owner\"}\n");
+					}
 					close(cfd);
 				}
 			}
@@ -1015,6 +1136,10 @@ static int serve_loop(int lfd)
 		g_logfd = -1;
 	}
 	stop_gvproxy();
+	if (g_auditfd >= 0) {
+		close(g_auditfd);
+		g_auditfd = -1;
+	}
 	logf_("daemon exit");
 	state_json("stopped", "daemon-exit");
 	return 0;
@@ -1036,6 +1161,7 @@ static int daemon_main(int selftest)
 	struct sockaddr_un addr;
 	int lfd;
 
+	audit_open();
 	sock_path(g_sockpath, sizeof(g_sockpath));
 	snprintf(g_statepath, sizeof(g_statepath), "%s.state", g_sockpath);
 	{

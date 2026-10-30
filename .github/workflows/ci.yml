@@ -272,6 +272,12 @@ jobs:
       - name: Snapshot & resume contract (direction C)
         run: bash tests/test-snapshot.sh
 
+      - name: Release signature contract (direction E2)
+        run: bash tests/test-signature.sh
+
+      - name: Daemon hardening (direction E3)
+        run: bash tests/test-daemon-security.sh
+
       - name: Launcher adapters (systemd/s6/plain)
         run: bash tests/test-adapters.sh /tmp/uml4termuxd
 

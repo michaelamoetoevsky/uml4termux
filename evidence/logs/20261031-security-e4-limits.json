@@ -1,0 +1,6 @@
+{
+ "check": "E4 per-guest resource limits (device, two boots)",
+ "passed": true,
+ "guest_a_mem_mib": 243,
+ "guest_b_mem_mib": 752
+}

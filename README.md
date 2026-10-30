@@ -262,6 +262,39 @@ Multi-guest: run one daemon per guest with distinct `UML4TERMUX_RUNTIME`,
 are unix, so instances cannot collide on TCP (verified with 2 × 256M guests;
 see `docs/ROADMAP-0.4.md` §B3 and `packaging/service/daemon.conf.example`).
 
+## Security & isolation (direction E)
+
+The written model is `docs/THREAT-MODEL.md`: what is protected (Termux data, the
+integrity of the artefacts, the phone's network surface), what is **not** (another
+process with the same uid; guest root is root inside the guest; nothing is encrypted
+at rest), and which residual risk each control does not remove.
+
+Three things you can turn on and check:
+
+```sh
+# 1. signed releases: SHA256SUMS must verify before any digest from it is trusted
+UML4TERMUX_REQUIRE_SIGNATURE=1 uml4termux fetch
+UML4TERMUX_RELEASE_PUBKEY=/path/to/fork.pub.pem uml4termux fetch   # a fork's key
+#    (a signature that does not verify is fatal, never a fallback to the pins)
+
+# 2. daemon hardening: socket 0600 + owner-only (SO_PEERCRED), exec rate limit,
+#    audit log. The rate limit is the only knob:
+UML4TERMUXD_EXEC_MIN_INTERVAL_MS=0 uml4termux up ...   # 0 = off (default 100 ms)
+tail -f ~/.uml4termux/audit.log                        # <utc> <verb> uid=<uid> <detail>
+
+# 3. per-guest limits, measured rather than assumed
+uml4termux up --mem 256M --cpus 1 ...   # guest reports 243 MiB MemTotal, 1 CPU
+```
+
+A refused `exec` says so (`rate-limited`) and is written to the audit log with the
+reason, one line per event, control characters neutralised so a crafted command
+cannot forge a second entry.
+
+Enforced by `tests/test-signature.sh` and `tests/test-daemon-security.sh` (the
+owner check runs for real in CI: a daemon started as another user refuses a root
+client), and by `soak/limits-check.sh` on the device (two boots: 256M/1cpu and
+768M/2cpu, plus a cgroup-v2 `io.max` limit accepted and read back inside the guest).
+
 ## Verified capability table
 
 All rows were measured on the reference device (Android 16, host kernel
