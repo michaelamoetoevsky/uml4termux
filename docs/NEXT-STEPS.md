@@ -214,6 +214,82 @@ file masih ada; lalu resume snapshot yang sama dua kali → kedua boot identik
 (tidak saling merusak); resume pada image dasar berbeda → ditolak dengan pesan
 jelas.
 
+
+
+### Kesiapan C — apa yang sudah ada, apa yang kurang, dan satu koreksi klaim
+
+**Sudah ada dan sudah dites** (jadi C bukan pekerjaan dari nol):
+
+| Fondasi | Di mana | Status |
+|---|---|---|
+| Penulis header COW v3 (C + Rust, byte-identik) | `src/uml4termuxd.c` `write_cow_header_file`, `rust/src/cow.rs` | parity-gated (`cow-header` hook, `cmp` di CI) |
+| Header COW **memuat mtime + size image dasar** | `cow.rs`: `mtime`, `size`, `SECTOR_SIZE`; C: `hdr` mtime/size | **inilah yang dibutuhkan C4**, tak perlu metadata tambahan |
+| COW ephemeral per instance | launcher menetapkan `UML4TERMUXD_COW=${rt}/${name}.cow` | dipakai tiap `up`, terbukti di B1 |
+| Hentikan guest bersih lewat kanal konsol | daemon `stop` (poweroff 20 s → TERM → KILL) | dipakai `down`, terbukti |
+| Registry instance + runtime dir per instance | `lib/registry.sh` | terbukti (G3) |
+| Rotasi berkas generasi | `lib/logs.sh` (copy+truncate, `KEEP`) | pola bisa dipakai untuk rotasi snapshot |
+
+**Yang belum ada** (inti pekerjaan C):
+
+1. `snapshot <label>`: belum ada. Perlu: pastikan guest berhenti bersih → salin
+   `${rt}/${name}.cow` → `${rt}/snapshots/<label>.cow` → tulis `<label>.json`
+   (timestamp, path+size+**digest**+mtime image dasar, `uname` guest dari
+   konsol, sha256 + ukuran COW).
+2. `up --from <label>`: belum ada. Perlu **copy-on-resume**: snapshot bersifat
+   *immutable*, tiap resume menyalinnya menjadi COW kerja baru — tanpa itu,
+   resume kedua akan melihat tulisan resume pertama dan kriteria "dua boot
+   identik" gagal.
+3. `snapshots` (daftar) + `snapshot --rm` + rotasi (simpan N terakhir).
+4. Penolakan eksplisit di depan (bukan mengandalkan UML): image dasar berubah
+   digest/size/mtime → tolak dengan pesan yang menyebut angka.
+5. Gate: `tests/test-snapshot.sh` (level berkas: penolakan image berbeda,
+   isolasi copy-on-resume, rotasi) + bukti device lewat kanal `exec`.
+
+**Koreksi klaim yang harus tertulis, bukan disembunyikan.** Tujuan di atas
+berbunyi "kembali ke kondisi awal dalam hitungan detik". Snapshot di sini adalah
+**state dingin**: guest dimatikan bersih lalu COW-nya disimpan, jadi yang
+kembali adalah *isi filesystem*, bukan RAM. Biaya kembali = satu boot
+(±20–30 s dengan cache hangat), **bukan** hitungan detik, dan proses yang
+sedang berjalan di guest tidak ikut hidup lagi. Yang benar-benar "detik" hanya
+bisa dicapai dengan save/restore RAM, yang tidak didukung port ini. Fitur ini
+tetap bernilai — "coba sesuatu, lalu kembali ke kondisi awal" dengan satu
+perintah dan tanpa boot ulang dari nol — tapi janjinya harus ditulis apa adanya.
+
+**Diverifikasi di device (bukan diasumsikan), dari COW milik soak B1 yang
+sedang berjalan:**
+
+```
+COW   : v3 mtime=1793373461 size=3221225472 sector=512
+IMAGE : mtime=1793373461 size=3221225472      <- mtime dan size COCOK PERSIS
+bitmap: 16 bit set (2 byte non-nol)           <- tulisan guest benar lewat COW
+ukuran: 3.222.016.512 byte logis, 2.416 KB alokasi disk (sparse)
+```
+
+Tiga konsekuensi yang mengubah rencana:
+
+1. **C4 bisa ditopang header, bukan metadata karangan.** Header COW sudah memuat
+   mtime + size image dasar dan nilainya **cocok persis** dengan image yang
+   dipakai. Metadata snapshot cukup menambahkan digest image (yang tak ada di
+   header) + path yang benar-benar dipakai.
+2. **`cp` di Termux mempertahankan sparseness** — diukur: berkas 64 MB dengan
+   4 KB data → salinan tetap 4 KB alokasi, baik `cp` biasa maupun
+   `cp --sparse=always`. Jadi snapshot COW (2,4 MB di sini) murah dan tidak
+   membengkak jadi 3,2 GB. Tetap catat **ukuran logis dan ukuran teralokasi**
+   di metadata, karena keduanya berbeda arti.
+3. **mtime di header merujuk image yang benar-benar di-boot**, bukan path
+   default: soak memakai salinan `img-s1.ext4` yang mtime-nya berbeda dari image
+   asli di `uml-forensics/`. Karena itu `up --from` harus memeriksa image yang
+   **akan dipakai**, dan pesan penolakan menyebut path + mtime + digest
+   keduanya supaya bisa dibandingkan langsung oleh pengguna.
+
+**Desain yang dipilih.** Pembagian tugas mengikuti lapisan yang sudah ada, bukan
+menambah daemon baru: perintah `snapshot` adalah perintah **protokol daemon**
+(ia yang memiliki COW dan tahu kapan guest benar-benar berhenti), sedangkan
+`up --from` di launcher (ia yang memiliki registry, nama, dan port). Penambahan
+perintah protokol **tidak** menaikkan `protocol` (kontrak: penambahan tidak
+menaikkan versi), tetapi daftar `commands` di balasan `protocol` bertambah dan
+gate parity wajib diperbarui di commit yang sama.
+
 **Biaya.** 1–2 sesi. **Risiko.** Rendah (fitur baru, jalur lama tak berubah).
 
 ---
