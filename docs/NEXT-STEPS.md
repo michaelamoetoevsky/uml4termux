@@ -5,7 +5,9 @@ Docker berjalan penuh di UML arm64 dalam Termux tanpa root; daemon biner
 menjalankan/mengawasi guest; boot ephemeral COW; multi-guest; kernel
 byte-reproducible; rilis v0.5.0 terbit dengan 6 asset.
 
-Dokumen ini menetapkan **enam arah** pengembangan berikutnya. Aturan main:
+Dokumen ini menetapkan **tujuh arah** (A–G) pengembangan berikutnya. Arah G
+lahir dari usulan pengguna (runtime/supervisor sendiri) dan memuat penilaian
+jujur berikut bentuk yang direkomendasikan. Aturan main:
 
 1. Setiap arah punya **kriteria lulus yang bisa diuji** dan **evidence**
    yang harus dihasilkan (schema 1.1) — bukan klaim naratif.
@@ -157,6 +159,93 @@ itu F1 selalu menjadi fallback, bukan taruhan.
 
 ---
 
+## G. Runtime mandiri — supervisor, service, socket, daemon sendiri
+
+**Usulan asal.** uml4termux punya supervisor service, service, D-Bus, socket,
+daemon, dan runtime sendiri — tidak mengandalkan runit/termux-services.
+
+**Penilaian jujur: arahnya benar, tapi usulannya perlu dibentuk ulang.** Tiga
+dari enam komponen yang disebut **sudah ada dan sudah terbukti**; dua
+sebaiknya ditolak eksplisit; satu (launcher) justru inti nilainya.
+
+### Yang sudah ada — jangan dibangun ulang
+
+Daemon (Rust, parity 6 baris vs C) sudah menjadi supervisor dari tumpukan
+*dalam*:
+
+| Kemampuan | Bukti |
+|---|---|
+| Kebijakan restart (backoff, batas 5; exit 0 = sesi selesai; 126/127 = menyerah) | tes + soak 8/8 siklus berdisk |
+| Shutdown berjenjang: konsol 20 s → SIGTERM → SIGKILL | teardown grup gvproxy terbukti (pid 26934 hilang) |
+| State file atomik + socket kontrol 0600 | parity byte-identik dengan daemon C |
+| Registry exposure + re-apply saat start | E2E: `expose 18124→8123`, inbound `gvproxy-bess-ok` |
+| Endpoint health HTTP | parity body byte-identik |
+
+Jadi "daemon + socket + runtime" **bukan pekerjaan baru** — itu hasil migrasi
+Rust yang sedang berjalan. Sisa yang benar-benar belum ada: **launcher/host
+manager** (yang memiliki siklus hidup daemon), **registry multi-instance**,
+**manajemen log milik sendiri**, dan **kontrak launcher yang terdokumentasi**.
+
+### Batas yang tidak bisa dilewati (fakta, bukan preferensi)
+
+1. **Tidak ada PID 1 di Android.** init milik Android tidak bisa digantikan;
+   proses apa pun tetap lahir di dalam sandbox app. "Independen dari runit"
+   paling jauh berarti *independen dari konvensi termux-services*, bukan
+   independen dari hook boot. Launcher tetap butuh Termux:Boot, shell, unit
+   systemd, atau s6 — dan runit hanyalah salah satunya.
+2. **Phantom process killer (Android 12+): 32 proses anak** untuk app latar.
+   Mengganti runit tidak menghindari batas ini. Supervisor kita harus **lebih
+   hemat proses**, bukan lebih banyak — D-Bus daemon + bus justru menambahnya.
+3. **Disiplin bukti tidak boleh turun.** Supervisor milik sendiri = suite tes
+   dan gate evidence milik sendiri; tanpa itu properti yang membuat repo ini
+   kredibel hilang.
+4. **Satu supervisor per lapisan.** runit mengawasi daemon *dan* daemon
+   mengawasi guest = dua supervisor, satu terlalu banyak. Yang benar: daemon
+   mengawasi tumpukan guest; lapisan atas hanya menjaga daemon tetap hidup.
+
+### Bentuk yang direkomendasikan
+
+- **G1. Kontrak runtime stabil.** Protokol kontrol diberi versi (v1),
+  path socket, skema state file, exit code, dan definisi *ready* ditulis
+  sebagai kontrak (bukan tersirat di kode). Gate: contract test.
+- **G2. `uml4termux up|down|status|logs` tanpa runit.** Jalur invokasi
+  langsung; service runit menyusut jadi adapter 2 baris. Gate: boot + stop +
+  teardown bersih **dijalankan tanpa `sv` di PATH**, direkam sebagai evidence.
+- **G3. Manajer multi-instance.** Registry instance (direktori runtime),
+  `uml4termux ls`, state per-instance, dan **penegakan invarian** yang kini
+  hanya jadi peringatan dokumen: satu guest per image (lock `F_SETLK`) dan
+  satu gvproxy per port 2222 → dikelola supervisor, bukan diingat manusia.
+  Gate: 2 instance bersamaan, port berbeda, tanpa tabrakan, teardown bersih.
+- **G4. Layout log & state sendiri.** Rotasi tanpa svlogd, retensi, `logs -f`.
+  Gate: tes rotasi dengan batas byte.
+- **G5. Adapter launcher.** runit (ada), systemd unit, s6, dan "plain/CI".
+  Gate: minimal satu adapter non-runit dijalankan di CI + didokumentasikan.
+- **G6. (Opsional) facade D-Bus** — feature-gated, mati secara default,
+  memetakan `status/up/down` ke session bus untuk integrasi desktop.
+
+### Yang ditolak (jangan dijanjikan)
+
+- **D-Bus di jalur kritis.** Tidak ada konsumen di Android; menambah dependensi
+  daemon + protokol untuk data yang socket unix + protokol baris sudah
+  melayani, dan sudah punya parity test. Boleh sebagai facade opsional (G6),
+  tidak boleh jadi syarat agar uml4termux hidup.
+- **Menjadi PID 1 / menggantikan init.** Lihat batas 1.
+- **Mereimplementasi semantik runsv** (ordering, dependensi, readiness antar
+  service) dari nol — daemon sudah menangani yang kita butuhkan.
+- **Menghapus jalur runit.** Ia tetap adapter pertama dan tetap yang
+  terverifikasi di device ini; menghapusnya akan merusak pengguna yang ada.
+
+**Kriteria lulus.** G1: kontrak tertulis + dites. G2: satu boot penuh tanpa
+runit, evidence terekam. G3: 2 instance bersamaan tanpa tabrakan. G4: rotasi
+log terbukti. G5: satu adapter non-runit hijau di CI.
+**Biaya.** Sedang–tinggi (supervision itu halus). **Risiko.** Sedang, dengan
+satu syarat: **jangan sampai ada dua supervisor**. Nilai terbesarnya bukan
+"lepas dari runit" melainkan **portabilitas** — artefak yang sama bisa dipakai
+di host non-Termux (systemd/s6/plain, container, runner CI) dan koordinasi
+multi-instance yang hari ini masih berupa peringatan di dokumen.
+
+---
+
 ## Urutan yang direkomendasikan
 
 | Urut | Item | Alasan | Risiko |
@@ -167,6 +256,7 @@ itu F1 selalu menjadi fallback, bukan taruhan.
 | 4 | E (keamanan) | Prasyarat sebelum orang lain menjalankan image | Rendah |
 | 5 | D (ekosistem) | Perluasan audiens setelah fondasi stabil | Rendah |
 | 6 | F (hulu) | Paralel, tanpa menahan apa pun | Sedang |
+| 7 | G (runtime mandiri) | Portabilitas ke host non-Termux + penegakan invarian multi-instance; butuh kontrak stabil dulu | Sedang |
 
 ## Di luar lingkup (jangan dijanjikan)
 
@@ -176,5 +266,8 @@ itu F1 selalu menjadi fallback, bukan taruhan.
 - **systemd/OpenRC sebagai PID 1** di guest (terbukti hang).
 - **Docker rootless di dalam guest** (butuh pemetaan UID yang tidak didukung
   port ini); dockerd tetap root-di-dalam-guest.
+- **Menjadi PID 1 / menggantikan init Android.** Sandbox app tidak
+  mengizinkan itu; arah G karena itu berbicara soal launcher, bukan boot.
+- **D-Bus sebagai dependensi wajib.** Hanya boleh sebagai facade opsional.
 - **`hostfs`** untuk kode tak tepercaya.
 - **Menyamai performa native** — batas arsitektural, bukan bug.
