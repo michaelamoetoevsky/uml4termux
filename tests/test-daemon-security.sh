@@ -71,7 +71,13 @@ compile_daemon() { # <out>
       || clang -O2 -o "$1" "${ROOT}/src/uml4termuxd.c" 2>/dev/null; } || return 1
   [ -x "$1" ]
 }
-DBIN="${1:-${UML4TERMUXD_BIN:-${ROOT}/bin/uml4termuxd}}"
+NONOWNER_ONLY=0
+DAEMON_ARG="${1:-}"
+if [ "${DAEMON_ARG}" = "--nonowner-only" ]; then
+  NONOWNER_ONLY=1
+  DAEMON_ARG="${2:-}"
+fi
+DBIN="${DAEMON_ARG:-${UML4TERMUXD_BIN:-${ROOT}/bin/uml4termuxd}}"
 if [ ! -x "${DBIN}" ] || ! runnable "${DBIN}"; then
   alt="${work}/uml4termuxd"
   if compile_daemon "${alt}" && runnable "${alt}"; then
@@ -115,6 +121,9 @@ stop_daemon() {
   daemon_pid=""
 }
 
+if [ "${NONOWNER_ONLY}" = "1" ]; then
+  : # bagian E3.1-E3.4 milik pemilik socket; di sini hanya jalur non-pemilik
+else
 printf '\nE3.1/E3.2: owner-only socket and audit log\n'
 if start_daemon UML4TERMUXD_EXEC_MIN_INTERVAL_MS=400; then
   ok "daemon hidup (selftest)"
@@ -161,23 +170,23 @@ has "perintah stop tercatat" "stop uid=" "$(cat "${runtime}/audit.log" 2>/dev/nu
 has "audit memakai UTC ISO-8601" "Z stop uid=" "$(cat "${runtime}/audit.log" 2>/dev/null)"
 stop_daemon
 
-printf '\nE3.5: koneksi dari uid lain ditolak daemon (SO_PEERCRED)\n'
-if [ "$(id -u)" = "0" ]; then
-  rt2="${work}/rt2"
+nonowner_check() { # dijalankan sebagai root: daemon milik user lain, klien root
+  local rt2="${work}/rt2"
   mkdir -p "${rt2}"
-  other="u4tsec"
+  local other="u4tsec"
   id "${other}" >/dev/null 2>&1 || useradd -M -s /bin/false "${other}"
   chown -R "${other}" "${rt2}" 2>/dev/null
-  chmod 755 "${work}"
+  chmod 755 "${work}" "${rt2}" 2>/dev/null
   su -s /bin/sh "${other}" -c "UML4TERMUX_RUNTIME='${rt2}' UML4TERMUXD_SELFTEST_SECONDS=120 ${DBIN} daemon --selftest" >"${work}/daemon2.log" 2>&1 &
-  other_pid=$!
-  i=0
+  local pid=$!
+  local i=0
   while [ "${i}" -lt 40 ]; do
     [ -S "${rt2}/daemon.sock" ] && break
     sleep 0.5
     i=$((i + 1))
   done
   if [ -S "${rt2}/daemon.sock" ]; then
+    local reply
     reply="$(UML4TERMUX_RUNTIME="${rt2}" "${DBIN}" status 2>&1 || true)"
     has "root ditolak oleh daemon milik user lain" "not the owner" "${reply}"
     sleep 1
@@ -186,12 +195,37 @@ if [ "$(id -u)" = "0" ]; then
     bad "daemon milik user lain tidak siap"
     sed -n '1,10p' "${work}/daemon2.log" 2>/dev/null | sed 's/^/    /'
   fi
-  kill -TERM "${other_pid}" 2>/dev/null
+  kill -TERM "${pid}" 2>/dev/null
   sleep 1
-  kill -KILL "${other_pid}" 2>/dev/null
-  other_pid=""
+  kill -KILL "${pid}" 2>/dev/null
+}
+
+fi
+
+printf '\nE3.5: koneksi dari uid lain ditolak daemon (SO_PEERCRED)\n'
+# Reaching this at all means the caller is either root or can become root: the
+# socket is 0600, so a different uid can only touch it with privilege -- which is
+# exactly the case worth testing (a root process, or another user with
+# CAP_DAC_OVERRIDE, must not be able to drive someone else's guest).
+if [ "${NONOWNER_ONLY:-0}" = "1" ]; then
+  nonowner_check
+  if [ "${fails}" -gt 0 ]; then exit 1; fi
+  printf 'non-owner check: all assertions passed\n'
+  exit 0
+fi
+if [ "$(id -u)" = "0" ]; then
+  nonowner_check
+elif command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+  # GitHub runners are NOT root by default (user 'runner' with passwordless
+  # sudo), so this is the path CI takes. The child prints its own PASS/FAIL lines;
+  # this shell adds one summary assertion so a failure is counted here too.
+  if sudo -n bash "$0" --nonowner-only "${DBIN}"; then
+    ok "uji uid-lain dijalankan sebagai root lewat sudo dan lulus"
+  else
+    bad "uji uid-lain (sebagai root lewat sudo) gagal"
+  fi
 else
-  skip "bukan root: koneksi dari uid lain tidak bisa diuji di sini (socket 0600 sudah menutup jalur biasa; yang diuji di CI adalah kasus peer bukan pemilik yang tetap bisa menyentuh socket)"
+  skip "bukan root dan tanpa sudo: koneksi dari uid lain tidak bisa diuji di sini (di device hanya ada satu uid; di CI dijalankan lewat sudo)"
 fi
 
 if [ "${fails}" -gt 0 ]; then
