@@ -26,6 +26,12 @@ const RESTART_BACKOFF_S: u32 = 2;
 const RESTART_MAX: u32 = 5;
 
 // Written from signal handlers: only atomics, no allocation, no locks.
+/// Runtime contract v1 (docs/RUNTIME-CONTRACT.md). Bumped only when the
+/// documented protocol/paths change in a way old clients cannot handle.
+const PROTOCOL: u8 = 1;
+const RUNTIME_CONTRACT: u8 = 1;
+const COMMANDS: &str = "\"status\",\"stop\",\"ports\",\"expose\",\"exec\",\"protocol\"";
+
 static STOP: AtomicBool = AtomicBool::new(false);
 static CHILD_EXITED: AtomicBool = AtomicBool::new(false);
 
@@ -813,6 +819,14 @@ impl Daemon {
     /// Pure command dispatch: separated from the socket so it is unit-testable
     /// without a client, a PTY or a child process.
     pub fn dispatch(&mut self, line: &str) -> String {
+        // Runtime contract v1 (docs/RUNTIME-CONTRACT.md). Must stay byte-identical
+        // to the C daemon's reply -- ci/verify-daemon-parity.sh compares them.
+        if line.starts_with("protocol") {
+            return format!(
+                "{{\"protocol\":{},\"runtime_contract\":{},\"commands\":[{}]}}\n",
+                PROTOCOL, RUNTIME_CONTRACT, COMMANDS
+            );
+        }
         if line.starts_with("status") {
             return self.status_json();
         }
@@ -1238,6 +1252,15 @@ mod tests {
             assert_eq!(v["detail"], "quote \" and \\ backslash");
             let _ = fs::remove_file(&d.state_path);
         }
+    }
+
+    #[test]
+    fn protocol_reply_is_the_v1_contract() {
+        let mut d = test_daemon(true);
+        assert_eq!(
+            d.dispatch("protocol"),
+            "{\"protocol\":1,\"runtime_contract\":1,\"commands\":[\"status\",\"stop\",\"ports\",\"expose\",\"exec\",\"protocol\"]}\n"
+        );
     }
 
     #[test]

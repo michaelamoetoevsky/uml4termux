@@ -76,6 +76,11 @@ pub fn stop(sock: &Path) -> Result<String, ClientError> {
     request(sock, "stop")
 }
 
+/// Runtime contract v1 handshake. Byte-identical to the C client's reply.
+pub fn protocol(sock: &Path) -> Result<String, ClientError> {
+    request(sock, "protocol")
+}
+
 pub fn ports(sock: &Path) -> Result<String, ClientError> {
     request(sock, "ports")
 }

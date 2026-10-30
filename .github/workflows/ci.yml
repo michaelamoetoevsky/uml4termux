@@ -260,6 +260,9 @@ jobs:
       - name: Shell->daemon expose routing contract
         run: bash tests/test-expose-routing.sh /tmp/uml4termuxd
 
+      - name: Runtime contract v1 (C and Rust, both implementations)
+        run: bash tests/test-runtime-contract.sh
+
   # ---------------------------------------------------------------------------
   rust:
     name: rust (fmt + clippy + tests + daemon parity)

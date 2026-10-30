@@ -266,6 +266,7 @@ project; this documentation set does not define their contents.
 | [docs/CI-CD.md](docs/CI-CD.md) | you are changing CI, evidence or the release process |
 | [docs/KNOWN-LIMITS.md](docs/KNOWN-LIMITS.md) | you are deciding whether this fits your use case |
 | [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) | you want to know where the project is going next (seven directions, A–G) |
+| [docs/RUNTIME-CONTRACT.md](docs/RUNTIME-CONTRACT.md) | you are integrating with the daemon (socket paths, protocol, exit codes, invariants — v1) |
 | [docs/RUST-MIGRATION-AUDIT.md](docs/RUST-MIGRATION-AUDIT.md) | you are deciding which component (if any) should be written in Rust |
 | [docs/FAQ.md](docs/FAQ.md) | you have a specific yes/no question |
 | [docs/UPSTREAM.md](docs/UPSTREAM.md) | you want to contribute kernel patches upstream |

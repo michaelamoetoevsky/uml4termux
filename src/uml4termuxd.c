@@ -38,6 +38,11 @@
 
 #define SOCK_PATH_DEFAULT "/data/data/com.termux/files/home/.uml4termux/daemon.sock"
 #define SELFTEST_CHILD_DEFAULT "/data/data/com.termux/files/usr/bin/sleep"
+/* Runtime contract v1 (docs/RUNTIME-CONTRACT.md). Bumped only when the
+ * documented protocol/paths change in a way old clients cannot handle. */
+#define UML4TERMUXD_PROTOCOL 1
+#define UML4TERMUXD_RUNTIME_CONTRACT 1
+#define UML4TERMUXD_COMMANDS "\"status\",\"stop\",\"ports\",\"expose\",\"exec\",\"protocol\""
 #define RESTART_BACKOFF_S 2
 #define RESTART_MAX 5
 
@@ -653,6 +658,15 @@ static void handle_client(int fd)
 		if (req[i] == '\n' || req[i] == '\r')
 			req[i] = '\0';
 
+	if (strncmp(req, "protocol", 8) == 0) {
+		snprintf(resp, sizeof(resp),
+			 "{\"protocol\":%d,\"runtime_contract\":%d,\"commands\":[%s]}\n",
+			 UML4TERMUXD_PROTOCOL, UML4TERMUXD_RUNTIME_CONTRACT,
+			 UML4TERMUXD_COMMANDS);
+		respond(fd, resp);
+		return;
+	}
+
 	if (strncmp(req, "status", 6) == 0) {
 		char info[192];
 
@@ -1071,6 +1085,8 @@ int main(int argc, char **argv)
 		return daemon_main(argc >= 3 && strcmp(argv[2], "--selftest") == 0);
 	if (argc >= 2 && (strcmp(argv[1], "status") == 0 || strcmp(argv[1], "stop") == 0))
 		return client_main(argv[1]);
+	if (argc >= 2 && strcmp(argv[1], "protocol") == 0)
+		return client_main("protocol");
 	if (argc >= 2 && strcmp(argv[1], "ports") == 0)
 		return client_main("ports");
 	if (argc >= 4 && strcmp(argv[1], "expose") == 0) {

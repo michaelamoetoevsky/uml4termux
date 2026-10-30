@@ -281,6 +281,11 @@ run_meta "shell: expose routing (daemon owns state)" '
   bash '"$ROOT"'/tests/test-expose-routing.sh >/dev/null
 '
 
+run_meta "shell: runtime contract v1" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-runtime-contract.sh >/dev/null
+'
+
 # ---------------------------------------------------------------------------
 # 8. Print summary table and exit
 # ---------------------------------------------------------------------------

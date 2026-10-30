@@ -68,6 +68,7 @@ query_daemon() { # $1 = daemon binary, $2 = phase name
   set +e
   {
     "$c_client" status
+    "$c_client" protocol
     "$c_client" ports
     "$c_client" exec uname -a
     "$c_client" expose 8124 80

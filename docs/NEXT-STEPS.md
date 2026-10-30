@@ -205,7 +205,10 @@ manager** (yang memiliki siklus hidup daemon), **registry multi-instance**,
 
 ### Bentuk yang direkomendasikan
 
-- **G1. Kontrak runtime stabil.** Protokol kontrol diberi versi (v1),
+- **G1. Kontrak runtime stabil — SELESAI.** `docs/RUNTIME-CONTRACT.md`
+  (v1) + perintah `protocol` di kedua daemon (parity byte-identik, gate 7 baris)
+  + `tests/test-runtime-contract.sh` (22 asersi × 2 implementasi, dijalankan
+  `ci/local-ci.sh` dan CI). Protokol kontrol diberi versi (v1),
   path socket, skema state file, exit code, dan definisi *ready* ditulis
   sebagai kontrak (bukan tersirat di kode). Gate: contract test.
 - **G2. `uml4termux up|down|status|logs` tanpa runit.** Jalur invokasi

@@ -47,6 +47,8 @@ enum Cmd {
     Status,
     /// Ask the daemon to stop the guest cleanly
     Stop,
+    /// Print the runtime contract version and the command set (v1)
+    Protocol,
     /// List persistent port exposures
     Ports,
     /// Run a command inside the guest through the console channel
@@ -88,13 +90,23 @@ enum Cmd {
 }
 
 fn main() -> ExitCode {
-    let cli = Cli::parse();
+    // Runtime contract v1: a CLI usage error must exit 64, exactly like the C
+    // front end (which returns 64 for an unknown command). clap's default of 2
+    // would silently break the documented exit-code parity.
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(err) => {
+            let _ = err.print();
+            std::process::exit(if err.use_stderr() { 64 } else { 0 });
+        }
+    };
     let cfg = Config::from_env();
     let sock = cli.socket.clone().unwrap_or_else(|| cfg.daemon_sock());
 
     match cli.cmd {
         Cmd::Status => daemon(&sock, client::status(&sock), cli.raw),
         Cmd::Stop => daemon(&sock, client::stop(&sock), cli.raw),
+        Cmd::Protocol => daemon(&sock, client::protocol(&sock), cli.raw),
         Cmd::Ports => daemon(&sock, client::ports(&sock), cli.raw),
         Cmd::Exec { argv } => daemon(&sock, client::exec(&sock, &argv), cli.raw),
         Cmd::Expose {
