@@ -83,15 +83,35 @@ down() { "$BIN" down --name "$1" 2>&1; }
 # the guest and gvproxy kept running. The suite therefore runs against BOTH
 # front ends -- a launcher bug that only shows with one of them is exactly the
 # kind this project has been bitten by.
+# A wrong-arch binary (the tracked aarch64 one on an x86 runner) cannot execute
+# here; main() answers usage with exit 64, so only 126/127 mean "cannot run".
+can_run() {
+  "$1" --help >/dev/null 2>&1
+  local rc=$?
+  [ "$rc" -ne 126 ] && [ "$rc" -ne 127 ]
+}
+
 run_suite() { # <label> <daemon-binary>
   local label="$1" daemon="$2"
+  # Each suite must use the binary it was given: without this export the
+  # launcher falls back to an installed uml4termuxd and both suites would
+  # silently test the same front end.
   export UML4TERMUXD_BIN="$daemon"
   echo "### front end: ${label} ###"
 
-echo "== instance A: start tanpa runit =="
 out="$(up "$work/rt-a" a "$work/img-a" 2222)"; rc=$?
 expect_rc "up A" 0 "$rc"
 printf '%s\n' "$out" | grep -q "is up" && ok "pesan up" || bad "pesan up tidak muncul: $out"
+
+# Guard against silent fallback: the running daemon MUST be the binary this
+# suite was handed. A missing export once made both suites test the installed
+# uml4termuxd while every assertion still passed.
+dpid="$(sed -n 's/^PID=//p' "$UML4TERMUX_STATE_DIR/instances/a.env" 2>/dev/null)"
+if [ -n "$dpid" ] && tr '\0' ' ' < "/proc/$dpid/cmdline" 2>/dev/null | grep -qF "$daemon"; then
+  ok "daemon yang berjalan = biner ${label}"
+else
+  bad "daemon yang berjalan BUKAN biner ${label} (cmdline pid ${dpid:-?} tidak memuat $daemon)"
+fi
 
 st="$("$BIN" status --name a --json)"
 printf '%s' "$st" | grep -q '"live":"yes"' && ok "status A live" || bad "status A: $st"
@@ -144,8 +164,14 @@ printf '%s' "$out" | grep -q ' daemon --selftest' && ok "dry-run mencetak perint
 
 }
 
-if [ -x "$ROOT/bin/uml4termuxd" ]; then run_suite c "$ROOT/bin/uml4termuxd"; fi
-if [ -x "$ROOT/rust/target/release/uml4termux-rs" ]; then
+# The C suite uses the binary the caller provided (bin/uml4termuxd locally, the
+# freshly compiled one in CI) and is skipped when that binary cannot run here.
+if [ -x "$DAEMON" ] && can_run "$DAEMON"; then
+  run_suite c "$DAEMON"
+else
+  echo "SKIP: C front end cannot execute here ($DAEMON)"
+fi
+if [ -x "$ROOT/rust/target/release/uml4termux-rs" ] && can_run "$ROOT/rust/target/release/uml4termux-rs"; then
   run_suite rust "$ROOT/rust/target/release/uml4termux-rs"
 else
   echo "SKIP: rust front end not built"
