@@ -970,9 +970,11 @@ static void handle_client(int fd)
 
 		if (in) {
 			while (fgets(buf, sizeof(buf), in)) {
-				if (strlen(list) + strlen(buf) >= sizeof(list) - 1)
+				size_t have = strlen(list), add = strlen(buf);
+
+				if (have + add >= sizeof(list) - 1)
 					break;
-				strncat(list, buf, strlen(buf));
+				memcpy(list + have, buf, add + 1);
 			}
 			fclose(in);
 		}
