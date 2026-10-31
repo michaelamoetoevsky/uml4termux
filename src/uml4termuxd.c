@@ -1427,7 +1427,16 @@ static int client_line(const char *what, const char *prefix)
 		close(fd);
 		return 1;
 	}
-	strncpy(addr.sun_path, g_sockpath, sizeof(addr.sun_path) - 1);
+	/* Same invariant as daemon_main: sun_path is 108 bytes and the path must fit
+	   WITH its NUL. strncpy both truncates silently and trips gcc's
+	   -Wstringop-truncation; the check belongs in the code, not in a flag. */
+	if (strlen(g_sockpath) >= sizeof(addr.sun_path)) {
+		fprintf(stderr, "uml4termuxd: socket path too long for sun_path: %s\n",
+			g_sockpath);
+		close(fd);
+		return 64;
+	}
+	memcpy(addr.sun_path, g_sockpath, strlen(g_sockpath) + 1);
 	if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
 		fprintf(stderr, "daemon not reachable at %s: %s\n", g_sockpath, strerror(errno));
 		close(fd);
@@ -1444,7 +1453,18 @@ static int client_line(const char *what, const char *prefix)
 			return 64;
 		}
 	}
-	snprintf(buf, sizeof(buf), "%s%s\n", prefix, what);
+	/* Built with memcpy rather than snprintf: the length check above already proves
+	   it fits, but gcc cannot see that through the format string and reports
+	   -Wformat-truncation instead. Handing the compiler a proof it can check is
+	   better than silencing it. */
+	{
+		size_t plen = strlen(prefix), wlen = strlen(what);
+
+		memcpy(buf, prefix, plen);
+		memcpy(buf + plen, what, wlen);
+		buf[plen + wlen] = '\n';
+		buf[plen + wlen + 1] = '\0';
+	}
 	if (write(fd, buf, strlen(buf)) < 0) {
 		fprintf(stderr, "write: %s\n", strerror(errno));
 		close(fd);
