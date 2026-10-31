@@ -930,7 +930,11 @@ static int exec_rate_limited(long *min_ms_out)
 static void handle_client(int fd)
 {
 	char req[8192];
-	char resp[512];
+	/* 8192, not 512: replies embed the console path (up to 511 bytes) and the whole
+	   exposure list (up to 2048), and gcc was right that the envelope could not fit.
+	   Silently cutting a value the client needs is worse than a larger stack frame, and
+	   this one is no bigger than req[] beside it. */
+	char resp[8192];
 	ssize_t n;
 
 	/* One read() is not one message: a stream socket may hand back half of it, and
@@ -975,7 +979,7 @@ static void handle_client(int fd)
 	}
 
 	if (strncmp(req, "status", 6) == 0) {
-		char info[192];
+		char info[768]; /* kernel path (511) + mem + ncpus + the JSON around them */
 
 		if (g_kernel[0]) {
 			snprintf(info, sizeof(info),
@@ -1570,7 +1574,7 @@ int main(int argc, char **argv)
 	}
 	if (argc >= 2 && strcmp(argv[1], "console") == 0) {
 		char sockbuf[512];
-		char logbuf[520];
+		char logbuf[640]; /* runtime dir (511) + "/uml-console.log" */
 		char line[1024];
 		int want = argc >= 3 ? atoi(argv[2]) : 40;
 		int shown = 0;
