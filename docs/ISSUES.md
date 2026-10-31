@@ -14,7 +14,7 @@ sentence that quietly rots.
 | ~~2~~ | ~~Local-registry recipe has no number~~ — **CLOSED: numbers measured, and the parser that lost them fixed** | was: low | — |
 | ~~3~~ | ~~The status panel is verified by executing its script, not by rendering it~~ — **CLOSED for the DOM, residual gap moved to KNOWN-LIMITS** | low | — |
 | ~~4~~ | ~~`expose HOST:GUEST` once logged the host port as the guest port~~ — **CLOSED: mapping is correct, now gated** | was: unknown | — |
-| 5 | `termux-packages` PR **sent** as #33074 — their lint and source checks pass | — | maintainer review |
+| ~~5~~ | ~~`termux-packages` package~~ — **CLOSED: sent as #33074, refused by their adoption policy; answer posted** | — | revisit when the project has users |
 | 6 | Upstream patch **sent** as PR #26 — watching for a response | — | upstream response (30-day clock) |
 | ~~7~~ | ~~`up` on the shared asset image booted a guest that exited at once~~ — **CLOSED, root cause found** | was: unknown | — |
 
@@ -129,28 +129,38 @@ never appears in the remote half. 6 assertions pass; the end-to-end curl SKIPs w
 demo container is not listening (a booking, not a mapping). Device-only by nature, so it
 SKIPs cleanly where the assets or a guest are absent.
 
-## 5. `termux-packages` package sent — PR #33074, their checks pass
+## 5. CLOSED — the package was sent, their lint passed, their policy said not yet
 
-**Sent 2026-10-31:** [termux/termux-packages#33074](https://github.com/termux/termux-packages/pull/33074),
-one file, `packages/uml4termux/build.sh`, +87 lines. Read back: `state=open`,
-`changed_files=1`, and the repository's own checks on the PR head (`bc8699f5`):
-`lint-pr` **success**, `check-new-package-source` **success**,
-`link-auto-update-issues` **success**. A script-only package that fails their lint is not
-worth sending, so those three results are the point of the submission.
+**Submitted 2026-10-31:** [termux/termux-packages#33074](https://github.com/termux/termux-packages/pull/33074),
+one file, `packages/uml4termux/build.sh`, +87. Their checks on the PR head passed —
+`lint-pr`, `check-new-package-source`, `link-auto-update-issues` — so the packaging itself
+was acceptable.
 
-**One thing went wrong first, and it is worth writing down:** the first attempt (#33073)
-was opened from a branch cut from *my fork's* `master`, which was ahead of upstream and
-carried an unrelated `packages/pdn/build.sh` — so the diff contained a change that was not
-mine. It was closed with a note, and the replacement was cut from the upstream `master` sha
-itself (`f8d118f1`), which is the only way to be certain a one-file PR contains one file.
+**Outcome: closed by policy, not by defect.** The repository's bot answered that packages
+must be "active, well-known projects with an established community", and a repository
+created recently does not meet that bar yet. That is a legitimate position for a small
+team to take, and arguing it would be both rude and pointless: the answer is adoption, not
+rhetoric. A comment was left stating the two facts that matter for later (it boots a real
+guest and runs Docker; its downloads are digest-pinned and fail closed) and saying I would
+come back when the policy's condition is met.
 
-**Also fixed while preparing it:** `TERMUX_PKG_DEPENDS` was empty. For a script-only
-package that is wrong — the CLI is bash, the library leans on coreutils, `fetch` verifies
-digests with sha256sum and downloads with curl, and the initramfs builder and panel are
-python — so it now declares `bash, coreutils, curl, python`.
+**What it cost and what it bought.** One packaging defect surfaced while preparing it, and
+it was real: `TERMUX_PKG_DEPENDS` was empty, although the CLI is bash, the library leans on
+coreutils, `fetch` needs curl and sha256sum, and the initramfs builder and panel are python.
+An empty list would have installed a package whose first command fails on a minimal Termux.
+Their `check-new-package-source` passing afterwards is the confirmation that the file is
+packaging-correct even though the PR is not acceptable yet.
 
-**Done looks like:** a maintainer review either way. If it lands, `TERMUX_PKG_DEPENDS` can
-name `linux-kernel-um` and `passt` once #32700 merges and the kernel fetch step disappears.
+**Also recorded because it was a mistake:** the first attempt (#33073) was cut from *my
+fork's* `master`, which was ahead of upstream and carried an unrelated
+`packages/pdn/build.sh`, so a one-file PR contained a change that was not mine. It was
+closed with a note and replaced with a branch cut from the upstream `master` sha itself.
+
+**Install path in the meantime:** `scripts/install.sh` from the release tarball installs the
+same file set that `build.sh` would have delegated to.
+
+**Done looks like:** the project has adoption; then reopen the same patch (it is one file)
+and answer the review.
 
 ## 6. Upstream patch sent — PR #26, waiting on the maintainer
 

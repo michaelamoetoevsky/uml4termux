@@ -488,6 +488,16 @@ disebut di badan PR. `termux_step_make_install` kini **mendelegasikan ke
 menyimpang. Membuka PR ke repositori orang lain adalah tindakan publik: itu
 menunggu persetujuan pemilik repo, jadi bagian ini berhenti di "siap".
 
+### D2 ditutup (31 Okt) — dikirim, ditolak kebijakan, bukan cacat
+
+`termux/termux-packages#33074` terkirim sebagai satu berkas (`packages/uml4termux/build.sh`)
+dan **lolos cek mereka** (`lint-pr`, `check-new-package-source`) sebelum bot-nya menutupnya
+dengan alasan kebijakan: paket harus proyek yang sudah mapan, dan repo ini masih baru.
+Satu cacat nyata ditemukan saat menyiapkannya — `TERMUX_PKG_DEPENDS` kosong padahal CLI-nya
+bash, pustakanya butuh coreutils, `fetch` butuh curl+sha256sum, dan initramfs/panel butuh
+python. Jalur pemasangan tetap `scripts/install.sh` dari tarball rilis. Buka kembali saat
+proyeknya punya pengguna.
+
 ---
 
 ## E. Keamanan & isolasi
