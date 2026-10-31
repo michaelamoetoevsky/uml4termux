@@ -50,7 +50,7 @@ def main(argv: list[str]) -> int:
             line = f.readline()
             if line:
                 stamp = time.time()
-                out.write(f"{stamp:.3f}\t{line.rstrip(chr(10))}\n")
+                out.write(f"{stamp:.3f}\t{line.rstrip(chr(13) + chr(10))}\n")
                 out.flush()
                 continue
             if stop_file and stop_file.exists():

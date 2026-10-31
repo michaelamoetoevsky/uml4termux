@@ -766,18 +766,25 @@ static void stop_child(int timeout_s)
 		if (write(g_ptym, line, strlen(line)) > 0) {
 			/* 3 s, not 20: the long budget was pure cost, because the evidence says the console
 			   path either lands in the first second or never lands at all. */
-			logf_("stop: clean shutdown via console (3 s budget)");
-			while (waitpid(g_child, NULL, WNOHANG) == 0 && clean < 6) {
+			/* Re-send the request while waiting: the guest's console agent evaluates one
+			   line at a time, so a request that arrives while it is busy (finishing a
+			   `docker run`, say) sits unread until that eval returns. Measured: the agent
+			   acknowledged one exec and never read the shutdown line inside 3 s. Asking
+			   three times over 5 s costs nothing when the first one lands. */
+			logf_("stop: clean shutdown via console (5 s budget, up to 3 requests)");
+			while (waitpid(g_child, NULL, WNOHANG) == 0 && clean < 20) {
 				drain_pty_once();
 				usleep(250000);
 				clean++;
+				if (clean % 8 == 0 && write(g_ptym, line, strlen(line)) > 0)
+					logf_("stop: re-sent the clean shutdown request");
 			}
 			if (waitpid(g_child, NULL, WNOHANG) != 0) {
 				g_child = -1;
-				logf_("clean shutdown landed after %d.%ds", clean / 2, (clean % 2) * 5);
+				logf_("clean shutdown landed after %d.%ds", clean / 4, (clean % 4) * 25);
 				return;
 			}
-			logf_("clean shutdown did not land in 3 s; falling back to signals");
+			logf_("clean shutdown did not land in 5 s; falling back to signals");
 		}
 	}
 	kill(g_child, SIGTERM);

@@ -2,7 +2,7 @@
   "schema_version": "1.1",
   "run_id": "boot-timeline-20261101",
   "project_version": "0.5.0",
-  "generated_at": "2026-11-01T03:27:19+0700",
+  "generated_at": "2026-11-01T05:01:42+0700",
   "device": {
     "model": "unknown",
     "android_release": "unknown",
@@ -22,29 +22,41 @@
       "ok": true,
       "evidence": "A guest booted for this run; every milestone below is an event observed in that guest's own console or by asking it."
     },
-    "timeline_measured": {
+    "console_agent": {
       "ok": true,
-      "evidence": "Milestones: kernel_up_s=6.71, initramfs_s=6.76, guest_script_s=13.62, dockerd_ready_s=14.65, first_container_s=0.11, total_s=22.54. Phase split: {\"kernel_boot\": 6.71, \"initramfs_to_guest_script\": 6.86, \"guest_script_to_dockerd_ready\": 1.03, \"up_command_total\": 22.54}"
+      "evidence": "__AGENT_READY__ printed by the guest once its exec loop reads the console at 14.72s"
+    },
+    "container_run": {
+      "ok": true,
+      "evidence": "`uname -m` answered aarch64 inside `docker run --rm alpine` at 117.37s"
+    },
+    "clean_shutdown": {
+      "ok": true,
+      "evidence": "daemon logged 'clean shutdown landed' after `down`"
     }
   },
   "observed": {
     "milestones": {
-      "kernel_up_s": 6.71,
-      "initramfs_s": 6.76,
-      "guest_script_s": 13.62,
-      "dockerd_ready_s": 14.65,
-      "first_container_s": 0.11,
-      "total_s": 22.54
+      "kernel_up_s": 10.91,
+      "initramfs_s": 11.34,
+      "console_agent_ready_s": 14.72,
+      "dockerd_starting_s": 19.02,
+      "image_stage_s": 100.35,
+      "dockerd_ready_s": 96.22,
+      "first_container_s": 117.37,
+      "teardown_s": null,
+      "total_s": 119.8
     },
     "phase_seconds": {
-      "kernel_boot": 6.71,
-      "initramfs_to_guest_script": 6.86,
-      "guest_script_to_dockerd_ready": 1.03,
-      "up_command_total": 22.54
+      "kernel_boot": 10.91,
+      "initramfs_to_console_agent": 3.38,
+      "console_agent_to_dockerd_ready": 81.5,
+      "dockerd_ready_to_first_container": 21.15
     }
   },
   "known_limits_observed": [
-    "the numbers are one boot on one device; container start was measured at 15.7 s and 26.1 s in earlier runs, so treat any single figure as a sample, not a constant"
+    "one boot on one device: earlier captures of the same sequence measured 10 s and 178 s, so a single figure is a sample, not a constant",
+    "a phase number is only as good as its marker; every marker used here is one that execution alone can produce"
   ],
   "notes": "bench/demo-capture.sh. Not a benchmark: a phase split, to decide whether performance work is worth an axis at all (docs/DIRECTION-N1-N4.md N4).",
   "verdict": "pass",
@@ -52,29 +64,29 @@
     {
       "kind": "console-log",
       "path": "logs/boot-20261101-uml-console.log",
-      "bytes": 7356,
-      "sha256": "80627f0876cb95e4af85a454fd268a04b6ee17d535d72bf9d6dd4c8c99bae063",
+      "bytes": 8963,
+      "sha256": "b922d086804cba6aed6e29ee934e7235d41bdaea53225be702f815dc126411f7",
       "note": "guest console verbatim; the milestones are read from here"
     },
     {
       "kind": "console-log",
       "path": "logs/boot-20261101-console.timed",
-      "bytes": 9038,
-      "sha256": "5c33301099ff79b94aad66bc4109ec566c7c461bfbc6df108bf5c4131e1d3418",
+      "bytes": 11105,
+      "sha256": "74264505684d4314c19d2becddfa39dc123704a6a9dccdbd4c097a8a6d5ceee8",
       "note": "the same console with a wall-clock stamp on every line"
     },
     {
       "kind": "other",
       "path": "logs/boot-20261101-up.log",
       "bytes": 1140,
-      "sha256": "37d64421434e375c94cd7eec717d4dee26ab0d0367c0cc9f527b7f80dbe17a14",
+      "sha256": "51e172b1cf34c554fab067da4fff93228dbae4920958b9f32a6a9a42d3917e41",
       "note": "launcher output for `up`"
     },
     {
       "kind": "other",
       "path": "logs/boot-20261101-daemon.log",
-      "bytes": 1369,
-      "sha256": "e4ffbbea91049c90b16a61baad29439cc522eb2868359e8188c0b7da00faf58e",
+      "bytes": 1284,
+      "sha256": "e8d50d2c01ba1f6ed0d85f189bffaa900da86e4fe91f8adb7262e1164565a893",
       "note": "daemon log, including the stop path"
     }
   ]

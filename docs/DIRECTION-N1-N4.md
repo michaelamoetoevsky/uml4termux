@@ -69,22 +69,43 @@ output attached.
 **Exit:** one axis written into the map as the decision, with a number it promises to move and
 the method that would show it moved.
 
-### N4's first measurement is in (2026-11-01, `evidence/boot-20261031-timeline.json`)
+### N4's measurement, corrected (2026-11-01)
 
-Three captures of the same boot, with the console stamped line by line (`bench/console-stamp.py`):
+The first version of this table was produced by a harness that grepped for markers which also
+appear in the command it had just sent, so it "measured" a 0.4 s dockerd start for a guest whose
+console agent had not started. Every marker below is a line only execution can produce
+(`__AGENT_READY__`, `DOCKERD_READY_FOR_REAL`, `aarch64`, `__EXEC_N_DONE_0`).
 
-| Phase | This device, one boot |
+| Phase | One boot, mid-range Android 16 |
 |---|---|
-| kernel up (first console line) | **5.1–13.1 s** |
-| initramfs → guest script | **0.1–7.1 s** |
-| guest script → dockerd answering | **0.4–0.8 s** |
-| first container after that | **0.1–0.7 s** |
-| teardown (`down`) | **3.0 s** (was 22.8 s before the stop-path fix) |
+| kernel up | **2.9–10.9 s** |
+| initramfs → console agent ready | **0.4–3.5 s** |
+| agent ready → dockerd answering | **66–82 s** |
+| dockerd answering → first container | **17–38 s** |
+| teardown | **1.65 s** (clean halt) |
 
-The spread is not noise to be averaged away: the guest's own startup script pulls images at
-boot, and a capture taken while it was pulling measured 178 s for the same sequence. That is the
-real answer to "why does a container start take 15–26 s" — **it is not the container, and not
-dockerd** (0.4 s), it is boot plus whatever the guest decides to fetch.
+Two of those phases move for different reasons, and only one is ours to fix cheaply:
+
+1. **dockerd's own init is the dominant cost.** Its log, printed into the same stamped console,
+   shows `Loading containers: start.` → `Default bridge (docker0) is assigned` = **28.5 s**, then
+   `Loading containers: done.` +4 s, `Daemon has completed initialization` +1.5 s, `API listen`
+   +2.3 s. That is bridge + iptables + conntrack programming inside the guest.
+2. **The first container after readiness takes 17–38 s** — the image is already present
+   (`IMAGE_PRESENT`, no pull), so this is container creation on this guest, not a fetch.
+
+The pull policy change is in: images are fetched only when missing
+(`docker image inspect || docker pull`), so a boot with warm images does no network work at all.
+
+**Measured, not yet explained:** the first `docker info` in the boot loop blocked ~46 s and the
+second answered at 48 s (`DOCKERD_WAIT attempts=2 total_s=48`) — i.e. the client waits far longer
+than the daemon's own "API listen" would suggest, so the loop's number and dockerd's number are not
+the same clock.
+
+**Next experiment, designed and not yet valid:** compare `dockerd --iptables=false` and
+`dockerd --bridge=none --iptables=false` against the default, one boot per variant. A first attempt
+started a second dockerd inside the same guest and produced nothing — two daemons in one guest
+conflict over docker0 and the run never reached a verdict. The payload also has to go as base64:
+the console agent evaluates one line, so a multi-line script is a syntax error.
 
 | Candidate axis | The number it would move | Cost |
 |---|---|---|

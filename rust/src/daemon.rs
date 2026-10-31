@@ -1217,19 +1217,32 @@ impl Daemon {
                 )
             };
             if n > 0 {
-                logf("stop: clean shutdown via console (3 s budget)");
-                // 3 s, not 20: evidence says the console path lands in the first second or not at all,
-                // so the long budget was pure cost on every stop.
-                let deadline = Instant::now() + Duration::from_secs(3);
+                logf("stop: clean shutdown via console (5 s budget, up to 3 requests)");
+                let deadline = Instant::now() + Duration::from_secs(5);
+                let began = Instant::now();
+                let mut sent = 1u32;
                 while Instant::now() < deadline && !self.child_reaped() {
-                    std::thread::sleep(Duration::from_millis(500));
+                    std::thread::sleep(Duration::from_millis(250));
+                    // The guest evaluates one console line at a time, so a request that arrives
+                    // mid-eval waits until that eval returns (measured: one exec acknowledged,
+                    // the shutdown line never read inside 3 s). Re-send twice.
+                    if sent < 3 && began.elapsed() >= Duration::from_secs(2 * sent as u64) {
+                        unsafe {
+                            libc::write(
+                                self.pty_master,
+                                line.as_ptr() as *const libc::c_void,
+                                line.len(),
+                            );
+                        }
+                        sent += 1;
+                    }
                 }
                 if self.child_reaped() {
                     self.child = -1;
                     logf("clean shutdown landed");
                     return;
                 }
-                logf("clean shutdown did not land in 3 s; falling back to signals");
+                logf("clean shutdown did not land in 5 s; falling back to signals");
             }
         }
         unsafe { libc::kill(self.child, libc::SIGTERM) };

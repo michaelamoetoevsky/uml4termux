@@ -1,15 +1,15 @@
 
-==> guest initramfs missing: building /data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/state/initramfs/docker.cpio.gz
+==> guest initramfs missing: building /data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/state/initramfs/docker.cpio.gz
 
-==> building initramfs (docker) -> /data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/state/initramfs/initramfs-docker.cpio.gz
-initramfs written: /data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/state/initramfs/initramfs-docker.cpio.gz (8252276 bytes, 524 entries)
+==> building initramfs (docker) -> /data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/state/initramfs/initramfs-docker.cpio.gz
+initramfs written: /data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/state/initramfs/initramfs-docker.cpio.gz (8255444 bytes, 524 entries)
 entries: ['TRAILER!!!', 'bin', 'bin/arch', 'bin/ash', 'bin/base64', 'bin/bbconfig', 'bin/busybox', 'bin/cat', 'bin/chattr', 'bin/chgrp', 'bin/chmod', 'bin/chown', 'bin/cp', 'bin/date', 'bin/dd', 'bin/df', 'bin/dmesg', 'bin/dnsdomainname', 'bin/dumpkmap', 'bin/echo']...
-[ok] initramfs ready: /data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/state/initramfs/initramfs-docker.cpio.gz (3.7 MiB)
-[info] instance 'demo' is up (pid 22587, runtime /data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/rt)
+[ok] initramfs ready: /data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/state/initramfs/initramfs-docker.cpio.gz (3.7 MiB)
+[info] instance 'demo' is up (pid 30476, runtime /data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/rt)
 instance  : demo
 state     : yes (phase running)
-pid       : 22587 (alive)
-runtime   : /data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/rt
-image     : /data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/image.ext4
+pid       : 30476 (alive)
+runtime   : /data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/rt
+image     : /data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/image.ext4
 ssh port  : 12690
 logs      : 7.7 KiB

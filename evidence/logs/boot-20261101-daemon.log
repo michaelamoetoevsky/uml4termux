@@ -1,12 +1,11 @@
-[1793478421.590] uml4termuxd[22587]: guest: kernel=/data/data/com.termux/files/usr/tmp/bench-assets/linux-bionic mem=1024M ncpus=4 console=/data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/rt/uml-console.log
-[1793478421.899] uml4termuxd[22587]: gvproxy up pid=22594 bess=/data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/rt/bess.sock
-[1793478421.900] uml4termuxd[22587]: control socket: /data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/rt/daemon.sock
-[1793478421.900] uml4termuxd[22587]: cow: writing a fresh header for /data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/rt/demo.cow (fresh state)
-[1793478421.900] uml4termuxd[22587]: cow header written: /data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/rt/demo.cow (backing /data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/image.ext4, 3221225472 bytes)
-[1793478421.901] uml4termuxd[22587]: child spawned pid=22620 argv0=/data/data/com.termux/files/usr/tmp/bench-assets/linux-bionic
-[1793478432.186] uml4termuxd[22587]: stop requested: SIGTERM -> 22620
-[1793478432.186] uml4termuxd[22587]: stop: clean shutdown via console (3 s budget)
-[1793478433.687] uml4termuxd[22587]: clean shutdown did not land in 3 s; falling back to signals
-[1793478438.720] uml4termuxd[22587]: SIGTERM ignored for 5s, sending SIGKILL
-[1793478438.783] uml4termuxd[22587]: gvproxy stopped
-[1793478438.783] uml4termuxd[22587]: daemon exit
+[1793483991.675] uml4termuxd[30476]: guest: kernel=/data/data/com.termux/files/usr/tmp/bench-assets/linux-bionic mem=1024M ncpus=4 console=/data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/rt/uml-console.log
+[1793483991.981] uml4termuxd[30476]: gvproxy up pid=30495 bess=/data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/rt/bess.sock
+[1793483991.981] uml4termuxd[30476]: control socket: /data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/rt/daemon.sock
+[1793483991.981] uml4termuxd[30476]: cow: writing a fresh header for /data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/rt/demo.cow (fresh state)
+[1793483991.982] uml4termuxd[30476]: cow header written: /data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/rt/demo.cow (backing /data/data/com.termux/files/usr/tmp/tmp.CxnvoFFgDo/image.ext4, 3221225472 bytes)
+[1793483991.982] uml4termuxd[30476]: child spawned pid=30523 argv0=/data/data/com.termux/files/usr/tmp/bench-assets/linux-bionic
+[1793484100.912] uml4termuxd[30476]: stop requested: SIGTERM -> 30523
+[1793484100.914] uml4termuxd[30476]: stop: clean shutdown via console (5 s budget, up to 3 requests)
+[1793484101.427] uml4termuxd[30476]: clean shutdown landed after 0.75s
+[1793484101.429] uml4termuxd[30476]: gvproxy stopped
+[1793484101.429] uml4termuxd[30476]: daemon exit

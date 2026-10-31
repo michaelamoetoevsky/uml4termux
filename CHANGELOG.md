@@ -49,13 +49,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   note a human reads and `summary.json` cannot disagree again.
 
 ### Fixed
-- **Teardown is 3 s instead of 22.8 s.** `stop_child()` waited for the guest without draining
-  the PTY, so the guest's echo of the shutdown request filled the PTY buffer and the request it
-  had just been given was never read; the clean-shutdown budget was also 20 s for a path that
-  had never landed in 8 of 8 runs. One `drain_pty_once()` is now shared by the poll loop and the
-  stop path, the request asks the kernel (sysrq "o") instead of a userland tool the image may
-  not have, and the budget is 3 s. Measured on the device: 22.80 → 3.75 → 3.01 → 2.58 s. Why it
-  still does not land is `docs/ISSUES.md` #8, left open with its evidence.
+- **Clean shutdown works, and teardown is 1.65 s instead of 22.8 s.** Three separate blocks in
+  one channel: `stop_child()` waited without draining the PTY (the guest's echo filled the buffer
+  and the request it had been given was never read); the guest started its console agent only after
+  two `docker pull`s with 300 s timeouts, so during boot nothing read the console at all
+  (`__AGENT_GOT__ = 0` with three `exec:` lines); and the agent evaluated commands inline, so a
+  `docker run` in flight blocked the reader. Now: one `drain_pty_once()` serves the poll loop and
+  the stop path, the agent starts first and says `__AGENT_READY__`, and it evaluates in a subshell
+  so reading never blocks. Measured: `clean shutdown landed after 0.75s`, `down` 1.65 s, and
+  `clean-shutdown 1` in `evidence/boot-20261101-timeline.json`. See `docs/ISSUES.md` #8.
+- **Images are pulled only when missing.** An unconditional `docker pull` at boot made boot time a
+  function of the network (the same sequence measured 10 s and 178 s) and stood between the guest
+  and its own console agent. `dockerd`'s log is truncated at boot too, so it describes that boot
+  instead of carrying the previous session's restart-looking lines.
 - `summary.json` recorded `null` for every registry number the run had measured, because the
   parser compared the whole marker token to the key while the marker is a prefix — issue #2.
 - The front end joined argv into a 900-byte buffer after checking the wrong variable; a

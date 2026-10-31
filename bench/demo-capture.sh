@@ -43,12 +43,13 @@ printf 'up rc=%s  %.2fs\n' "$UP_RC" "$(since "$U0" "$U1")" >> "$W/steps.txt"
 stamp_of() {
   env -u LD_LIBRARY_PATH python3 - "$W/console.timed" "$1" "$T0" <<'STAMPPY'
 import sys
-path, marker, t0 = sys.argv[1], sys.argv[2], float(sys.argv[3])
+import re
+path, pattern, t0 = sys.argv[1], sys.argv[2], float(sys.argv[3])
 try:
     with open(path, errors="replace") as f:
         for line in f:
             parts = line.split(chr(9), 1)
-            if len(parts) == 2 and marker in parts[1]:
+            if len(parts) == 2 and re.search(pattern, parts[1]):
                 print(f"{float(parts[0]) - t0:.2f}")
                 break
 except FileNotFoundError:
@@ -65,43 +66,45 @@ wait_stamp() {
   printf 'absent'; return 1
 }
 
-# Markers verified by reading a captured log, not assumed: 'Linux version',
-# 'UML4TERMUX_INIT', 'starting dockerd'. Dockerd does not announce readiness on the
-# console (its log goes to /var/log/dockerd.log inside the guest), so readiness is ASKED
-# for with `docker info`.
+# Every marker here is a line only EXECUTION can produce. A marker that also appears in the
+# command you sent measures your own echo: an earlier version grepped `DOCKERD_READY` and
+# `CONTAINER_OK`, both of which sit inside the command text, and so reported a 0.4 s dockerd
+# start for a guest whose console agent had not started at all.
 K=$(wait_stamp 'Linux version' 120 || true)
 I=$(wait_stamp 'UML4TERMUX_INIT' 120 || true)
-G=$(wait_stamp 'starting dockerd' 300 || true)
+AG=$(wait_stamp '__AGENT_READY__' 180 || true)
+G=$(wait_stamp 'starting dockerd' 240 || true)
+IMG_STAGE=$(wait_stamp 'IMAGE_(PRESENT|PULL)' 300 || true)
 
-# dockerd readiness: ask the guest, do not guess from a log line
-D="absent"
-for i in $(seq 1 120); do
-  "$UML4TERMUXD_BIN" exec 'docker info >/dev/null 2>&1 && echo DOCKERD_READY' >/dev/null 2>&1 || true
-  if grep -aq 'DOCKERD_READY' "$LOG" 2>/dev/null; then D=$(since "$T0" "$(now)"); break; fi
-  sleep 1
-done
+# dockerd readiness is stated BY THE GUEST (DOCKERD_READY_FOR_REAL) after it asked docker itself:
+# `up` returning only means the control socket is up, which is seconds before dockerd listens.
+D=$(wait_stamp 'DOCKERD_READY_FOR_REAL' 300 || true)
 
-# first container
+# first container: proof is `uname -m` output (`aarch64`), which is absent from the command text
 R0=$(now)
-RUN_OUT=$("$UML4TERMUXD_BIN" exec 'docker run --rm alpine sh -c "echo CONTAINER_OK; uname -m; cat /etc/os-release | head -1"' 2>&1)
-RUN_OK=0; for i in $(seq 1 60); do grep -aq 'CONTAINER_OK' "$LOG" 2>/dev/null && { RUN_OK=1; break; }; sleep 1; done
+"$UML4TERMUXD_BIN" exec 'docker run --rm alpine sh -c "uname -m; head -1 /etc/os-release"' >/dev/null 2>&1
+C=$(wait_stamp '^aarch64$' 240 || true)
 R1=$(now)
 RUN_S=$(since "$R0" "$R1")
 
 # ---- 3. down -----------------------------------------------------------------------------
 D0=$(now); bin/uml4termux down --name demo >/dev/null 2>&1; DOWN_RC=$?; D1=$(now)
+CLEAN=$(grep -ac 'clean shutdown landed' "$W/rt/daemon.log" 2>/dev/null); [ -n "$CLEAN" ] || CLEAN=0
 T1=$(now)
 
 touch "$STAMP_STOP"; wait "$STAMP_PID" 2>/dev/null; rm -f "$STAMP_STOP"
 
 cat >> "$W/steps.txt" <<EOF
-kernel-up      ${K}s
-initramfs      ${I}s
-guest-script   ${G}s
-dockerd-ready  ${D}s
-container-run  ${RUN_S}s (ok=${RUN_OK})
+kernel-up        ${K}s
+initramfs        ${I}s
+agent-ready      ${AG}s
+starting-dockerd ${G}s
+image-stage      ${IMG_STAGE}s
+dockerd-ready    ${D}s
+container-run    ${C}s (wall ${RUN_S}s)
+clean-shutdown   ${CLEAN}
 down rc=${DOWN_RC}  $(since "$D0" "$D1")s
-total          $(since "$T0" "$T1")s
+total            $(since "$T0" "$T1")s
 EOF
 
 # ---- 4. write the JSON record -------------------------------------------------------------
@@ -157,20 +160,25 @@ def f(k):
 milestones = {
     "kernel_up_s": f("kernel-up"),
     "initramfs_s": f("initramfs"),
-    "guest_script_s": f("guest-script"),
+    "console_agent_ready_s": f("agent-ready"),
+    "dockerd_starting_s": f("starting-dockerd"),
+    "image_stage_s": f("image-stage"),
     "dockerd_ready_s": f("dockerd-ready"),
     "first_container_s": f("container-run"),
+    "teardown_s": f("down"),
     "total_s": f("total"),
 }
 have = {k: v for k, v in milestones.items() if v is not None}
 phase = {}
-if all(milestones.get(k) is not None for k in ("kernel_up_s", "initramfs_s", "guest_script_s", "dockerd_ready_s")):
+if all(milestones.get(k) is not None for k in ("kernel_up_s", "initramfs_s", "console_agent_ready_s", "dockerd_ready_s")):
     phase = {
         "kernel_boot": round(milestones["kernel_up_s"], 2),
-        "initramfs_to_guest_script": round(milestones["guest_script_s"] - milestones["initramfs_s"], 2),
-        "guest_script_to_dockerd_ready": round(milestones["dockerd_ready_s"] - milestones["guest_script_s"], 2),
-        "up_command_total": round(milestones["total_s"], 2) if milestones.get("total_s") else None,
+        "initramfs_to_console_agent": round(milestones["console_agent_ready_s"] - milestones["initramfs_s"], 2),
+        "console_agent_to_dockerd_ready": round(milestones["dockerd_ready_s"] - milestones["console_agent_ready_s"], 2),
     }
+    if milestones.get("first_container_s") is not None:
+        phase["dockerd_ready_to_first_container"] = round(
+            milestones["first_container_s"] - milestones["dockerd_ready_s"], 2)
 record = {
     "schema_version": "1.1",
     "run_id": "boot-timeline-" + dt.date.today().strftime("%Y%m%d"),
@@ -180,11 +188,27 @@ record = {
     "kernel": {"arch": "um/arm64", "booted": True, "release": "pinned (see evidence/20261031-dir-d-ecosystem.json)", "mode": "seccomp", "ncpus": 4},
     "capabilities": {
         "boot": {"ok": True, "evidence": "A guest booted for this run; every milestone below is an event observed in that guest's own console or by asking it."},
-        "timeline_measured": {"ok": bool(phase), "evidence": "Milestones: " + ", ".join(f"{k}={v}" for k, v in have.items()) + ". Phase split: " + json.dumps(phase)},
+        "console_agent": {
+            "ok": milestones.get("console_agent_ready_s") is not None,
+            "evidence": "__AGENT_READY__ printed by the guest once its exec loop reads the console"
+                        + (f" at {milestones['console_agent_ready_s']}s" if milestones.get("console_agent_ready_s") is not None else " -- ABSENT"),
+        },
+        "container_run": {
+            "ok": milestones.get("first_container_s") is not None,
+            "evidence": "`uname -m` answered aarch64 inside `docker run --rm alpine`"
+                        + (f" at {milestones['first_container_s']}s" if milestones.get("first_container_s") is not None else " -- ABSENT"),
+        },
+        "clean_shutdown": {
+            "ok": str(raw.get("clean-shutdown", "0")) not in ("0", ""),
+            "evidence": ("daemon logged 'clean shutdown landed' after `down`"
+                         if str(raw.get("clean-shutdown", "0")) not in ("0", "")
+                         else "daemon fell back to signals: the guest did not halt on request (docs/ISSUES.md #8)"),
+        },
     },
     "observed": {"milestones": milestones, "phase_seconds": phase},
     "known_limits_observed": [
-        "the numbers are one boot on one device; container start was measured at 15.7 s and 26.1 s in earlier runs, so treat any single figure as a sample, not a constant",
+        "one boot on one device: earlier captures of the same sequence measured 10 s and 178 s, so a single figure is a sample, not a constant",
+        "a phase number is only as good as its marker; every marker used here is one that execution alone can produce",
     ],
     "notes": "bench/demo-capture.sh. Not a benchmark: a phase split, to decide whether performance work is worth an axis at all (docs/DIRECTION-N1-N4.md N4).",
     "verdict": "pass" if phase else "partial",
@@ -205,8 +229,9 @@ up = (work / "up.log").read_text(errors="replace").splitlines()
 body = f"""# Demo — a real run, captured
 
 Generated by `bench/demo-capture.sh` on {dt.date.today().isoformat()} from one boot on a
-Termux/Android device. Every line below is output that actually happened; nothing is edited by
-hand, and the numbers are wall-clock measurements taken around each command.
+Termux/Android device. Every line below is output that actually happened; the numbers are
+wall-clock measurements taken around each command, and every milestone is a line that only
+execution can produce (a marker echoed back from the command you sent does not count).
 
 Reproduce it yourself:
 
@@ -227,11 +252,14 @@ uml4termux down
 
 | Milestone | How it was detected |
 |---|---|
-| kernel-up | `Linux version` appears in the guest console |
-| initramfs | `UML4TERMUX_INIT` (the initramfs hand-off) |
-| guest-script | `WEB_UP_MARKER` (the guest's own startup script reached its docker stage) |
-| dockerd-ready | the guest answers `docker info` successfully — asked, not inferred |
-| container-run | `CONTAINER_OK` from `docker run --rm alpine` |
+| kernel-up | `Linux version` in the guest console |
+| initramfs | `UML4TERMUX_INIT` — the initramfs hand-off |
+| agent-ready | `__AGENT_READY__` — printed once the guest's exec loop is reading the console |
+| starting-dockerd | `starting dockerd...` from the guest script |
+| image-stage | `IMAGE_PRESENT` / `IMAGE_PULL` — images are fetched only when missing |
+| dockerd-ready | the daemon's reply marker `__EXEC_1_DONE_0`: `$?` expands at runtime, the command text only holds the literal `$?` |
+| container-run | `aarch64` — output of `uname -m` inside the container |
+| clean-shutdown | `1` when the daemon logged `clean shutdown landed`, `0` when it fell back to signals |
 
 ## `up` output (verbatim)
 
