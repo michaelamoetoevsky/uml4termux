@@ -30,9 +30,12 @@ TERMUX_PKG_EXCLUDED_ARCHES="arm, i686, x86_64"
 
 # No build dependencies (script-only package)
 TERMUX_PKG_BUILD_DEPENDS=""
-# Runtime dependencies: will depend on linux-kernel-um and passt once they land
-# TERMUX_PKG_DEPENDS="linux-kernel-um, passt"
-TERMUX_PKG_DEPENDS=""
+# Runtime dependencies, honestly listed: the CLI is bash and the library uses coreutils;
+# fetch verifies digests with sha256sum and downloads with curl; the initramfs builder and
+# the read-only status panel are python. linux-kernel-um and passt will be added once
+# termux-packages PR #32700 lands -- this package does not need them at install time
+# because the runtime assets are fetched, with pinned digests, on first use.
+TERMUX_PKG_DEPENDS="bash, coreutils, curl, python"
 
 # Build in source dir (the tarball extracts to uml4termux-<version>)
 TERMUX_PKG_BUILD_IN_SRC=true
