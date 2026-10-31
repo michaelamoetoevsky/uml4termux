@@ -584,7 +584,20 @@ gerbang yang hanya membaca penanda akan lolos pada guest yang kehilangan data.
 | `ci/upstream/image-lock-probe.py` | 4/4: bebas, terkunci oleh proses lain, re-lock se-proses **berhasil** (POSIX lock per-proses — inilah yang membuat uji naif selalu lolos), dan bebas lagi setelah pemegang berhenti |
 | `docs/UPSTREAM-PR-1.md` | judul, badan PR, angka dari `evidence/20261031-soak-b1-clean.json` (90/90 siklus dengan salinan privat) + pola `UML4TERMUXD_STRICT_UBD=1` |
 
-**Kriteria F2 ("minimal satu PR terkirim") belum terpenuhi, dan itu disengaja.**
+**Kriteria F2 terpenuhi:** PR
+[#26](https://github.com/Raymer8639/linux-um-arm64/pull/26) **terkirim 2026-10-31** dari
+`michaelamoetoevsky:harness/image-lock`, dengan badan PR yang memuat cacatnya, hasil
+ukurannya, cara verifikasi, dan catatan untuk reviewer (termasuk jebakan lock
+per-proses). Dibaca balik lewat API: `state=open`, `mergeable=true`,
+`changed_files=1`, `+34 −0`; halaman publiknya memuat judul dan isi seperti yang
+ditulis. Fork itu tidak menjalankan CI untuk PR, jadi buktinya adalah yang tersebut di
+badan PR plus gate di repo ini.
+
+**Sisa:** menunggu jawaban maintainer. Bila tidak ada dalam 30 hari (sampai
+2026-11-30), ditutup sebagai "tidak ada respons hulu" dan F1 tetap satu-satunya jalur —
+status itu dicatat di `docs/ISSUES.md` #6, bukan di percakapan.
+
+**Catatan proses sebelumnya (tetap berlaku):**
 Membuka PR di repositori orang lain adalah tindakan publik pada proyek eksternal; ia
 menunggu persetujuan pemilik repo ini. Statusnya dicatat di `docs/ISSUES.md` #6 supaya
 tidak jadi kalimat yang menguap. Bila tidak ada respons dalam 30 hari setelah dikirim,

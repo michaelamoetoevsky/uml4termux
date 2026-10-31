@@ -8,10 +8,17 @@ at all and has not answered [issue #4](https://github.com/zalexdev/linux-um-arm6
 since 27 Oct. The kernel-side contribution path (linux-um@, per `docs/UPSTREAM.md`)
 stays open and unchanged — F1 (fork + pinned release) remains the fallback, not a bet.
 
-**Status:** patch and body are ready. Opening the PR is a public action on someone
-else's repository, so it waits for the repository owner's go-ahead. Everything needed
-to send it is in this repository: the diff, the test that proves the guard, and the
-device evidence below.
+**Status: SUBMITTED 2026-10-31** —
+[Raymer8639/linux-um-arm64#26](https://github.com/Raymer8639/linux-um-arm64/pull/26),
+from `michaelamoetoevsky:harness/image-lock`, base `um-arm64`. Read back after opening:
+`state=open`, `mergeable=true`, 1 commit, 1 changed file (`harness/boot.py`, +34 −0), and
+the branch's copy of the file contains both the guard and its call site. The repository
+runs no CI for pull requests, so the gate here is `ci/upstream/image-lock-probe.py` plus
+the verification below, which is what the PR body points at.
+
+Waiting on the maintainer until 2026-11-30; no response by then closes
+`docs/ISSUES.md` #6 as "no upstream response" and leaves F1 (build, pin and test the
+kernel ourselves) as the only path.
 
 **Patch:** `ci/upstream/0001-harness-refuse-a-second-boot-on-a-held-backing-image.patch`
 **Guard test:** `ci/upstream/image-lock-probe.py`

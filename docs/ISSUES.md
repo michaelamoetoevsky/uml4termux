@@ -15,7 +15,7 @@ sentence that quietly rots.
 | 3 | The status panel is verified by executing its script, not by rendering it | low | a browser engine on Android |
 | 4 | `expose HOST:GUEST` once logged the host port as the guest port — **unverified** | unknown | a clean reproduction |
 | 5 | `termux-packages` PR prepared, not submitted | — | repository owner's approval |
-| 6 | Upstream patch prepared, not submitted | — | repository owner's approval |
+| 6 | Upstream patch **sent** as PR #26 — watching for a response | — | upstream response (30-day clock) |
 
 ---
 
@@ -100,9 +100,19 @@ external project, so it waits for the repository owner's explicit go-ahead.
 
 ---
 
-## 6. Upstream patch prepared, not submitted
+## 6. Upstream patch sent — PR #26, waiting on the maintainer
 
-See `docs/UPSTREAM-PR-1.md`: a small harness guard for the packaging fork
-(`Raymer8639/linux-um-arm64`), where UML holds an exclusive `F_SETLK` on a backing
-image and a second boot on the same image silently runs diskless. Prepared with the
-device evidence; publishing it needs the same go-ahead as #5.
+**Sent 2026-10-31:** [Raymer8639/linux-um-arm64#26](https://github.com/Raymer8639/linux-um-arm64/pull/26)
+— `harness: refuse a second boot on a backing image another UML holds`. Opened from
+`michaelamoetoevsky:harness/image-lock`; the API reports `state=open, mergeable=true,
+changed_files=1, +34 -0`, and the public page renders the title and body. That fork
+runs no CI for pull requests, so the only checks are the ones described in the body
+(patch applies to HEAD, guard refuses with exit 2 when the image is held, behaviour
+unchanged when free, and `ci/upstream/image-lock-probe.py` pins the per-process lock
+trap).
+
+**Done looks like:** a maintainer answer either way. If it is merged, the guard has one
+implementation upstream and our `UML4TERMUXD_STRICT_UBD` stays the second line of
+defence. If there is no response in 30 days (until 2026-11-30), the entry closes as
+"no upstream response" and F1 stays the only path — the project ships a kernel it
+builds and tests itself, so nothing here blocks a release.
