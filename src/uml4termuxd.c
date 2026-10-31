@@ -158,6 +158,21 @@ static int load_guest_config(char *err, size_t errn)
    read-only query that neither takes nor disturbs the lock -- and refuse before
    spawning anything. UML4TERMUXD_ALLOW_SHARED_IMAGE=1 opts back into the old
    behaviour for anyone who wants to watch the diskless boot happen. */
+/* Join a directory and a suffix into a fixed buffer. snprintf would do it, but gcc
+   reports -Wformat-truncation for every such call because it cannot prove the combined
+   length fits -- and a truncated path is a failure this project has already paid for
+   once (the daemon bound one path while reporting another). Refuse, never truncate. */
+static int path_join(char *dst, size_t n, const char *dir, const char *suffix)
+{
+	size_t dl = strlen(dir), sl = strlen(suffix);
+
+	if (dl + sl + 1 > n)
+		return -1;
+	memcpy(dst, dir, dl);
+	memcpy(dst + dl, suffix, sl + 1);
+	return 0;
+}
+
 static pid_t image_lock_holder(const char *path)
 {
 	struct flock fl;
@@ -1279,8 +1294,11 @@ static int daemon_main(int selftest)
 		char dirbuf[512];
 		snprintf(dirbuf, sizeof(dirbuf), "%s", g_sockpath);
 		mkdir(dirname(dirbuf), 0755);
-		snprintf(g_consolelog, sizeof(g_consolelog), "%s/uml-console.log",
-			 dirname(dirbuf));
+		if (path_join(g_consolelog, sizeof(g_consolelog), dirname(dirbuf),
+			      "/uml-console.log") != 0) {
+			fprintf(stderr, "uml4termuxd: console log path too long\n");
+			return 2;
+		}
 		snprintf(dirbuf, sizeof(dirbuf), "%s", g_sockpath);
 		dirname(dirbuf);
 	}
@@ -1330,13 +1348,19 @@ static int daemon_main(int selftest)
 				"uml4termuxd: gvproxy failed to start (see log)\n");
 			return 2;
 		}
-		snprintf(g_exposures, sizeof(g_exposures), "%s/exposures.jsonl",
-			 dirname(g_statepath));
+		if (path_join(g_exposures, sizeof(g_exposures), dirname(g_statepath),
+			      "/exposures.jsonl") != 0) {
+			fprintf(stderr, "uml4termuxd: exposures path too long\n");
+			return 2;
+		}
 		reapply_exposures();
 	}
 
 	sock_path(g_sockpath, sizeof(g_sockpath));
-	snprintf(g_statepath, sizeof(g_statepath), "%s.state", g_sockpath);
+	if (path_join(g_statepath, sizeof(g_statepath), g_sockpath, ".state") != 0) {
+		fprintf(stderr, "uml4termuxd: state path too long\n");
+		return 2;
+	}
 	{
 		char dirbuf[512];
 		snprintf(dirbuf, sizeof(dirbuf), "%s", g_sockpath);
