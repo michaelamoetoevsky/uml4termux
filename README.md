@@ -555,6 +555,10 @@ the notice in [LICENSE](LICENSE) and
   each with what was measured and what "done" looks like.
 - [docs/PACKAGING-POLICY.md](docs/PACKAGING-POLICY.md) — Termux's seven packaging clauses
   against this project, their linter's verdict, and the exact rule that closed the package PR.
+- [docs/DEMO.md](docs/DEMO.md) — a real run, captured: commands, per-step wall times and
+  actual output from one boot on a phone.
+- [docs/DIRECTION-N1-N4.md](docs/DIRECTION-N1-N4.md) — the four phases after the queue, each
+  with the measurement that marks it done.
 - [docs/ADOPTION.md](docs/ADOPTION.md) — the measured adoption baseline (stars, downloads,
   contributors), the milestone list, and the honest rule about not manufacturing stars.
 - [docs/UPSTREAM-PR-1.md](docs/UPSTREAM-PR-1.md) — the prepared upstream patch,

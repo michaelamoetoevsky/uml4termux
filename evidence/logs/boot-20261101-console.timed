@@ -1,0 +1,120 @@
+1793478422.011	Address space: host top 0x8000000000, stub at 0x7fffff4000, guest TASK_SIZE 0x7fc0000000
+1793478422.011	Core dump limits :
+1793478422.011		soft - 0
+1793478422.011		hard - NONE
+1793478422.011	Stub signal stack: 16384 bytes, host AT_MINSIGSTKSZ 4720
+1793478422.011	Checking environment variables for a tempdir.../data/data/com.termux/files/usr/tmp
+1793478422.011	Checking if /data/data/com.termux/files/usr/tmp is on tmpfs...no
+1793478422.011	Warning: tempdir /data/data/com.termux/files/usr/tmp is not on tmpfs
+1793478422.011	Checking PROT_EXEC mmap in /data/data/com.termux/files/usr/tmp...OK
+1793478422.011	Checking the stub's cycle counter...OK
+1793478422.011	Checking that seccomp filters can be installed...OK
+1793478422.011	Userspace mode: SECCOMP
+1793478423.041	Linux version 7.2.0-rc4-g169b17ff3f66-dirty (uml4termux@pinned-source) (Android (13989888, +pgo, +bolt, +lto, +mlgo, based on r563880c) clang version 21.0.0 (https://android.googlesource.com/toolchain/llvm-project 5e96669f06077099aa41290cdb4c5e6fa0f59349), LLD 21.0.0 (/mnt/disks/build-disk/src/googleplex-android/llvm-r563880-release/out/llvm-project/llvm 5e96669f06077099aa41290cdb4c5e6fa0f59349)) #1 SMP Thu Oct 23 23:21:58 UTC 2026
+1793478423.041	random: crng init done
+1793478423.041	Zone ranges:
+1793478423.041	  Normal   [mem 0x0000000000000000-0x000000009fffffff]
+1793478423.041	Movable zone start for each node
+1793478423.041	Early memory node ranges
+1793478423.041	  node   0: [mem 0x0000000000000000-0x000000003fffffff]
+1793478423.043	Initmem setup node 0 [mem 0x0000000000000000-0x000000003fffffff]
+1793478423.043	percpu: Embedded 5 pages/cpu s37208 r8192 d36520 u81920
+1793478423.043	Kernel command line: ubd0=/data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/rt/demo.cow,/data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/image.ext4 root=/dev/ubda rw panic=-1 con=null con0=fd:0,fd:1 vec0:transport=bess,dst=/data/data/com.termux/files/usr/tmp/tmp.HbV880kAjD/rt/bess.sock,depth=128,gro=1,mac=5a:94:ef:e4:0c:ee console=tty0
+1793478423.043	printk: log_buf_len individual max cpu contribution: 4096 bytes
+1793478423.043	printk: log_buf_len total cpu_extra contributions: 12288 bytes
+1793478423.043	printk: log_buf_len min size: 16384 bytes
+1793478423.043	printk: log buffer data + meta data: 32768 + 114688 = 147456 bytes
+1793478423.043	printk: early log buf free: 14880(90%)
+1793478423.043	Dentry cache hash table entries: 131072 (order: 6, 1048576 bytes, linear)
+1793478423.043	Inode-cache hash table entries: 65536 (order: 5, 524288 bytes, linear)
+1793478423.043	Built 1 zonelists, mobility grouping on.  Total pages: 65536
+1793478423.043	mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+1793478423.043	SLUB: HWalign=32, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+1793478423.043	rcu: Hierarchical RCU implementation.
+1793478423.043	rcu: 	RCU restricting CPUs from NR_CPUS=16 to nr_cpu_ids=4.
+1793478423.043	rcu: RCU calculated value of scheduler-enlistment delay is 10 jiffies.
+1793478423.043	rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+1793478423.043	NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 64
+1793478423.043	rcu: srcu_init: Setting srcu_struct sizes based on contention.
+1793478423.043	clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+1793478423.043	clocksource: timer: mask: 0xffffffffffffffff max_cycles: 0x1cd42e205, max_idle_ns: 881590404426 ns
+1793478423.043	Calibrating delay loop... 2642.73 BogoMIPS (lpj=13213696)
+1793478423.043	Checking that host ptys support output SIGIO...Yes
+1793478423.043	pid_max: default: 32768 minimum: 301
+1793478423.043	Mount-cache hash table entries: 2048 (order: 0, 16384 bytes, linear)
+1793478423.043	Mountpoint-cache hash table entries: 2048 (order: 0, 16384 bytes, linear)
+1793478423.043	VFS: Finished mounting rootfs on nullfs
+1793478423.043	arm64: hwcap host 0xefffffff/0x273ff -> guest 0x2fbff7ff/0x0 (masked out 0xc0400800/0x273ff)
+1793478423.043	arm64: host has SVE; not advertised, UML saves only FPSIMD state
+1793478423.043	rcu: Hierarchical SRCU implementation.
+1793478423.044	rcu: 	Max phase no-delay instances is 1000.
+1793478423.044	Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+1793478423.044	smp: Bringing up secondary CPUs ...
+1793478423.044	smp: Brought up 1 node, 4 CPUs
+1793478423.044	Memory: 1020976K/1048576K available (6339K kernel code, 1674K rwdata, 1600K rodata, 210K init, 1401K bss, 21376K reserved, 0K cma-reserved)
+1793478423.044	devtmpfs: initialized
+1793478423.044	posixtimers hash table entries: 2048 (order: 1, 32768 bytes, linear)
+1793478423.044	futex hash table entries: 1024 (32768 bytes on 1 NUMA nodes, total 32 KiB, linear).
+1793478423.044	NET: Registered PF_NETLINK/PF_ROUTE protocol family
+1793478423.044	pps_core: LinuxPPS API ver. 1 registered
+1793478423.044	pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+1793478423.044	PTP clock support registered
+1793478423.044	clocksource: Switched to clocksource timer
+1793478423.044	VFS: Disk quotas dquot_6.6.0
+1793478423.044	VFS: Dquot-cache hash table entries: 2048 (16384 bytes)
+1793478423.044	NET: Registered PF_INET protocol family
+1793478423.044	IP idents hash table entries: 16384 (order: 3, 131072 bytes, linear)
+1793478423.044	tcp_listen_portaddr_hash hash table entries: 1024 (order: 0, 16384 bytes, linear)
+1793478423.044	Table-perturb hash table entries: 65536 (order: 4, 262144 bytes, linear)
+1793478423.044	TCP established hash table entries: 8192 (order: 2, 65536 bytes, linear)
+1793478423.044	TCP bind hash table entries: 8192 (order: 4, 262144 bytes, linear)
+1793478423.044	TCP: Hash tables configured (established 8192 bind 8192)
+1793478423.044	UDP hash table entries: 512 (order: 1, 32768 bytes, linear)
+1793478423.044	NET: Registered PF_UNIX/PF_LOCAL protocol family
+1793478423.044	printk: legacy console [stderr0] disabled
+1793478423.044	Checking host MADV_REMOVE support...OK
+1793478423.044	mconsole (version 2) initialized on /data/data/com.termux/files/home/.uml/oFCuix/mconsole
+1793478423.044	workingset: timestamp_bits=46 (anon: 41) max_order=16 bucket_order=0 (anon: 0)
+1793478423.044	9p: Installing v9fs 9p2000 file system support
+1793478423.044	Unpacking initramfs...
+1793478423.044	io scheduler mq-deadline registered
+1793478423.044	io scheduler kyber registered
+1793478423.044	io scheduler bfq registered
+1793478423.044	loop: module loaded
+1793478423.044	Freeing initrd memory: 3728K
+1793478423.045	tun: Universal TUN/TAP device driver, 1.6
+1793478423.045	PPP generic driver version 2.4.2
+1793478423.045	SLIP: version 0.8.4-NET3.019-NEWTTY (dynamic channels, max=256).
+1793478423.045	NET: Registered PF_INET6 protocol family
+1793478423.045	Segment Routing with IPv6
+1793478423.045	In-situ OAM (IOAM) with IPv6
+1793478423.045	NET: Registered PF_PACKET protocol family
+1793478423.045	Bridge firewalling registered
+1793478423.045	9pnet: Installing 9P2000 support
+1793478423.045	Initialized stdio console driver
+1793478423.045	Console initialized on /dev/tty0
+1793478423.045	printk: legacy console [tty0] enabled
+1793478423.045	Initializing software serial port version 1
+1793478423.045	printk: legacy console [mc-1] enabled
+1793478423.095	Run /init as init process
+1793478423.096	UML4TERMUX_INIT version=0.1.0 mode=docker entry=/docker-init.sh
+1793478423.298	UML4TERMUX_INIT mounts_ok
+1793478424.740	EXT4-fs (ubda): recovery complete
+1793478424.740	EXT4-fs (ubda): mounted filesystem 96d67fdf-bdaa-4ff5-b170-32392456bb25 r/w with ordered data mode. Quota mode: none.
+1793478424.740	UML4TERMUX_INIT root_mounted /dev/ubda -> /newroot
+1793478425.317	UML4TERMUX_INIT copied /docker-init.sh -> /newroot/docker-init.sh
+1793478425.878	UML4TERMUX_INIT SWITCH_ROOT_NOW /docker-init.sh
+1793478426.345	=== UML4TERMUX_DOCKER_BEGIN ===
+1793478426.396	UNAME: Linux 7.2.0-rc4-g169b17ff3f66-dirty aarch64
+1793478426.721	uml-vector uml-vector.0 vec0: netif_napi_add_weight_locked() called with weight 128
+1793478428.475	DHCPACK of 192.168.127.2 from 192.168.127.1
+1793478428.475	bound to 192.168.127.2 -- renewal in 1365 seconds.
+1793478428.886	ADDR: 3: vec0    inet 192.168.127.2/24 brd 192.168.127.255 scope global dynamic vec0\       valid_lft 3600sec preferred_lft 3600sec 3: vec0    inet6 fe80::5894:efff:fee4:cee/64 scope link \       valid_lft forever preferred_lft forever 
+1793478429.038	ROUTE: default via 192.168.127.1 dev vec0  192.168.127.0/24 dev vec0 proto kernel scope link src 192.168.127.2  
+1793478429.139	RESOLV: nameserver 192.168.127.1 
+1793478429.444	DNS_TEST: 2600:1f18:2148:bc00:346e:2c67:401e:b854 registry-1.docker.io
+1793478429.956	starting dockerd...
+1793478430.874	e
+1793478430.925	xec:echo __EXEC_1_BEGIN__; docker info >/dev/null 2>&1 && echo DOCKERD_READY; echo __EXEC_1_DONE_$?
+1793478431.283	exec:echo __EXEC_2_BEGIN__; docker run --rm alpine sh -c "echo CONTAINER_OK; uname -m; cat /etc/os-release | head -1"; echo __EXEC_2_DONE_$?
+1793478432.455	exec:echo o > /proc/sysrq-trigger 2>/dev/null || sync; poweroff -f

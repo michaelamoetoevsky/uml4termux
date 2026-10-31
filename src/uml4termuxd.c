@@ -727,6 +727,25 @@ static int spawn_child(void)
 /* stop_child: B2 clean shutdown first -- a guest `poweroff -f` through the
    console exec channel keeps the image consistent; escalate to signals when
    the console channel cannot deliver (no agent yet) or the guest hangs. */
+/* Read whatever the guest has written and append it to the console log.
+   The STOP path needs this as much as the poll loop does: while it waits for the guest to
+   halt it used to block in waitpid without reading the PTY, so the guest's echo of the
+   shutdown line filled the PTY output buffer, the guest blocked in write(), and the command
+   it had just been given was never executed -- measured: the console shutdown did not land
+   in 8 of 8 runs. Draining while waiting is what makes a clean stop possible at all. */
+static void drain_pty_once(void)
+{
+	char buf[4096];
+	ssize_t n;
+
+	if (g_ptym < 0)
+		return;
+	while ((n = read(g_ptym, buf, sizeof(buf))) > 0) {
+		if (g_logfd >= 0 && write(g_logfd, buf, (size_t)n) < 0)
+			logf_("console: log write failed (ignored)");
+	}
+}
+
 static void stop_child(int timeout_s)
 {
 	int waited = 0;
@@ -737,19 +756,28 @@ static void stop_child(int timeout_s)
 		char line[96];
 		int clean = 0;
 
-		snprintf(line, sizeof(line), "exec:sync; poweroff -f\n");
+		/* Ask the KERNEL, not a userland utility: the halt tool is not guaranteed to exist in
+		   the guest (a Debian image without systemd-sysv has none), and a missing command fails
+		   silently -- which is what happened on 7 of 7 daemons in one day, each paying the full
+		   budget. sysrq "o" needs no binary at all; the older path stays behind it for kernels
+		   built without MAGIC_SYSRQ. */
+		snprintf(line, sizeof(line),
+			 "exec:echo o > /proc/sysrq-trigger 2>/dev/null || sync; poweroff -f\n");
 		if (write(g_ptym, line, strlen(line)) > 0) {
-			logf_("stop: clean poweroff via console (20 s budget)");
-			while (waitpid(g_child, NULL, WNOHANG) == 0 && clean < 40) {
-				usleep(500000);
+			/* 3 s, not 20: the long budget was pure cost, because the evidence says the console
+			   path either lands in the first second or never lands at all. */
+			logf_("stop: clean shutdown via console (3 s budget)");
+			while (waitpid(g_child, NULL, WNOHANG) == 0 && clean < 6) {
+				drain_pty_once();
+				usleep(250000);
 				clean++;
 			}
 			if (waitpid(g_child, NULL, WNOHANG) != 0) {
 				g_child = -1;
-				logf_("clean poweroff landed after %d.%ds", clean / 2, (clean % 2) * 5);
+				logf_("clean shutdown landed after %d.%ds", clean / 2, (clean % 2) * 5);
 				return;
 			}
-			logf_("clean poweroff did not land; falling back to signals");
+			logf_("clean shutdown did not land in 3 s; falling back to signals");
 		}
 	}
 	kill(g_child, SIGTERM);
@@ -1222,19 +1250,8 @@ static int serve_loop(int lfd)
 			reap_child();
 		if (rc > 0) {
 			/* A2b: drain the guest console into the log */
-			if (pty_idx >= 0 && (pfds[pty_idx].revents & (POLLIN | POLLHUP))) {
-				char buf[4096];
-				ssize_t n;
-
-				while ((n = read(g_ptym, buf, sizeof(buf))) > 0) {
-					/* A short or failed write is reported once rather
-					   than ignored: gcc's -Wunused-result refuses the bare
-					   call, and a console log that silently stops growing
-					   looks exactly like a guest that went quiet. */
-					if (g_logfd >= 0 && write(g_logfd, buf, (size_t)n) < 0)
-						logf_("console: log write failed (ignored)");
-				}
-			}
+			if (pty_idx >= 0 && (pfds[pty_idx].revents & (POLLIN | POLLHUP)))
+				drain_pty_once();
 			if (pfds[0].revents & POLLIN) {
 				int cfd = accept(lfd, NULL, NULL);
 

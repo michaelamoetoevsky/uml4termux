@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `bench/demo-capture.sh` + `bench/console-stamp.py` — one real boot produces two artifacts:
+  `docs/DEMO.md` (the commands, the guest's own output, and a wall time per step) and
+  `evidence/boot-*-timeline.json` (the phase breakdown). The stamper exists because a phase
+  breakdown without per-line times is a guess.
+- `tests/test-console-stamp.sh` — the stamper stamps every line, survives a log that does not
+  exist yet, and keeps timestamps monotonic.
+- `docs/DEMO.md`, `docs/DIRECTION-N1-N4.md` — a captured run, and the four phases after the
+  queue with the measurement that marks each one done.
 - **`ulter`** — the short name, installed beside `uml4termux` as a three-line wrapper with no
   logic of its own (the package name has to match the project; this is what you type).
 - `tests/test-version.sh` — the CLI, the `ulter` alias, every version fallback and
@@ -41,6 +49,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   note a human reads and `summary.json` cannot disagree again.
 
 ### Fixed
+- **Teardown is 3 s instead of 22.8 s.** `stop_child()` waited for the guest without draining
+  the PTY, so the guest's echo of the shutdown request filled the PTY buffer and the request it
+  had just been given was never read; the clean-shutdown budget was also 20 s for a path that
+  had never landed in 8 of 8 runs. One `drain_pty_once()` is now shared by the poll loop and the
+  stop path, the request asks the kernel (sysrq "o") instead of a userland tool the image may
+  not have, and the budget is 3 s. Measured on the device: 22.80 → 3.75 → 3.01 → 2.58 s. Why it
+  still does not land is `docs/ISSUES.md` #8, left open with its evidence.
 - `summary.json` recorded `null` for every registry number the run had measured, because the
   parser compared the whole marker token to the key while the marker is a prefix — issue #2.
 - The front end joined argv into a 900-byte buffer after checking the wrong variable; a

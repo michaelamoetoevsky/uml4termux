@@ -1199,14 +1199,16 @@ impl Daemon {
         }
     }
 
-    /// Clean shutdown first (guest `poweroff -f` through the console), then
-    /// SIGTERM, then SIGKILL -- same escalation and budgets as the C daemon.
+    /// Clean shutdown first, then SIGTERM, then SIGKILL -- same escalation and budgets as
+    /// the C daemon. The console request asks the KERNEL (sysrq "o") rather than a userland
+    /// utility, because the utility is not guaranteed to exist in the guest and a missing
+    /// command fails silently: 7 of 7 daemons in one day paid the full budget for it.
     fn stop_child(&mut self, timeout_s: i32) {
         if self.child <= 0 {
             return;
         }
         if self.pty_master >= 0 {
-            let line = "exec:sync; poweroff -f\n";
+            let line = "exec:echo o > /proc/sysrq-trigger 2>/dev/null || sync; poweroff -f\n";
             let n = unsafe {
                 libc::write(
                     self.pty_master,
@@ -1215,17 +1217,19 @@ impl Daemon {
                 )
             };
             if n > 0 {
-                logf("stop: clean poweroff via console (20 s budget)");
-                let deadline = Instant::now() + Duration::from_secs(20);
+                logf("stop: clean shutdown via console (3 s budget)");
+                // 3 s, not 20: evidence says the console path lands in the first second or not at all,
+                // so the long budget was pure cost on every stop.
+                let deadline = Instant::now() + Duration::from_secs(3);
                 while Instant::now() < deadline && !self.child_reaped() {
                     std::thread::sleep(Duration::from_millis(500));
                 }
                 if self.child_reaped() {
                     self.child = -1;
-                    logf("clean poweroff landed");
+                    logf("clean shutdown landed");
                     return;
                 }
-                logf("clean poweroff did not land; falling back to signals");
+                logf("clean shutdown did not land in 3 s; falling back to signals");
             }
         }
         unsafe { libc::kill(self.child, libc::SIGTERM) };

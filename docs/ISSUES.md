@@ -16,6 +16,7 @@ sentence that quietly rots.
 | ~~4~~ | ~~`expose HOST:GUEST` once logged the host port as the guest port~~ — **CLOSED: mapping is correct, now gated** | was: unknown | — |
 | ~~5~~ | ~~`termux-packages` package~~ — **CLOSED: sent as #33074, refused by their adoption policy; answer posted** | — | revisit when the project has users |
 | 6 | Upstream patch **sent** as PR #26 — watching for a response | — | upstream response (30-day clock) |
+| 8 | The console shutdown request is never executed by the guest (**8/8 runs**) | medium | guest-side agent behaviour |
 | ~~7~~ | ~~`up` on the shared asset image booted a guest that exited at once~~ — **CLOSED, root cause found** | was: unknown | — |
 
 ---
@@ -218,3 +219,53 @@ boot with `uml4termuxd: image already in use by pid N`, `rc=2`.
 **Gate:** `tests/test-image-lock.sh` — locked image refused with the holder's pid in the
 message, free image not accused, override really bypasses, for **both** daemons (C and
 Rust, 6/6). Contract: `docs/RUNTIME-CONTRACT.md` §9b.
+
+---
+
+## 8. The clean-shutdown request reaches the guest and is never executed — 8 of 8 runs
+
+**Symptom, measured.** Every `down` on 2026-10-31/11-01 logged the same pair:
+
+```
+stop: clean shutdown via console (3 s budget)
+clean shutdown did not land in 3 s; falling back to signals
+```
+
+Counted across **8 distinct daemon instances** in one working session: 8 attempts, 8
+fallbacks. This is not flakiness.
+
+**What the console shows.** After the drain fix (see below) the request is visible in the
+guest's own console as the last line, echoed but never acted on:
+
+```
+exec:echo o > /proc/sysrq-trigger 2>/dev/null || sync; poweroff -f
+```
+
+No error, no output, no halt. The kernel we ship has `CONFIG_MAGIC_SYSRQ=y` and
+`CONFIG_MAGIC_SYSRQ_DEFAULT_ENABLE=0x1` (`ci/kernel/cfg-smp.txt`), so the sysrq path should be
+available — which means the line is not being *executed*, not that it is failing.
+
+**What was found and fixed on the way (real, measured).**
+
+1. `stop_child()` waited for the guest while **not draining the PTY**. The guest's echo of the
+   request filled the PTY output buffer, the guest blocked in `write()`, and the command it had
+   just been handed was never read. The poll loop already drained; the stop path did not. There
+   is now one `drain_pty_once()` used by both — and the request line did start appearing in the
+   console after that change, which is how the next finding became visible.
+2. The clean-shutdown budget was **20 s** spent on a path that had never once landed, i.e. 20 s
+   added to every stop. It is now **3 s**, and the measured effect on the device is
+   **teardown 22.8 s → 3.0 s** (three consecutive captures: 22.80, 3.75, 3.01 s).
+
+**Still open.** Why the guest does not execute the line. The same channel *does* execute normal
+commands in the same boot (`docker info`, `docker run` → `CONTAINER_OK`), so the agent loop is
+alive; the difference is the moment (a stop request arrives while the guest is otherwise idle)
+and the command itself. Next step is to instrument the guest agent to echo a marker before and
+after its `eval`, so the next run says whether the line is read, whether it is evaluated, and
+what the evaluation returns. That is a change to `scripts/guest/docker-init.sh`, not to the
+daemon.
+
+**Impact.** Teardown is signal-based today: correct, but the image is not made consistent by a
+clean halt. The 3 s budget bounds the cost; it does not fix the cause.
+
+**Done looks like:** a capture where the daemon logs `clean shutdown landed after 0.xs`, with
+the teardown time under 2 s and the guest's own console showing the halt.

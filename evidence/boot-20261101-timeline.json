@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.1",
+  "run_id": "boot-timeline-20261101",
+  "project_version": "0.5.0",
+  "generated_at": "2026-11-01T03:27:19+0700",
+  "device": {
+    "model": "unknown",
+    "android_release": "unknown",
+    "abi": "aarch64",
+    "termux": true,
+    "unprivileged": true
+  },
+  "kernel": {
+    "arch": "um/arm64",
+    "booted": true,
+    "release": "pinned (see evidence/20261031-dir-d-ecosystem.json)",
+    "mode": "seccomp",
+    "ncpus": 4
+  },
+  "capabilities": {
+    "boot": {
+      "ok": true,
+      "evidence": "A guest booted for this run; every milestone below is an event observed in that guest's own console or by asking it."
+    },
+    "timeline_measured": {
+      "ok": true,
+      "evidence": "Milestones: kernel_up_s=6.71, initramfs_s=6.76, guest_script_s=13.62, dockerd_ready_s=14.65, first_container_s=0.11, total_s=22.54. Phase split: {\"kernel_boot\": 6.71, \"initramfs_to_guest_script\": 6.86, \"guest_script_to_dockerd_ready\": 1.03, \"up_command_total\": 22.54}"
+    }
+  },
+  "observed": {
+    "milestones": {
+      "kernel_up_s": 6.71,
+      "initramfs_s": 6.76,
+      "guest_script_s": 13.62,
+      "dockerd_ready_s": 14.65,
+      "first_container_s": 0.11,
+      "total_s": 22.54
+    },
+    "phase_seconds": {
+      "kernel_boot": 6.71,
+      "initramfs_to_guest_script": 6.86,
+      "guest_script_to_dockerd_ready": 1.03,
+      "up_command_total": 22.54
+    }
+  },
+  "known_limits_observed": [
+    "the numbers are one boot on one device; container start was measured at 15.7 s and 26.1 s in earlier runs, so treat any single figure as a sample, not a constant"
+  ],
+  "notes": "bench/demo-capture.sh. Not a benchmark: a phase split, to decide whether performance work is worth an axis at all (docs/DIRECTION-N1-N4.md N4).",
+  "verdict": "pass",
+  "artifacts": [
+    {
+      "kind": "console-log",
+      "path": "logs/boot-20261101-uml-console.log",
+      "bytes": 7356,
+      "sha256": "80627f0876cb95e4af85a454fd268a04b6ee17d535d72bf9d6dd4c8c99bae063",
+      "note": "guest console verbatim; the milestones are read from here"
+    },
+    {
+      "kind": "console-log",
+      "path": "logs/boot-20261101-console.timed",
+      "bytes": 9038,
+      "sha256": "5c33301099ff79b94aad66bc4109ec566c7c461bfbc6df108bf5c4131e1d3418",
+      "note": "the same console with a wall-clock stamp on every line"
+    },
+    {
+      "kind": "other",
+      "path": "logs/boot-20261101-up.log",
+      "bytes": 1140,
+      "sha256": "37d64421434e375c94cd7eec717d4dee26ab0d0367c0cc9f527b7f80dbe17a14",
+      "note": "launcher output for `up`"
+    },
+    {
+      "kind": "other",
+      "path": "logs/boot-20261101-daemon.log",
+      "bytes": 1369,
+      "sha256": "e4ffbbea91049c90b16a61baad29439cc522eb2868359e8188c0b7da00faf58e",
+      "note": "daemon log, including the stop path"
+    }
+  ]
+}
