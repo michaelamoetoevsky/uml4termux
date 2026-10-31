@@ -311,6 +311,11 @@ run_meta "shell: snapshot & resume (direction C)" '
   bash '"$ROOT"'/tests/test-snapshot.sh >/dev/null
 '
 
+run_meta "python: recipes summary parser (#2)" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-recipes-parse.sh >/dev/null
+'
+
 run_meta "shell: exec length limit (#1, C + Rust)" '
   set -euo pipefail
   bash '"$ROOT"'/tests/test-exec-limit.sh >/dev/null

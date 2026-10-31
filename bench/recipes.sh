@@ -150,31 +150,8 @@ else
 fi
 
 # ---- summary ------------------------------------------------------------------
-env -u LD_LIBRARY_PATH python3 - "$OUT" <<'PY'
-import json, pathlib, sys
-out = pathlib.Path(sys.argv[1])
-def v(name, key):
-    f = out / f"{name}.console.log"
-    if not f.exists():
-        return None
-    for line in reversed(f.read_text(errors="replace").splitlines()):
-        parts = line.split()
-        if len(parts) >= 2 and parts[-2] == key:
-            return parts[-1].strip()
-    return None
-def wall(name):
-    f = out / f"{name}.seconds"
-    return int(f.read_text().strip()) if f.exists() else None
-summary = {
-    "container_start_media_ms": (lambda t: t // 10 if t else None)(int(v("r1", "TOTAL_MS") or 0)),
-    "container_start_total_ms": int(v("r1", "TOTAL_MS") or 0) or None,
-    "alpine_bytes": int(v("r1", "IMAGE_BYTES") or 0) or None,
-    "registry_push_ms": int(v("r3", "PUSH_MS") or 0) or None,
-    "registry_pull_ms": int(v("r3", "PULL_MS") or 0) or None,
-    "harness_wall_seconds": {n: wall(n) for n in ("r1", "r2", "r3")},
-}
-(out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
-print("  summary -> " + str(out / "summary.json"))
-PY
+# The parser lives in bench/recipes-summary.py so there is exactly one implementation of
+# "what did this run measure": the note below and summary.json now cannot disagree.
+env -u LD_LIBRARY_PATH python3 "$(dirname "$0")/recipes-summary.py" "$OUT"
 say ""
 say "raw consoles and the per-recipe exec replies are in ${OUT}"

@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.1",
+  "run_id": "20261031-registry-numbers",
+  "project_version": "0.5.0",
+  "generated_at": "2026-10-31T22:34:01+0700",
+  "device": {
+    "model": "2406APNFAG",
+    "android_release": "16",
+    "abi": "aarch64",
+    "termux": true,
+    "unprivileged": true
+  },
+  "kernel": {
+    "arch": "um/arm64",
+    "booted": true,
+    "release": "see evidence/20261031-dir-d-ecosystem.json (same pinned kernel)",
+    "mode": "seccomp",
+    "ncpus": 4
+  },
+  "capabilities": {
+    "local_registry_push_pull_measured": {
+      "ok": true,
+      "evidence": "A built image (8657124 bytes) was pushed to registry:2 running inside the guest in 10074 ms and pulled back in 5444 ms. The numbers come from the run's own console through bench/recipes-summary.py; the console is attached byte for byte."
+    },
+    "registry_image_pull_is_size_bound": {
+      "ok": true,
+      "evidence": "Earlier attempts to pull registry:2 inside the guest did not finish in over ten minutes while alpine/nginx/httpd pulled and ran in the same guest. With a longer budget the pull completed, so the limitation is size over the guest network, not a broken path: what matters is patience, and the recipe now records the number instead of a partial one."
+    },
+    "boot": {
+      "ok": true,
+      "evidence": "A guest booted for this run: bench/recipes.sh drove docker, a bridge, containers and registry:2 through it on the device, and the r1/r3 consoles attached here are that guest's own output."
+    }
+  },
+  "observed": {
+    "registry_push_ms": 10074,
+    "registry_pull_ms": 5444,
+    "registry_image_bytes": 8657124,
+    "container_start_media_ms": 26086,
+    "alpine_image_bytes": 8657121,
+    "harness_wall_seconds": {
+      "r1": 467,
+      "r2": 348,
+      "r3": 128
+    }
+  },
+  "known_limits_observed": [
+    "the container-start number includes UML itself, and it moves with device load: 15740 ms median in the direction-D run, 26086 ms in this one",
+    "the registry recipe needs a pull budget above ten minutes on this device; below that it reports nothing rather than a partial number"
+  ],
+  "notes": "Issue #2 in docs/ISSUES.md. The first attempt recorded no number because the recipe was blocked before its push; running it again with a 25-minute budget produced one. The same run exposed a real defect in the evidence path: summary.json recorded null for every value the run had measured, because the parser compared the whole marker token to the key while the marker is a prefix (D4r<epoch>-PUSH_MS). The parser now lives in one file (bench/recipes-summary.py), both the human note and the artifact read it, and tests/test-recipes-parse.sh pins the behaviour including the null case.",
+  "verdict": "pass",
+  "artifacts": [
+    {
+      "kind": "console-log",
+      "path": "logs/20261031-registry-r3-console.log",
+      "sha256": "f3bde390f11e23caff7386d9859b56372c212280e1368b410472a489190fd3ae"
+    },
+    {
+      "kind": "console-log",
+      "path": "logs/20261031-registry-r1-console.log",
+      "sha256": "9367c8b7fdb0d5aca5f557a2cb6fa8bdad7428484362d21823d5380750b14121"
+    }
+  ]
+}

@@ -278,6 +278,9 @@ jobs:
       - name: Daemon hardening (direction E3)
         run: bash tests/test-daemon-security.sh /tmp/uml4termuxd
 
+      - name: Recipes summary parser #2 - the artifact must not disagree with the screen
+        run: bash tests/test-recipes-parse.sh
+
       - name: Exec length limit #1 - refuse what cannot be delivered, both daemons
         run: bash tests/test-exec-limit.sh
 

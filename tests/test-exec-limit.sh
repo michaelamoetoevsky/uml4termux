@@ -14,7 +14,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 ROOT=$PWD
-W=$TMPDIR/exec-limit
+W=$(mktemp -d)  # no TMPDIR assumption: the GitHub runner has none, Termux has no /tmp
 PASS=0; FAIL=0
 ok()   { PASS=$((PASS+1)); echo "    PASS: $1"; }
 bad()  { FAIL=$((FAIL+1)); echo "    FAIL: $1"; }

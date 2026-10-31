@@ -11,7 +11,7 @@ sentence that quietly rots.
 | # | Issue | Severity | Blocked on |
 |---|---|---|---|
 | ~~1~~ | ~~`exec` drops a command line above ~568 bytes, silently~~ — **CLOSED: three silent truncations found and fixed, measured limit enforced** | was: high | — |
-| 2 | Local-registry recipe has no number (`registry:2` pull never completes) | low | device network/time |
+| ~~2~~ | ~~Local-registry recipe has no number~~ — **CLOSED: numbers measured, and the parser that lost them fixed** | was: low | — |
 | ~~3~~ | ~~The status panel is verified by executing its script, not by rendering it~~ — **CLOSED for the DOM, residual gap moved to KNOWN-LIMITS** | low | — |
 | ~~4~~ | ~~`expose HOST:GUEST` once logged the host port as the guest port~~ — **CLOSED: mapping is correct, now gated** | was: unknown | — |
 | 5 | `termux-packages` PR prepared, not submitted | — | repository owner's approval |
@@ -57,21 +57,32 @@ it copies. `docs/RUNTIME-CONTRACT.md` §9a now carries the table above and the t
 Rust), no guest needed: refusal at limit+1 with the documented number, acceptance at the
 limit, a long request read whole rather than half-parsed, and the front end's exit 64.
 
-## 2. The local-registry recipe has no number — LOW
+## 2. CLOSED — the numbers exist, and the artifact that lost them is fixed
 
-**Measured:** pulling `registry:2` from Docker Hub inside the guest did not finish in
-over ten minutes; `alpine`, `nginx:alpine` and `httpd:alpine` pull and run fine in the
-same guest, so it is image size over the guest network rather than a broken path. The
-recipe is therefore blocked *before* its push, and
-`evidence/20261031-dir-d-ecosystem.json` records no number for it instead of a partial
-one. The mechanism is proven: the recipe script arrives in four base64 chunks and the
-guest runs it (markers committed).
+**Measured** with a 25-minute budget on the device, a built image through `registry:2`
+inside the guest:
 
-**Done looks like:** one run of
-`bench/recipes.sh --wait 1200` on a quiet device that reaches `PUSH_MS`/`PULL_MS`, and
-the numbers added to the direction-D evidence.
+| | |
+|---|---|
+| push | 10 074 ms |
+| pull | 5 444 ms |
+| image | 8 657 124 B (8.3 MiB) |
 
----
+So the earlier "never completes" was a budget problem, not a broken path: the guest needs
+more than ten minutes to pull `registry:2` the first time, and the recipe gave up before
+its push. Record: `evidence/20261031-registry-numbers.json` (schema-validated, with both
+r1 and r3 consoles attached byte for byte). The same run also showed the container-start
+median moving from 15 740 ms to 26 086 ms under load, which is why the record says the
+number tracks device state instead of presenting it as a constant.
+
+**A real defect fell out of this.** `summary.json` recorded `null` for every value the run
+had measured: the note a human read said "push 10074 ms" while the artifact said nothing,
+because the parser compared the whole second-to-last token to the key while the marker is
+a prefix (`D4r<epoch>-PUSH_MS 10074`). Two implementations of one number, disagreeing in
+the same run. Now there is one: `bench/recipes-summary.py`, called by `bench/recipes.sh`
+and by `bench/registry-evidence.py`, with `tests/test-recipes-parse.sh` (7 assertions:
+prefixed markers parse, CRLF is handled, an absent marker stays null instead of becoming
+0).
 
 ## 3. CLOSED for the DOM — a real renderer is still absent, and that is now a known limit
 

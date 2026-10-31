@@ -28,7 +28,7 @@
     },
     "recipes_measured_on_device": {
       "ok": true,
-      "evidence": "bench/recipes.sh drove real workloads through a live guest: 10x \"docker run --rm alpine true\" with a warm image took 157404 ms in total (15740 ms median per container start; the alpine image occupies 8657121 bytes); nginx in one container served 500 requests at concurrency 10 to ab in another container at 76.32 req/s (131.023 ms per request). Local registry (push + pull of a built image): NO NUMBER, and the reason is now known rather than guessed. The recipe itself is blocked before it starts: pulling registry:2 from Docker Hub inside the guest did not complete in over ten minutes on this device, while smaller images (alpine, nginx:alpine, httpd:alpine) pulled and ran fine in the same guest, so it is image size over the guest network and not a broken path. What was verified is the mechanism: the recipe script was uploaded in four base64 chunks over the exec channel and the guest executed it, printing its own R3F...-START and R3F...-S1 markers -- which is what proved the exec channel silently drops a command line above roughly 568 bytes (569 bytes arrived, 2182 bytes did nothing at all with rc=0) and is why bench/guest-put.sh exists."
+      "evidence": "bench/recipes.sh drove real workloads through a live guest: 10x \"docker run --rm alpine true\" with a warm image took 157404 ms in total (15740 ms median per container start; the alpine image occupies 8657121 bytes); nginx in one container served 500 requests at concurrency 10 to ab in another container at 76.32 req/s (131.023 ms per request). Local registry (push + pull of a built image): NO NUMBER, and the reason is now known rather than guessed. The recipe itself is blocked before it starts: pulling registry:2 from Docker Hub inside the guest did not complete in over ten minutes on this device, while smaller images (alpine, nginx:alpine, httpd:alpine) pulled and ran fine in the same guest, so it is image size over the guest network and not a broken path. What was verified is the mechanism: the recipe script was uploaded in four base64 chunks over the exec channel and the guest executed it, printing its own R3F...-START and R3F...-S1 markers -- which is what proved the exec channel silently drops a command line above roughly 568 bytes (569 bytes arrived, 2182 bytes did nothing at all with rc=0) and is why bench/guest-put.sh exists. SUPERSEDED for the registry row only: with a longer budget the pull completed and the push/pull numbers were measured -- see evidence/20261031-registry-numbers.json (push 10074 ms, pull 5444 ms for an 8.6 MB image, consoles attached byte for byte)."
     },
     "boot": {
       "ok": true,
@@ -36,7 +36,7 @@
     },
     "exec_channel_line_limit": {
       "ok": true,
-      "evidence": "Measured on the device: a 569-byte exec command reached the guest intact, a 2182-byte one produced no guest output at all while the daemon reported success. The guest agent reads one line from /dev/console and evals it, and the PTY line discipline truncates beyond that. Documented in docs/RUNTIME-CONTRACT.md 9a together with the two rules it implies (chunk long scripts; keep markers base64 so the console echo cannot satisfy an assertion)."
+      "evidence": "CORRECTED 2026-10-31. What was measured then: a 2182-byte exec command produced no guest output while the daemon reported success. The cause recorded here at the time -- 'the PTY line discipline truncates beyond ~568 bytes' -- was wrong. The truncation was ours, three times over: argv joined into a 900-byte buffer after checking the wrong variable, a request built with snprintf into 1024 bytes, and the daemon reading a request with ONE read() into 512 bytes. All three are fixed and the front end now refuses instead of cutting. What remains is not truncation but cost: measured 502 B in 0 s, 2002 B in 1 s, 2502 B in 40 s (and whole -- the guest agent's own echo counted 2500/2500 bytes), 2902 B not delivered in 279 s. The limit is therefore 2000 bytes, enforced at both hops and documented in docs/RUNTIME-CONTRACT.md 9a; bench/guest-put.sh still uploads long scripts in chunks."
     }
   },
   "observed": {
@@ -49,10 +49,10 @@
     "panel_assertions_passed": 13
   },
   "known_limits_observed": [
+    "corrected: exec commands are not truncated beyond ~568 bytes -- our own buffers were, in three places; long commands are slow instead (2.5 KB takes ~40 s), so the limit is 2000 bytes with a visible refusal",
+    "registry:2 does pull inside the guest; it needs a budget above ten minutes on this device, and the numbers are in evidence/20261031-registry-numbers.json",
     "no browser engine on this device, so the panel is verified by executing its script in node rather than by rendering it in a browser",
-    "the container-start number includes UML itself: it is what a user waits for, and it is tens of seconds, not fractions of one",
-    "the exec channel delivers one console line, and a line above ~568 bytes is dropped in silence (the client sees rc=0), so long scripts must be uploaded in chunks",
-    "registry:2 could not be pulled inside the guest within ten minutes, so the local-registry recipe has no number on this device"
+    "the container-start number includes UML itself: it is what a user waits for, and it is tens of seconds, not fractions of one"
   ],
   "notes": "Direction D (docs/NEXT-STEPS.md). D2 (termux-packages) is prepared in packaging/termux/PR.md and deliberately not submitted: opening a PR against another repository is an external action that waits for its owner. One protocol limit was measured the hard way while doing D4: exec commands above roughly 568 bytes are dropped silently, which is why bench/guest-put.sh uploads scripts in chunks.",
   "verdict": "pass",
