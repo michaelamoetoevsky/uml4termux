@@ -81,6 +81,69 @@ for f in "${ASSETS}/${UML4TERMUX_KERNEL_FILE:-linux-bionic}" "${ASSETS}/stub_exe
 done
 [ "${missing}" -eq 0 ] || { echo "soak: ${missing} asset(s) unusable, refusing to start" >&2; exit 1; }
 
+# ---- refuse to start on top of a previous soak --------------------------------
+# A killed driver leaves its daemon and guest behind. The next run then boots a guest that
+# cannot attach its image (the leftover UML holds the image lock), so cycles report
+# "dockerd missing" instead of the real cause -- measured: 8 of 9 cycles failed and 7 processes
+# were left when a run was started over the corpses of an interrupted one. Refuse, and name them.
+SOAK_FORCE="${SOAK_FORCE:-0}"
+leftover_pids=""
+for pf in "${OUT}"/work/rt-*/*.pid "${OUT}"/work/rt-*/state; do
+  [ -f "${pf}" ] || continue
+  lp=$(tr -dc '0-9' < "${pf}" 2>/dev/null)
+  [ -n "${lp}" ] || continue
+  if ps -p "${lp}" >/dev/null 2>&1; then
+    leftover_pids="${leftover_pids} ${lp}"
+  fi
+done
+if [ -n "${leftover_pids}" ] && [ "${SOAK_FORCE}" != "1" ]; then
+  echo "soak: a previous run is still alive (pids:${leftover_pids}) -- stop it first," >&2
+  echo "      or pass SOAK_FORCE=1 to attach more cycles to the same output dir" >&2
+  exit 1
+fi
+
+# A reused output directory is not a resumable soak: its work dir carries the previous run's
+# runtime (stale sockets, COW header, clock state), and cycles then fail with "dockerd missing"
+# instead of the real cause. Measured: the same image and kernel pass in a fresh --out and fail
+# in a used one. The run's records (cycles.jsonl, summary.json) live in ${OUT}, not in work/, so
+# clearing work/ costs nothing.
+# The marker, not the directory: this script creates work/ itself a few lines later, so testing
+# for the directory alone deleted the directory this very run had just made (measured: 0 cycles).
+if [ -f "${OUT}/work/.soak-started" ] && [ "${SOAK_FORCE}" != "1" ]; then
+  echo "soak: clearing stale ${OUT}/work from a previous run (SOAK_FORCE=1 keeps it)"
+  rm -rf "${OUT}/work"
+fi
+mkdir -p "${OUT}/work"
+: > "${OUT}/work/.soak-started"
+
+# ---- refuse when the host ports are taken -------------------------------------
+# Every cycle needs PORT_BASE+n; a leftover gvproxy from an interrupted run keeps one bound and
+# the cycle then fails as "dockerd missing", which points at the guest instead of at the port.
+# Measured: four soak drivers survived a kill of their wrapper and fought over 12501, and every
+# cycle of a new run failed with gvproxy's `bind: address already in use` two layers down.
+busy_ports=""
+for pnum in $(seq "${PORT_BASE}" $((PORT_BASE + ${PARALLEL:-1} + 2))); do
+  state=$(env -u LD_LIBRARY_PATH python3 - "${pnum}" <<'PYPORT'
+import socket, sys
+s = socket.socket()
+try:
+    s.bind(("127.0.0.1", int(sys.argv[1])))
+    print("free")
+except OSError:
+    print("busy")
+finally:
+    s.close()
+PYPORT
+)
+  [ "${state}" = "busy" ] && busy_ports="${busy_ports} ${pnum}"
+done
+if [ -n "${busy_ports}" ]; then
+  echo "soak: host port(s) already in use:${busy_ports}" >&2
+  echo "      something is still running from an earlier soak or service; stop it, or move the" >&2
+  echo "      range with SOAK_SSH_BASE=<port>" >&2
+  exit 1
+fi
+
 img_sha() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
 img_mtime() { stat -c '%Y' "$1" 2>/dev/null; }
 exe_of() { readlink "/proc/$1/exe" 2>/dev/null; }
