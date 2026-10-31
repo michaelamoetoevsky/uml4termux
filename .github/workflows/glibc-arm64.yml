@@ -1,0 +1,156 @@
+name: glibc-arm64
+
+# Direction D1: the shipped kernel and stub_exe are STATIC (no loader, so they run
+# on any aarch64 Linux), but the daemon links /system/bin/linker64 -- i.e. it is
+# Android/bionic only. This workflow closes that gap on a native aarch64 Linux
+# runner with glibc, and it proves the claim instead of restating it:
+#
+#   * userspace: the daemon is built against glibc here and then has to pass the
+#     project's own gates on it -- runtime contract v1, the E3 hardening suite, and
+#     C-vs-Rust parity -- plus the Rust front end built for glibc;
+#   * boot: the RELEASED (bionic-built, statically linked) kernel boots a guest on
+#     this glibc host and the guest reports its own arch, release, CPUs and memory
+#     from inside, which is the part that cannot be faked by a build succeeding.
+#
+# Triggered by dispatch and by changes to the pieces under test; never on a plain
+# push, because a kernel-sized job has no business in the fast path.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/glibc-arm64.yml'
+      - 'ci/glibc/**'
+      - 'src/uml4termuxd.c'
+      - 'rust/**'
+      - 'tests/test-runtime-contract.sh'
+      - 'tests/test-daemon-security.sh'
+
+permissions:
+  contents: read
+
+env:
+  # Pinned from the v0.5.0 release API. Verification is fail-closed: a substituted
+  # asset must not be able to pass by shipping a matching sums file.
+  KERNEL_SHA256: 6970ada592e49c03f90e1b422ffb38ea0ceced9d9d1de1c5120542126a426c02
+  STUB_SHA256: 731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e
+  RELEASE_BASE: https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.5.0
+
+jobs:
+  userspace:
+    # GitHub-hosted arm64 runners. If this label is ever unavailable the job does
+    # not start, which is visible immediately rather than silently skipped.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Host facts (recorded, not assumed)
+        run: |
+          set -x
+          uname -a
+          uname -m
+          getconf PAGESIZE
+          ldd --version | head -1
+          gcc --version | head -1
+
+      - name: Classify the tracked binaries -- what is device-only
+        run: bash ci/glibc/classify.sh bin/uml4termuxd
+
+      - name: Build the daemon against glibc
+        run: |
+          set -euo pipefail
+          cc -O2 -Wall -Wextra -Werror -o "$RUNNER_TEMP/uml4termuxd-glibc" src/uml4termuxd.c
+          bash ci/glibc/classify.sh "$RUNNER_TEMP/uml4termuxd-glibc"
+
+      - name: Runtime contract v1 against the glibc daemon
+        run: bash tests/test-runtime-contract.sh "$RUNNER_TEMP/uml4termuxd-glibc"
+
+      - name: Hardening (direction E3) against the glibc daemon
+        run: bash tests/test-daemon-security.sh "$RUNNER_TEMP/uml4termuxd-glibc"
+
+      - name: Rust front end built for glibc
+        run: |
+          set -euo pipefail
+          cd rust
+          cargo build --release
+          cargo test --release 2>&1 | tail -5
+
+      - name: C-vs-Rust daemon parity, both built for glibc
+        run: bash ci/verify-daemon-parity.sh "$RUNNER_TEMP/uml4termuxd-glibc" rust/target/release/uml4termux-rs
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: glibc-userspace
+          path: |
+            ${{ runner.temp }}/uml4termuxd-glibc
+          if-no-files-found: warn
+
+  boot:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the released kernel + stub, digest-pinned
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/assets"
+          for f in linux-bionic stub_exe SHA256SUMS; do
+            curl -fsSL "$RELEASE_BASE/$f" -o "$RUNNER_TEMP/assets/$f"
+          done
+          echo "$KERNEL_SHA256  $RUNNER_TEMP/assets/linux-bionic" | sha256sum -c -
+          echo "$STUB_SHA256  $RUNNER_TEMP/assets/stub_exe" | sha256sum -c -
+          ( cd "$RUNNER_TEMP/assets" && sha256sum -c SHA256SUMS )
+
+      - name: Classify the released binaries
+        run: |
+          bash ci/glibc/classify.sh "$RUNNER_TEMP/assets/linux-bionic" "$RUNNER_TEMP/assets/stub_exe"
+
+      - name: Build the guest initramfs (no disk, no loop mount)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq busybox-static
+          bash ci/glibc/initramfs.sh "$RUNNER_TEMP/guest.cpio.gz" GLIBCBOOT
+
+      - name: Boot the released kernel on this glibc host
+        run: |
+          set -uo pipefail
+          cd "$RUNNER_TEMP/assets"
+          chmod +x linux-bionic stub_exe
+          # con=null con0=null,fd:1: UML registers console fds with epoll and a CI
+          # stdin is not pollable. initrd= unpacks the cpio as the root filesystem,
+          # so the guest needs no ubd device at all.
+          timeout 180 ./linux-bionic mem=512M con=null con0=null,fd:1 seccomp=on \
+            stub_exe="$PWD/stub_exe" umid=glibcboot \
+            initrd="$RUNNER_TEMP/guest.cpio.gz" \
+            > "$RUNNER_TEMP/boot.log" 2>&1 || echo "boot: exit $? (a guest that powers off ends the kernel)"
+          tail -30 "$RUNNER_TEMP/boot.log"
+
+      - name: Assert the guest booted and reported from inside
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/boot.log"
+          missing=0
+          for m in GLIBCBOOT-OK GLIBCBOOT-RELEASE GLIBCBOOT-NCPU GLIBCBOOT-MEMTOTAL GLIBCBOOT-DONE; do
+            if grep -qa "$m" "$log"; then
+              grep -a "$m" "$log" | head -1
+            else
+              echo "FAIL: $m missing from the console"
+              missing=$((missing + 1))
+            fi
+          done
+          [ "$missing" -eq 0 ] || { echo "boot proof failed: $missing marker(s) missing"; exit 1; }
+          grep -qa 'GLIBCBOOT-OK arch=aarch64' "$log" || {
+            echo "FAIL: the guest did not report aarch64"; exit 1; }
+
+      - name: Upload boot logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: glibc-boot-log
+          path: ${{ runner.temp }}/boot.log
+          if-no-files-found: warn
