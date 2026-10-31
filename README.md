@@ -557,6 +557,8 @@ the notice in [LICENSE](LICENSE) and
   against this project, their linter's verdict, and the exact rule that closed the package PR.
 - [docs/DEMO.md](docs/DEMO.md) — a real run, captured: commands, per-step wall times and
   actual output from one boot on a phone.
+- [docs/DIRECTION-UML-CORE.md](docs/DIRECTION-UML-CORE.md) — where UML-on-Termux goes next:
+  compatibility, mobility, capability, stability, each with the number that would prove progress.
 - [docs/DIRECTION-N1-N4.md](docs/DIRECTION-N1-N4.md) — the four phases after the queue, each
   with the measurement that marks it done.
 - [docs/ADOPTION.md](docs/ADOPTION.md) — the measured adoption baseline (stars, downloads,

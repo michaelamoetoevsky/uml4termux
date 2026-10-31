@@ -212,13 +212,24 @@ fi
 # Re-use tests/ci-checks.sh logic but inline for independence.
 run_meta() {
   local name=$1; shift
-  if bash -c "$*"; then
+  local log rc
+  log=$(mktemp)
+  # A gate that fails must say WHY. Capturing each gate's output and printing the tail on failure
+  # is the difference between "exit 1" and a diagnosis: one gate failed once, passed twice by
+  # hand, and the harness had thrown its output away.
+  if bash -c "$*" >"$log" 2>&1; then
+    rm -f "$log"
     add_result 0 "$name" "ok"
   else
     rc=$?
     if [ "$rc" -eq "$CI_SKIP" ]; then
+      rm -f "$log"
       add_result "$CI_SKIP" "$name" "skipped by check"
     else
+      printf '%s\n' "---- $name: output on failure ----"
+      tail -n 30 "$log"
+      printf '%s\n' "---- end $name ----"
+      rm -f "$log"
       add_result 1 "$name" "exit $rc"
     fi
   fi
