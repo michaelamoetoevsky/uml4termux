@@ -21,7 +21,14 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+// Platform-dependent, exactly like the C twin: a selftest child that cannot be exec'd
+// (126/127) makes the daemon give up, and one that exits 0 ends the session. Hardcoding
+// the Termux path made an x86 CI run report ConnectionRefused against a daemon that had
+// already exited, because /data/data/... does not exist there.
+#[cfg(target_os = "android")]
 const SELFTEST_CHILD_DEFAULT: &str = "/data/data/com.termux/files/usr/bin/sleep";
+#[cfg(not(target_os = "android"))]
+const SELFTEST_CHILD_DEFAULT: &str = "/bin/sleep";
 const SELFTEST_SECONDS_DEFAULT: &str = "30";
 const RESTART_BACKOFF_S: u32 = 2;
 const RESTART_MAX: u32 = 5;

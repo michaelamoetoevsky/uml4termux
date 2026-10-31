@@ -38,7 +38,16 @@
 #include <unistd.h>
 
 #define SOCK_PATH_DEFAULT "/data/data/com.termux/files/home/.uml4termux/daemon.sock"
+/* The selftest supervisor needs a child that LIVES. A child that exits 0 means "the
+   session completed" and the daemon stops; exit 126/127 means "cannot execute" and it
+   gives up. Hardcoding the Termux path made an x86 CI run fail as ConnectionRefused
+   against a daemon that had already exited, because /data/data/... does not exist there.
+   Pick it at compile time. */
+#if defined(__ANDROID__)
 #define SELFTEST_CHILD_DEFAULT "/data/data/com.termux/files/usr/bin/sleep"
+#else
+#define SELFTEST_CHILD_DEFAULT "/bin/sleep"
+#endif
 #define SELFTEST_SECONDS_DEFAULT "30"
 /* Runtime contract v1 (docs/RUNTIME-CONTRACT.md). Bumped only when the
  * documented protocol/paths change in a way old clients cannot handle. */

@@ -59,13 +59,19 @@ check_impl() {  # $1=daemon binary  $2=label  $3=front-end binary (may be empty)
   case "$out" in
     *'"command too long"'*'"limit":2000'*)
       ok "$label: 2001-byte command refused with the documented limit" ;;
+    '') bad "$label: 2001-byte command got no reply (daemon gone?)" ;;
     *) bad "$label: 2001-byte command NOT refused (got: ${out:0:90})" ;;
   esac
 
   out=$(probe "$rt" 2000)
+  # An EMPTY reply is a failure here too: it means the daemon was gone, and the first
+  # version of this test called that "passes the length check" -- an assertion that
+  # cannot fail is not an assertion.
   case "$out" in
     *'command too long'*)
       bad "$label: 2000-byte command refused although the limit is 2000" ;;
+    '')
+      bad "$label: no reply at all for a 2000-byte command (daemon gone?)" ;;
     *)
       ok "$label: 2000-byte command passes the length check (got: ${out:0:60})" ;;
   esac
@@ -76,6 +82,7 @@ check_impl() {  # $1=daemon binary  $2=label  $3=front-end binary (may be empty)
   case "$out" in
     *'guest not running'*|*'rate-limited'*)
       ok "$label: a long request is read whole, not half-parsed" ;;
+    '') bad "$label: long request got no reply (daemon gone?)" ;;
     *) bad "$label: long request mishandled (got: ${out:0:90})" ;;
   esac
 
