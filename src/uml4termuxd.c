@@ -802,8 +802,12 @@ static void audit_line(const char *verb, const char *detail)
 	safe[n] = '\0';
 	snprintf(line, sizeof(line), "%s %s uid=%u %s\n", ts, verb,
 		 (unsigned)geteuid(), safe);
+	/* The audit log must never take the daemon down, so a failed write is not
+	   fatal -- but it is not an empty statement either: gcc's -Wempty-body
+	   rejects the `if (...) ;` form, and an audit trail that silently stops
+	   recording is worth one line in the daemon's own log. */
 	if (write(g_auditfd, line, strlen(line)) < 0)
-		; /* the audit log must never take the daemon down */
+		logf_("audit: write failed (ignored)");
 }
 
 /* A client can send `exec` as fast as it can write; each one drives a shell
@@ -1092,8 +1096,12 @@ static int serve_loop(int lfd)
 				ssize_t n;
 
 				while ((n = read(g_ptym, buf, sizeof(buf))) > 0) {
-					if (g_logfd >= 0)
-						write(g_logfd, buf, (size_t)n);
+					/* A short or failed write is reported once rather
+					   than ignored: gcc's -Wunused-result refuses the bare
+					   call, and a console log that silently stops growing
+					   looks exactly like a guest that went quiet. */
+					if (g_logfd >= 0 && write(g_logfd, buf, (size_t)n) < 0)
+						logf_("console: log write failed (ignored)");
 				}
 			}
 			if (pfds[0].revents & POLLIN) {

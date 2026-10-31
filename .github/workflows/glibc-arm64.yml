@@ -98,7 +98,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/assets"
-          for f in linux-bionic stub_exe SHA256SUMS; do
+          for f in linux-bionic stub_exe SHA256SUMS uml4termux-0.5.0.tar.gz; do
             curl -fsSL "$RELEASE_BASE/$f" -o "$RUNNER_TEMP/assets/$f"
           done
           echo "$KERNEL_SHA256  $RUNNER_TEMP/assets/linux-bionic" | sha256sum -c -
