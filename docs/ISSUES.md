@@ -16,6 +16,7 @@ sentence that quietly rots.
 | 4 | `expose HOST:GUEST` once logged the host port as the guest port — **unverified** | unknown | a clean reproduction |
 | 5 | `termux-packages` PR prepared, not submitted | — | repository owner's approval |
 | 6 | Upstream patch **sent** as PR #26 — watching for a response | — | upstream response (30-day clock) |
+| 7 | `up` on the shared asset image booted a guest that exited at once — **unverified** | unknown | a clean reproduction |
 
 ---
 
@@ -116,3 +117,40 @@ implementation upstream and our `UML4TERMUXD_STRICT_UBD` stays the second line o
 defence. If there is no response in 30 days (until 2026-11-30), the entry closes as
 "no upstream response" and F1 stays the only path — the project ships a kernel it
 builds and tests itself, so nothing here blocks a release.
+
+---
+
+## 7. `up` on the shared asset image: the guest exited immediately — UNVERIFIED
+
+**Observed twice** while chasing issue #4, both times with
+`--image $UML4TERMUX_HOME/debian-docker.ext4` (the shared asset, used directly rather
+than copied): `up` failed, and the daemon log it printed said
+
+```
+uml4termuxd[26667]: child 26692 died (exit 0)
+uml4termuxd[26667]: guest session completed; not restarting
+uml4termuxd[26667]: gvproxy stopped
+```
+
+i.e. the kernel came up and exited cleanly within about a second, so the console never
+had a guest to show. `up` did report the failure and printed those lines — the
+fail-fast path added in direction D worked — but *why* the guest exits is not known.
+
+**Not a reproduction of #4.** It was found while trying to reproduce #4, and it blocks
+that reproduction rather than explaining it.
+
+**Why it might happen, untested:** that image was written by the interrupted
+registry-pull runs in direction D4 and may carry a dirty journal, so the guest's own
+init could be bailing out; or the shared path is being opened by something else. Both
+are guesses.
+
+**Workaround that is already the project's practice:** every harness copies the image
+per instance (`soak/soak.sh`, `soak/snapshot-check.sh`, `bench/recipes.sh`) — 90/90 and
+80/80 clean cycles on copies — and passes `UML4TERMUXD_STRICT_UBD=1`.
+
+**Done looks like:** a test that boots an instance on a *freshly copied* asset image and
+on the shared asset image, and asserts the same exit state for both; if the shared case
+really is the dirty image, the answer is that `fetch`/`init-image` must produce a clean
+one and `up` should refuse an image whose ext4 journal is dirty instead of booting a
+guest that dies. Until then the entry stays as an observation with a workaround, not a
+diagnosis.
