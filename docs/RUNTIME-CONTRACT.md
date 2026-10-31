@@ -252,6 +252,11 @@ pengiriman yang tumbuh terhadap panjang**: di atas ~2 KB, perintah "berhasil" te
 tidak dalam waktu yang wajar, dan klien hanya menerima `{"started":true}` tanpa tahu
 kapan selesai.
 
+Baris 2.502 B dan 2.902 B diukur **sebelum** batas ini ada. Dengan batas di tempatnya,
+ukuran itu sekarang **ditolak** (`rc=64`), bukan ditunggu 40 detik lalu 4 menit — itulah
+gunanya. Bukti ter-generate untuk kedua sisi batas: `evidence/20261031-exec-line-limit.json`
+(probe ≤2.000 byte tiba utuh, probe di atasnya ditolak, konsol guest terlampir).
+
 **Tiga truncation senyap yang ditemukan saat menelusuri ini, dan sudah ditutup:**
 
 1. `main()` merangkai argv menjadi `char joined[900]` dengan memeriksa `used` **sebelum**

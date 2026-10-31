@@ -1,0 +1,93 @@
+{
+  "schema_version": "1.1",
+  "run_id": "20261031-exec-line-limit",
+  "project_version": "0.5.0",
+  "generated_at": "2026-10-31T23:50:08+0700",
+  "device": {
+    "model": "2406APNFAG",
+    "android_release": "16",
+    "abi": "aarch64",
+    "termux": true,
+    "unprivileged": true
+  },
+  "kernel": {
+    "arch": "um/arm64",
+    "booted": true,
+    "release": "see evidence/20261031-dir-d-ecosystem.json (same pinned kernel)",
+    "mode": "seccomp",
+    "ncpus": 4
+  },
+  "capabilities": {
+    "boot": {
+      "ok": true,
+      "evidence": "A guest booted for this run: every measurement below is a command executed inside it through the console channel."
+    },
+    "exec_length_limit_enforced": {
+      "ok": true,
+      "evidence": "Commands above 2000 bytes are refused with exit 64 and {\"error\":\"command too long\",\"limit\":2000}; commands at or below it are delivered. Over-limit probes in this run: [(2002, 64), (2500, 64)]."
+    },
+    "delivery_is_bounded_in_time": {
+      "ok": true,
+      "evidence": "Under the limit, delivery is not truncated but it is slow, and the cost grows with length: 500 B -> 498 bytes echoed, done=True, 1 s; 1200 B -> 1198 bytes echoed, done=True, 0 s; 2000 B -> 1998 bytes echoed, done=True, 0 s; 2002 B -> 0 bytes echoed, done=False, 0 s; 2500 B -> 0 bytes echoed, done=False, 0 s. The slowest delivered command was 500 bytes in 1 s."
+    }
+  },
+  "observed": {
+    "limit_bytes": 2000,
+    "probes": [
+      {
+        "size": 500,
+        "seq": 1,
+        "rc": 0,
+        "agent_bytes": 498,
+        "done": true,
+        "elapsed_s": 1
+      },
+      {
+        "size": 1200,
+        "seq": 2,
+        "rc": 0,
+        "agent_bytes": 1198,
+        "done": true,
+        "elapsed_s": 0
+      },
+      {
+        "size": 2000,
+        "seq": 3,
+        "rc": 0,
+        "agent_bytes": 1998,
+        "done": true,
+        "elapsed_s": 0
+      },
+      {
+        "size": 2002,
+        "seq": 0,
+        "rc": 64,
+        "agent_bytes": 0,
+        "done": false,
+        "elapsed_s": 0
+      },
+      {
+        "size": 2500,
+        "seq": 0,
+        "rc": 64,
+        "agent_bytes": 0,
+        "done": false,
+        "elapsed_s": 0
+      }
+    ],
+    "delivered_under_limit": 3,
+    "probes_under_limit": 3
+  },
+  "known_limits_observed": [
+    "the console channel is one line per command, so a larger command costs seconds, not milliseconds; long scripts belong in bench/guest-put.sh chunks"
+  ],
+  "notes": "Issue #1 in docs/ISSUES.md. Three silent truncations were found and fixed (argv join overflow, a 1024-byte request buffer, a single read() into 512 bytes); what remains is the measured cost of delivery, which is why the limit is a refusal at 2000 bytes instead of a bigger buffer. docs/RUNTIME-CONTRACT.md 9a carries the same table.",
+  "verdict": "pass",
+  "artifacts": [
+    {
+      "kind": "console-log",
+      "path": "logs/20261031-exec-line-limit-console.log",
+      "sha256": "31fd846d4e85be9b22fcf9ad30fec07695464eff347fa84570b8fa20ef7000b5"
+    }
+  ]
+}
