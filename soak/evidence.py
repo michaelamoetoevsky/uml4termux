@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 
@@ -37,6 +38,8 @@ def load(out: pathlib.Path) -> list[dict]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--record", required=True)
+    ap.add_argument("--note", action="append", default=[],
+                    help="extra sentence(s) appended to the record notes")
     ap.add_argument("--min-minutes", type=float, default=60.0,
                     help="plan requirement for this run (B1: 120, B2: 60)")
     ap.add_argument("dirs", nargs="+")
@@ -66,7 +69,11 @@ def main() -> int:
     # Script copies carry the record's own stem: naming them after the file alone
     # collided with artifacts that a PREVIOUS record had already committed, and a
     # cleanup then deleted tracked evidence files.
-    stem = pathlib.Path(args.record).stem
+    # Artifact names carry the record's stem so a regeneration cannot overwrite
+    # another record's copies -- but the stem already starts with the date (as
+    # every evidence file does), and the prefix below adds it again. Strip it,
+    # or the tree fills with names like 20261031-20261031-soak-...
+    stem = re.sub(r"^\d{8}-", "", pathlib.Path(args.record).stem)
     for name in ("soak/soak.sh", "soak/summarise.py", "soak/guest/tick.sh", "soak/restart-check.sh"):
         src = ROOT / name
         if src.exists():
@@ -150,8 +157,9 @@ def main() -> int:
                               and total_wall >= args.min_minutes) else "partial",
         "artifacts": [{"kind": "console-log" if p.suffix in (".log", ".txt", ".jsonl") else "other",
                        "path": f"logs/{p.name}", "sha256": sha(p)} for p in sorted(artifacts)],
-        "notes": "Direction B (docs/NEXT-STEPS.md). B3 (restart + exposure re-apply) has its own "
-                 "record: evidence/20261030-soak-b3-restart.json.",
+        "notes": " ".join(
+            ["Direction B (docs/NEXT-STEPS.md). B3 (restart + exposure re-apply) has its own "
+             "record: evidence/20261030-soak-b3-restart.json."] + list(args.note)),
         "known_limits_observed": [
             "each cycle pulls its container image unless the COW overlay keeps a cache; with an "
             "ephemeral overlay every cycle starts from the pristine image",

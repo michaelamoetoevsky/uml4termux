@@ -199,6 +199,36 @@ dua guest sekaligus) tidak gagal sekali pun. Angka 101/105 dan verdict `partial`
 tetap ditulis apa adanya — menyembunyikannya akan membuat laporan ini tak bisa
 dipakai.
 
+**B1 diulang bersih (2026-10-31) — verdict `pass`.** Bukti:
+`evidence/20261031-soak-b1-clean.json`. Sebab empat kegagalan di atas sudah
+diperbaiki di harness (precheck aset memakai `-e` sehingga symlink menggantung
+ditolak dalam <1 detik, bukan setelah gagal boot; fail-fast saat `up` gagal), jadi
+bentuk yang sama dijalankan ulang dengan kernel **sha pin rilis** `6970ada5…`
+(dicatat sebelum run, bukan sesudah).
+
+| | B1 (30 Okt, jadi riwayat) | **B1 ulang (31 Okt)** |
+|---|---|---|
+| siklus | 105 (dihentikan SIGTERM eksternal di 105/150) | **90/90 selesai, `rc=0`** |
+| durasi terukur | 167,4 menit | **134,3 menit** (≥120 wajib) |
+| siklus gagal start | 4 | **0** |
+| siklus tak mencapai tick guest | 4 | **0** |
+| dockerd siap + container selesai | 101/105 | **90/90** |
+| RSS daemon | 4.786 → 4.758 KB | **4.624–5.456 KB**, tren **−0,9%** (median 10 pertama 5.030 vs 10 terakhir 4.986 KB) |
+| RSS kernel guest | ~72 MB | 59,6–118,1 MB |
+| proses tersisa per siklus | 0 | **0** |
+| image dasar (sha **dan** mtime) | tak berubah | **tak berubah di 90 siklus** |
+| verdict | `partial` | **`pass`** |
+
+Kriteria B yang berbunyi "0 kegagalan boot" karena itu **terpenuhi dengan run
+bersih**, bukan dengan menambal laporan lama. Record `partial` dibiarkan ada di
+pohon sebagai riwayat — yang menggantikannya adalah record ini, dan catatan di
+dalamnya menyebut penggantian itu secara eksplisit.
+
+Satu detail operasional yang ikut terbukti: run lama berhenti karena **SIGTERM
+eksternal** (`rc=143`) saat pembersihan sesi, bukan karena harness punya batas
+waktu. Run ulang diluncurkan dengan penanda persistensi sehingga pembersihan sesi
+tidak bisa menyentuhnya, dan ia menyelesaikan 90/90.
+
 **Yang dibuktikan B2 secara khusus:** dua guest benar-benar hidup bersamaan
 (2 daemon + 2 guest teramati serentak), laju kedua instance identik (~113 s),
 port SSH berbeda (12501/12502) tanpa tabrakan, RSS daemon dua-guest hanya naik
@@ -216,8 +246,10 @@ boot → dockerd → `docker run` → stop bersih dengan **COW ephemeral** (laun
 memasangnya otomatis), mencatat RSS daemon + RSS kernel guest tiap siklus ke
 `cycles.jsonl`, lalu `soak/summarise.py` menilai: 0 siklus gagal, 0 proses
 tertinggal (dihitung lewat resolusi `/proc/<pid>/exe`), image tak tersentuh
-(sha **dan** mtime sebelum/sesudah), dan tren RSS (median sepertiga awal vs
-sepertiga akhir). `--parallel 2` untuk B2. B3 punya skrip sendiri,
+(sha **dan** mtime sebelum/sesudah), dan tren RSS (**median 10 siklus pertama vs 10
+siklus terakhir, kronologis** — versi pertama mengurutkan deret lalu membandingkan blok
+terkecil vs terbesar, yang mengukur sebaran dan melaporkan +16,9% untuk run yang tren
+sebenarnya −0,6%). `--min-minutes` (B1 120, B2 60) ikut menentukan verdict. `--parallel 2` untuk B2. B3 punya skrip sendiri,
 `soak/restart-check.sh`, karena ia butuh gvproxy + port host nyata: kill daemon
 di tengah soak → restart lewat adapter plain → verifikasi exposure di-*re-apply*
 dan nol proses yatim.
@@ -590,7 +622,7 @@ multi-instance yang hari ini masih berupa peringatan di dokumen.
 | Urut | Item | Alasan | Risiko |
 |---|---|---|---|
 | ~~1~~ | ~~A (benchmark pin vs HEAD)~~ **SELESAI** | Menentukan pin rilis berikutnya; hasil direksional, pin tetap | — |
-| ~~2~~ | ~~B (soak v2)~~ **SELESAI B1/B2/B3** | Arsitektur berubah (daemon + COW) → butuh bukti baru | — |
+| ~~2~~ | ~~B (soak v2)~~ **SELESAI B1/B2/B3 + B1 ulang bersih 31 Okt** | Arsitektur berubah (daemon + COW) → butuh bukti baru | — |
 | ~~3~~ | ~~C (snapshot/resume)~~ **SELESAI C1–C4** | Fitur pembeda termurah yang memanfaatkan COW | — |
 | ~~4~~ | ~~E (keamanan)~~ **SELESAI E1–E4** | Prasyarat sebelum orang lain menjalankan image | — |
 | **berikutnya** | D (ekosistem) | Perluasan audiens setelah fondasi stabil | Rendah |

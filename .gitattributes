@@ -51,3 +51,8 @@ Makefile linguist-language=Makefile
 # Evidence logs are raw captured bytes: hashes are recorded in the
 # evidence records, so git must NOT normalise their line endings.
 evidence/logs/*.log -text
+# Same reason for the raw cycle tables a harness copies in: their bytes are
+# hashed inside the record, so a normalised checkout would fail the artifact
+# check in CI while passing locally.
+evidence/logs/*.jsonl -text
+evidence/logs/*.raw.log -text
