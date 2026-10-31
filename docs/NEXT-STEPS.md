@@ -685,8 +685,23 @@ manager** (yang memiliki siklus hidup daemon), **registry multi-instance**,
   setelah `down` bersih (exit 0) ia berhenti, bukan berputar.
   Gate: `tests/test-adapters.sh` (statis + fungsional; `systemd-analyze verify`
   dijalankan di CI).
-- **G6. (Opsional) facade D-Bus** — feature-gated, mati secara default,
-  memetakan `status/up/down` ke session bus untuk integrasi desktop.
+- **G6. (Opsional) facade D-Bus — DITUTUP TANPA DIBANGUN (31 Okt).** Arahnya
+    ditolak dengan alasan, bukan dengan selera:
+    1. **Tidak ada konsumen.** Di Android tidak ada proses yang memanggil
+       `org.freedesktop.*` untuk aplikasi Termux. Integrasi yang benar-benar ada
+       (runit, s6, systemd, plain) sudah lewat kail `up --foreground` dan lulus
+       `tests/test-adapters.sh` — fungsional, termasuk restart setelah SIGKILL.
+    2. **Antarmuka mesin sudah ada.** Protokol baris-di-socket v1 (`status`, `exec`,
+       `ports`, `expose`, `protocol`) dengan parity byte-identik C vs Rust dan gate
+       kontrak. Facade D-Bus hanya akan jadi lapisan kedua untuk data yang sama.
+    3. **Biayanya nyata di perangkat ini.** `dbus-daemon` + library menambah proses, dan
+       Android 12+ membatasi 32 proses anak untuk app latar (batas 2 di atas). Menambah
+       proses demi antarmuka tanpa konsumen adalah kebalikan dari tujuannya.
+    **Yang akan membukanya kembali:** satu konsumen nyata (mis. aplikasi desktop/IDE yang
+    meminta `org.uml4termux.Control`). Bentuknya wajib proses **terpisah** yang berbicara
+    ke socket kontrol, bukan kode di dalam daemon: daemon sudah punya satu pekerjaan
+    (mengawasi guest), dan satu supervisor per lapisan adalah aturan yang membuat tumpukan
+    ini bisa diuji.
 
 ### Yang ditolak (jangan dijanjikan)
 
@@ -737,7 +752,7 @@ multi-instance yang hari ini masih berupa peringatan di dokumen.
 | **berikutnya** | F (hulu) | Paralel, tanpa menahan apa pun | Sedang |
 | ~~6~~ | ~~F (hulu)~~ **F1 aktif; F2 siap-kirim (menunggu persetujuan)** | Paralel, tanpa menahan apa pun | Sedang |
 | ~~7~~ | ~~G (runtime mandiri)~~ **SELESAI G1–G5** | Portabilitas ke host non-Termux + penegakan invarian multi-instance | — |
-| 8 | G6 (facade D-Bus, opsional) | Hanya bila ada konsumen nyata; bukan jalur kritis | Rendah |
+| ~~8~~ | ~~G6 (facade D-Bus, opsional)~~ **DITUTUP 31 Okt — tanpa konsumen; protokol socket sudah menjadi antarmuka mesin** | Buka kembali hanya bila ada konsumen nyata, sebagai proses terpisah | — |
 
 ## Di luar lingkup (jangan dijanjikan)
 

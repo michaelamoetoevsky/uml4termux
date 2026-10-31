@@ -311,6 +311,34 @@ run_meta "shell: snapshot & resume (direction C)" '
   bash '"$ROOT"'/tests/test-snapshot.sh >/dev/null
 '
 
+run_meta "shell: exec length limit (#1, C + Rust)" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-exec-limit.sh >/dev/null
+'
+
+run_meta "node: panel real-DOM render (jsdom, fixture)" '
+  set -euo pipefail
+  if NODE_PATH="${JSDOM_NODE_PATH:-}" node -e "require.resolve(\"jsdom\")" >/dev/null 2>&1; then
+    NODE_PATH="${JSDOM_NODE_PATH:-}" node '"$ROOT"'/panel/render-dom-check.mjs '"$ROOT"'/panel/fixtures/state-1guest.json
+  else
+    echo "SKIP: jsdom not installed (JSDOM_NODE_PATH=... to enable)"; exit 77
+  fi
+'
+
+run_meta "shell: expose mapping (#4, device only)" '
+  set -euo pipefail
+  if [ "${UML4TERMUX_DEVICE_TESTS:-0}" = "1" ]; then
+    bash '"$ROOT"'/tests/test-expose-mapping.sh
+  else
+    echo "SKIP: device-only test (UML4TERMUX_DEVICE_TESTS=1 boots a guest, ~4 min)"; exit 77
+  fi
+'
+
+run_meta "shell: image lock (#7, C + Rust)" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-image-lock.sh >/dev/null
+'
+
 run_meta "python: image-lock probe (upstream patch F2)" '
   set -euo pipefail
   env -u LD_LIBRARY_PATH python3 '"$ROOT"'/ci/upstream/image-lock-probe.py >/dev/null

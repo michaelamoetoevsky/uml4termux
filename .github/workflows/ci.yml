@@ -278,6 +278,23 @@ jobs:
       - name: Daemon hardening (direction E3)
         run: bash tests/test-daemon-security.sh /tmp/uml4termuxd
 
+      - name: Exec length limit #1 - refuse what cannot be delivered, both daemons
+        run: bash tests/test-exec-limit.sh
+
+      - name: Panel real-DOM render (jsdom against a committed payload)
+        # The panel's own JS runs against a real DOM built from the real HTML, so a
+        # renamed id or a selector that matches nothing fails here instead of rendering
+        # an empty page that nobody notices.
+        run: |
+          npm install --silent --no-audit --no-fund --prefix "$RUNNER_TEMP/dom" jsdom
+          NODE_PATH="$RUNNER_TEMP/dom/node_modules" node panel/render-dom-check.mjs panel/fixtures/state-1guest.json
+
+      - name: Image lock #7 - a shared backing image is refused, not booted diskless
+        # UML locks the backing image; a second boot would come up with NO_DISK and
+        # exit 0. The test holds the lock from a separate process (POSIX locks are
+        # per-process) and asserts both daemons refuse and name the holder.
+        run: bash tests/test-image-lock.sh
+
       - name: Image-lock probe (upstream patch F2)
         # The guard proposed upstream is only worth sending if its logic is proven:
         # an F_SETLK taken by another process must be detectable, and POSIX locks are

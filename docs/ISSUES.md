@@ -13,7 +13,7 @@ sentence that quietly rots.
 | ~~1~~ | ~~`exec` drops a command line above ~568 bytes, silently~~ — **CLOSED: three silent truncations found and fixed, measured limit enforced** | was: high | — |
 | 2 | Local-registry recipe has no number (`registry:2` pull never completes) | low | device network/time |
 | ~~3~~ | ~~The status panel is verified by executing its script, not by rendering it~~ — **CLOSED for the DOM, residual gap moved to KNOWN-LIMITS** | low | — |
-| 4 | `expose HOST:GUEST` once logged the host port as the guest port — **unverified** | unknown | a clean reproduction |
+| ~~4~~ | ~~`expose HOST:GUEST` once logged the host port as the guest port~~ — **CLOSED: mapping is correct, now gated** | was: unknown | — |
 | 5 | `termux-packages` PR prepared, not submitted | — | repository owner's approval |
 | 6 | Upstream patch **sent** as PR #26 — watching for a response | — | upstream response (30-day clock) |
 | ~~7~~ | ~~`up` on the shared asset image booted a guest that exited at once~~ — **CLOSED, root cause found** | was: unknown | — |
@@ -97,25 +97,26 @@ gate as "rendered in a browser".
 with the reason when it is not (the project does not add a runtime dependency for a
 test); CI installs it in its own step.
 
-## 4. `expose HOST:GUEST` once logged the host port as the guest port — UNVERIFIED
+## 4. CLOSED — the mapping was correct; a test now says so instead of a memory
 
-**Observed once** during direction D3: `expose 12661:8123` produced a daemon log line
-`exposed 127.0.0.1:12661 -> 192.168.127.2:12661`, i.e. the guest port looked dropped.
+**Measured on a device instance** (private image copy, booted for the test):
 
-**Not reproduced.** Reading the code afterwards, both paths split the mapping
-correctly — `lib/net.sh:net_parse_mapping` and the daemon's `expose <host> <guest>`
-handler, which the CLI feeds two arguments — and a `--dry-run` of the same command
-prints `{"local":"127.0.0.1:12700","remote":"192.168.127.2:8123"}`, which is right. The
-observed line most likely came from a different exposure in the same session (the
-first, malformed invocation in that session never reached the daemon). A clean
-reproduction attempt was inconclusive because the guest powered off before the test.
+```
+reply:    {"exposed":"127.0.0.1:12700 -> 192.168.127.2:8123"}
+registry: {"local":"127.0.0.1:12700","remote":"192.168.127.2:8123"}
+ports:    carries 8123
+```
 
-**Done looks like:** a test that starts an instance, exposes `12700:8123`, and asserts
-the daemon's reply AND the registry file carry `8123` as the guest port — so the
-question stops depending on anybody's memory. If the test fails, fix the split; if it
-passes, delete this entry.
+Both halves are right, in the daemon's reply and in the file it re-applies from on
+restart. The single log line that opened this entry was therefore not a mapping bug;
+nothing in either code path ever put the host port in the guest half.
 
----
+**Gate:** `tests/test-expose-mapping.sh` boots an instance on a private copy and asserts
+the shape of the pair — host port in `local`, **guest port in `remote`** — in the reply,
+in the registry file and through `ports`, plus a negative assertion that the host port
+never appears in the remote half. 6 assertions pass; the end-to-end curl SKIPs when the
+demo container is not listening (a booking, not a mapping). Device-only by nature, so it
+SKIPs cleanly where the assets or a guest are absent.
 
 ## 5. `termux-packages` PR prepared, not submitted
 

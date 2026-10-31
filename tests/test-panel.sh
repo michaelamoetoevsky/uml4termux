@@ -156,6 +156,21 @@ else
   skip "node tidak tersedia: render-check tidak bisa dijalankan di sini"
 fi
 
+# A real-DOM render beside the stub check: jsdom parses the actual HTML and runs the
+# page's own script against the actual /api/state payload. Optional on purpose -- the
+# project does not take a runtime dependency for a test; CI installs it.
+if node -e "require.resolve('jsdom')" >/dev/null 2>&1; then
+  curl -fsS --max-time 15 "http://127.0.0.1:${port}/api/state" -o "${work}/api.json" 2>/dev/null || true
+  if node "${ROOT}/panel/render-dom-check.mjs" "${work}/api.json" >"${work}/dom.log" 2>&1; then
+    ok "render DOM nyata (jsdom) lulus terhadap payload nyata"
+  else
+    bad "render DOM nyata gagal (lihat ${work}/dom.log)"
+    sed 's/^/    | /' "${work}/dom.log" | head -8
+  fi
+else
+  skip "jsdom tidak tersedia: render DOM nyata dilewati"
+fi
+
 # stop the daemon through the panel's own source of truth, then see the panel notice
 UML4TERMUX_RUNTIME="${rt}" "${DBIN}" stop >/dev/null 2>&1
 sleep 2

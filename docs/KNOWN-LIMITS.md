@@ -189,6 +189,16 @@ this project.
 - **Battery:** a wakelock plus sustained CPU plus a full Docker daemon is a serious
   drain; this is a laptop-shaped workload running on a phone.
 
+## Verification tooling (not the product)
+
+- **No browser engine on this device.** Playwright MCP answers
+  `Unsupported platform: android`, and the local browser backend is not installed
+  (`agent-browser CLI not found`). The status panel is therefore verified by rendering
+  the real `panel/index.html` in jsdom — real parser, real element tree, the page's own
+  script, a real `/api/state` payload — and **not** in a browser: layout, CSS and
+  screenshots stay unproven here. A CI runner with Chromium can close that gap; the
+  assertions that already exist are listed in `docs/ISSUES.md` #3.
+
 ## Project and ecosystem
 
 - **Not a security sandbox.** UML runs a kernel as a host process; it is not a

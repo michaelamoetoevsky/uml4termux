@@ -1,0 +1,32 @@
+{
+  "generated_at": 1793457133,
+  "state_dir": "/data/data/com.termux/files/usr/tmp/m4exec/state",
+  "guest_count": 1,
+  "guests": [
+    {
+      "name": "m4",
+      "runtime": "/data/data/com.termux/files/usr/tmp/m4exec/rt",
+      "image": "/data/data/com.termux/files/usr/tmp/m1exec/guest-image.ext4",
+      "ssh_port": "12685",
+      "launcher_pid": "8029",
+      "state": "running",
+      "guest_pid": 8071,
+      "restarts": 0,
+      "uptime_s": 196,
+      "mem": "1024M",
+      "ncpus": "4",
+      "kernel": "/data/data/com.termux/files/usr/tmp/bench-assets/linux-bionic",
+      "exposures": [],
+      "protocol_raw": {
+        "status": "{\"state\":\"running\",\"child_pid\":8071,\"restarts\":0,\"kernel\":\"/data/data/com.termux/files/usr/tmp/bench-assets/linux-bionic\",\"mem\":\"1024M\",\"ncpus\":\"4\",\"uptime_s\":196}",
+        "ports": "{\"exposures\":[]}"
+      },
+      "commands": {
+        "stop": "uml4termux down --name m4",
+        "start": "uml4termux up --name m4 --image /data/data/com.termux/files/usr/tmp/m1exec/guest-image.ext4 --mem 2048M"
+      }
+    }
+  ],
+  "read_only": true,
+  "note": "Read-only by design: the daemon's HTTP endpoint is unauthenticated (docs/THREAT-MODEL.md), so this page shows state and gives you the command to run rather than mutating anything. State comes from protocol v1 (status, ports), never from daemon files."
+}
