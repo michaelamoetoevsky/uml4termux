@@ -18,9 +18,14 @@ uml4termux_instance_name() { printf '%s' "${UML4TERMUX_INSTANCE_NAME:-default}";
 # Contract §5: ready = socket exists AND protocol answers AND phase is running.
 # Polled, never a fixed sleep. Returns 1 as soon as the daemon gives up, so a
 # doomed start fails fast instead of burning the whole timeout.
-uml4termux_wait_ready() { # <runtime> <daemon-bin> <timeout-seconds>
-  local rt="$1" bin="$2" timeout="${3:-60}" i=0 phase
+uml4termux_wait_ready() { # <runtime> <daemon-bin> <timeout-seconds> [daemon-pid]
+  local rt="$1" bin="$2" timeout="${3:-60}" pid="${4:-}" i=0 phase
   while [ "${i}" -lt "${timeout}" ]; do
+    # A daemon that died before it could write a state file leaves the phase empty,
+    # and this loop then waits out the whole timeout in silence: measured, a missing
+    # initramfs cost 400 s of nothing before anyone saw the error. When the caller
+    # knows the pid, its absence is the answer.
+    [ -n "${pid}" ] && ! kill -0 "${pid}" 2>/dev/null && return 1
     phase="$(uml4termux_state_phase "${rt}")"
     case "${phase}" in failed|completed|exited|stopped) return 1 ;; esac
     if [ "${phase}" = "running" ] && uml4termux_socket_answers "${rt}" "${bin}"; then
@@ -134,13 +139,31 @@ cmd_up() {
     return 0
   fi
 
+  # `up` hands the daemon ${UML4TERMUX_INITRAMFS_DIR}/docker.cpio.gz, but nothing
+  # user-facing ever produced that name: `docker` and `boot` build
+  # initramfs-<mode>.cpio.gz for their own runs, and only the soak/snapshot evidence
+  # harnesses ever wrote docker.cpio.gz. So a fresh install reached the daemon, which
+  # exited with "initramfs not found", while `up` waited out its readiness timeout in
+  # silence. Build it here with the same builder the other commands use, and refuse to
+  # continue if it cannot be built.
+  local guest_init="${UML4TERMUX_INITRAMFS_DIR}/docker.cpio.gz"
+  if [ ! -r "${guest_init}" ]; then
+    step "guest initramfs missing: building ${guest_init}"
+    guest_build_initramfs docker
+    if [ ! -r "${GUEST_INITRAMFS}" ]; then
+      die "could not build the guest initramfs (${GUEST_INITRAMFS}); run 'uml4termux fetch' for the base initramfs, then try again"
+    fi
+    [ "${GUEST_INITRAMFS}" = "${guest_init}" ] || mv -f "${GUEST_INITRAMFS}" "${guest_init}"
+  fi
+  [ -r "${guest_init}" ] || die "guest initramfs is not readable: ${guest_init}"
+
   local -a env
   env=(
     "UML4TERMUX_RUNTIME=${rt}"
     "UML4TERMUXD_KERNEL=$(uml4termux_asset_path kernel)"
     "UML4TERMUXD_STUB=$(uml4termux_asset_path stub)"
     "UML4TERMUXD_IMAGE=${image}"
-    "UML4TERMUXD_INITRAMFS=${UML4TERMUX_INITRAMFS_DIR}/docker.cpio.gz"
+    "UML4TERMUXD_INITRAMFS=${guest_init}"
     "UML4TERMUXD_COW=${rt}/${name}.cow"
     "UML4TERMUXD_MEM=${mem}M"
     "UML4TERMUXD_NCPUS=${cpus}"
@@ -149,7 +172,6 @@ cmd_up() {
   )
   [ "${no_gvproxy}" = "1" ] || env+=("UML4TERMUXD_GVPROXY=$(uml4termux_asset_path gvproxy)")
   [ -z "${ssh_port}" ] || env+=("UML4TERMUXD_GVPROXY_SSH_PORT=${ssh_port}")
-  [ -r "${UML4TERMUXD_INITRAMFS:-}" ] || true
 
   local -a cmd=(env "${env[@]}" "${dbin}" daemon)
   [ "${selftest}" = "1" ] && cmd+=("--selftest")
@@ -189,7 +211,7 @@ cmd_up() {
   [ -n "${pid}" ] || die "the daemon did not stay up (see ${rt}/daemon.log)"
   uml4termux_reg_write "${name}" "${rt}" "${image}" "${ssh_port:-}" "${pid}"
 
-  if uml4termux_wait_ready "${rt}" "${dbin}" "${timeout}"; then
+  if uml4termux_wait_ready "${rt}" "${dbin}" "${timeout}" "${pid}"; then
     info "instance '${name}' is up (pid ${pid}, runtime ${rt})"
     cmd_status --name "${name}"
     return 0

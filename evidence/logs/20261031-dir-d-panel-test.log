@@ -1,0 +1,32 @@
+daemon under test: /data/data/com.termux/files/home/workspace/uml4termux/bin/uml4termuxd
+
+D3.1: panel reports a live daemon
+  PASS: daemon hidup (selftest)
+  PASS: /healthz menjawab
+  PASS: halaman disajikan
+  PASS: halaman menyebut dirinya read-only
+  PASS: path tak dikenal -> 404
+  PASS: api/state menyebut instance dari registry
+  PASS: api/state melaporkan state daemon yang sebenarnya
+  PASS: api/state membawa balasan protokol apa adanya
+  PASS: api/state menandai dirinya read-only
+
+D3.2: panel menolak bind non-loopback
+  PASS: bind 0.0.0.0 tanpa --allow-lan ditolak (rc 64)
+  PASS: alasannya disebut
+
+D3.3: skrip halaman merender state itu sendiri
+    PASS: page fetched /api/state -- 1 guest(s) in the reply
+    PASS: page rendered one row per guest (1) -- rendered 1
+    PASS: row carries the guest name 'panel-test' -- panel-testrunning15825—? / ? cpu12699—stop start
+    PASS: row carries the daemon's state 'running' -- panel-testrunning15825—? / ? cpu12699—stop start
+    PASS: row carries the guest pid 15825
+    PASS: row is the expected guest 'panel-test'
+    PASS: read-only badge present
+    PASS: the page offers commands instead of controls
+    PASS: page schedules a repaint (setInterval)
+  render-check: the page rendered the daemon's real state
+  PASS: render-check lulus (JS halaman dijalankan terhadap payload nyata)
+  PASS: panel mengikuti keadaan setelah daemon berhenti
+
+panel: all assertions passed (0 skipped)

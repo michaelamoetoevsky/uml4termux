@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.1",
+  "run_id": "20261031-d1-glibc-arm64",
+  "project_version": "0.5.0",
+  "generated_at": "2026-10-31T15:09:10+0700",
+  "device": {
+    "model": "GitHub Actions hosted runner, arm64 (ubuntu-24.04-arm)",
+    "android_release": "none: Linux with glibc, not Android",
+    "abi": "aarch64",
+    "unprivileged": true
+  },
+  "host": {
+    "os": "Ubuntu 24.04 (arm64)",
+    "libc": "glibc"
+  },
+  "kernel": {
+    "arch": "um/arm64",
+    "booted": true,
+    "release": "7.2.0-rc4-g169b17ff3f66-dirty",
+    "mode": "seccomp",
+    "ncpus": 3,
+    "memtotal_kb": 509696
+  },
+  "capabilities": {
+    "boot": {
+      "ok": true,
+      "evidence": "The RELEASED kernel (built with the Android NDK, statically linked, so it carries no libc dependency) booted on a glibc/aarch64 Linux host and the guest reported from inside: 'GLIBCBOOT-OK arch=aarch64', 'GLIBCBOOT-RELEASE 7.2.0-rc4-g169b17ff3f66-dirty', 'GLIBCBOOT-NCPU 3', 'GLIBCBOOT-MEMTOTAL 509696', 'GLIBCBOOT-DONE'. The guest root filesystem was a busybox initramfs, so no disk image and no host libc were involved."
+    },
+    "daemon_built_for_glibc": {
+      "ok": true,
+      "evidence": "cc (gcc) built src/uml4termuxd.c against glibc on that host and the result passed the project's own gates there: 'runtime contract v1: OK'; 'daemon hardening: all assertions passed (0 skipped)'; 'test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s'; 'daemon parity OK (C vs Rust, 7 normalised lines)'."
+    },
+    "artifact_classification": {
+      "ok": true,
+      "evidence": "ci/glibc/classify.sh reads the ELF instead of guessing from names: 'uml4termuxd                  BIONIC-ONLY (device): interpreter /system/bin/linker64' for the tracked device binary, and 2 released asset(s) reported as PORTABLE (static, no loader) -- which is why the kernel runs off-device at all."
+    }
+  },
+  "observed": {
+    "guest_reported": {
+      "arch": "aarch64",
+      "release": "7.2.0-rc4-g169b17ff3f66-dirty",
+      "ncpus": 3,
+      "memtotal_kb": 509696
+    },
+    "gates_on_glibc": {
+      "contract_v1": "runtime contract v1: OK",
+      "hardening": "daemon hardening: all assertions passed (0 skipped)",
+      "c_vs_rust_parity": "daemon parity OK (C vs Rust, 7 normalised lines)",
+      "rust_tests": "test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s"
+    }
+  },
+  "known_limits_observed": [
+    "the enroling job runs on a GitHub-hosted runner, so the numbers describe that VM and not this phone",
+    "gnu userland only: the workflows prove the kernel and daemon on glibc, not Docker inside the guest there (that needs a real rootfs and is run on the device)"
+  ],
+  "notes": "Direction D1 (docs/NEXT-STEPS.md): the daemon and the Rust front end were bionic-only; the kernel and stub are already static. This record is produced by ci/glibc/evidence.py from the two job logs, in CI, on a glibc/aarch64 host. Run: GitHub Actions run 41182920416, workflow glibc-arm64, commit 78cc7ca.",
+  "verdict": "pass",
+  "artifacts": [
+    {
+      "kind": "console-log",
+      "path": "logs/20261031-d1-glibc-arm64-boot.log",
+      "sha256": "9d1019c2bf0b2874c093d627655f3e41477183d346065cffa0809a9eb5c2ed8b"
+    },
+    {
+      "kind": "console-log",
+      "path": "logs/20261031-d1-glibc-arm64-userspace.log",
+      "sha256": "5ccb2405487baf55e0b84ca8c3a6dfabff28130f719ce38c4576f0e68e576a9d"
+    }
+  ]
+}

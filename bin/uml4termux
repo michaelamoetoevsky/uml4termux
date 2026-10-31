@@ -53,6 +53,8 @@ unset _uml4_self _uml4_link 2>/dev/null || true
 # shellcheck source=../lib/logs.sh
 . "${UML4TERMUX_ROOT}/lib/logs.sh"
 . "${UML4TERMUX_ROOT}/lib/snapshot.sh"
+# shellcheck source=../lib/panel.sh
+. "${UML4TERMUX_ROOT}/lib/panel.sh"
 
 UML4TERMUX_VERSION="${UML4TERMUX_VERSION:-0.1.0}"
 
@@ -73,6 +75,7 @@ Commands:
   docker       full runbook: gvproxy + UML + dockerd, expose ports, verify
   expose       expose HOSTPORT[:GUESTPORT] from a running instance
   stop         stop the instance and clean sockets / ~/.uml state
+  panel        read-only status page (guests, exposures, commands)
   dist-info    print paths, assets and the resolved configuration
   version      print the version
   help [cmd]   this text, or help for one command
@@ -178,7 +181,7 @@ cmd_help() {
   local topic="${1:-}"
   if [ -z "${topic}" ]; then usage; return 0; fi
   case "${topic}" in
-    doctor|fetch|init-image|boot|docker|expose|stop|service|up|down|status|logs|ls|rotate|snapshot|snapshots|version|dist-info|help)
+    doctor|fetch|init-image|boot|docker|expose|stop|service|up|down|status|logs|ls|rotate|snapshot|snapshots|panel|version|dist-info|help)
       case "${topic}" in
         doctor)     doctor_usage ;;
         fetch)      cmd_fetch_usage ;;
@@ -193,6 +196,7 @@ cmd_help() {
         status)     usage_status ;;
         logs)       usage_logs ;;
         ls)         usage_ls ;;
+        panel)      usage_panel ;;
         rotate)     usage_rotate ;;
           snapshot)   usage_snapshot ;;
           snapshots)  usage_snapshots ;;
@@ -655,6 +659,7 @@ main() {
       snapshot)       cmd_snapshot "${argv[@]}" ;;
       snapshots)      cmd_snapshots "${argv[@]}" ;;
     ls)             cmd_ls "${argv[@]}" ;;
+    panel)          cmd_panel "${argv[@]}" ;;
     doctor)         cmd_doctor "${argv[@]}" ;;
     fetch)          cmd_fetch "${argv[@]}" ;;
     init-image)     cmd_init_image "${argv[@]}" ;;

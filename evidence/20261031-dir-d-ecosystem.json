@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.1",
+  "run_id": "20261031-dir-d-ecosystem",
+  "project_version": "0.5.0",
+  "generated_at": "2026-10-31T16:21:29+0700",
+  "device": {
+    "model": "2406APNFAG",
+    "android_release": "16",
+    "abi": "aarch64",
+    "termux": true,
+    "unprivileged": true
+  },
+  "kernel": {
+    "arch": "um/arm64",
+    "booted": true,
+    "release": "7.2.0-rc4-g169b17ff3f66-dirty",
+    "mode": "seccomp",
+    "ncpus": 4
+  },
+  "capabilities": {
+    "glibc_daemon_and_kernel_on_linux": {
+      "ok": true,
+      "evidence": "Direction D1 has its own CI-produced record (evidence/20261031-d1-glibc-arm64.json): the daemon built against glibc passed the runtime contract, the E3 hardening suite and C-vs-Rust parity on an ubuntu-24.04-arm runner, and the released static kernel booted a guest there which reported aarch64 and its own release from inside the guest."
+    },
+    "panel_shows_real_daemon_state": {
+      "ok": true,
+      "evidence": "tests/test-panel.sh: 13 assertion(s) passed, 0 failed. It runs a real daemon in selftest mode, writes the registry record the launcher owns, starts the panel against it and asserts the reply; node then executes the page's own script (panel/render-check.mjs) against that live reply and asserts the nodes it created, because this device has no browser engine (Playwright: \"Unsupported platform: android\"). State is read through protocol v1 (status, ports), never from daemon files; the page is read-only and loopback-only by design."
+    },
+    "recipes_measured_on_device": {
+      "ok": true,
+      "evidence": "bench/recipes.sh drove real workloads through a live guest: 10x \"docker run --rm alpine true\" with a warm image took 157404 ms in total (15740 ms median per container start; the alpine image occupies 8657121 bytes); nginx in one container served 500 requests at concurrency 10 to ab in another container at 76.32 req/s (131.023 ms per request). Local registry (push + pull of a built image): no number, because pulling registry:2 over the guest network exceeded the 300 s harness budget on this device."
+    },
+    "boot": {
+      "ok": true,
+      "evidence": "A guest booted twice in this direction: on the glibc aarch64 runner (D1, evidence/20261031-d1-glibc-arm64.json, verified from inside the guest) and on this device, where bench/recipes.sh drove containers through a live guest running dockerd."
+    }
+  },
+  "observed": {
+    "container_start_media_ms": 157404,
+    "alpine_image_bytes": 8657121,
+    "nginx_requests_per_second": 76.32,
+    "nginx_ms_per_request": 131.023,
+    "registry_push_ms": null,
+    "registry_pull_ms": null,
+    "panel_assertions_passed": 13
+  },
+  "known_limits_observed": [
+    "no browser engine on this device, so the panel is verified by executing its script in node rather than by rendering it in a browser",
+    "the container-start number includes UML itself: it is what a user waits for, and it is tens of seconds, not fractions of one"
+  ],
+  "notes": "Direction D (docs/NEXT-STEPS.md). D2 (termux-packages) is prepared in packaging/termux/PR.md and deliberately not submitted: opening a PR against another repository is an external action that waits for its owner.",
+  "verdict": "pass",
+  "artifacts": [
+    {
+      "kind": "console-log",
+      "path": "logs/20261031-dir-d-panel-test.log",
+      "sha256": "4da5ef0d14184d93f472993b3163c2570d741052d5496329482e13524341c33e"
+    },
+    {
+      "kind": "console-log",
+      "path": "logs/20261031-dir-d-recipes-r1-console.log",
+      "sha256": "c85323592f026760eaf18599d34c627e6e5739afd0466e3b80af3bf6aecbf9cb"
+    },
+    {
+      "kind": "console-log",
+      "path": "logs/20261031-dir-d-recipes-r2-console.log",
+      "sha256": "ddc1e8641f203e90fc513512574cb989a193dcb4fb5321540f671b632f89768d"
+    }
+  ]
+}

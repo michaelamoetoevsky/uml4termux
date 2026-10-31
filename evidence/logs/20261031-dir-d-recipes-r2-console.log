@@ -1,0 +1,6 @@
+D4r21793437551-START
+D4r21793437551-AB Failed requests:        0
+D4r21793437551-AB Requests per second:    76.32 [#/sec] (mean)
+D4r21793437551-AB Time per request:       131.023 [ms] (mean)
+D4r21793437551-AB Time per request:       13.102 [ms] (mean, across all concurrent requests)
+D4r21793437551-END

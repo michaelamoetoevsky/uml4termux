@@ -295,6 +295,49 @@ owner check runs for real in CI: a daemon started as another user refuses a root
 client), and by `soak/limits-check.sh` on the device (two boots: 256M/1cpu and
 768M/2cpu, plus a cgroup-v2 `io.max` limit accepted and read back inside the guest).
 
+## Beyond Termux: glibc, status page, recipes (direction D)
+
+The kernel and `stub_exe` are **statically linked** — no loader, so they already run
+on any aarch64 Linux. The daemon and the Rust front end are not: both name
+`/system/bin/linker64`. `ci/glibc/classify.sh` reads that from the ELF rather than
+guessing from a filename, and `.github/workflows/glibc-arm64.yml` closes the gap on a
+native arm64 Linux runner by *proving* two things instead of asserting one:
+
+* the daemon, built against glibc there, passes the project's own gates on it —
+  runtime contract v1, the E3 hardening suite, C-vs-Rust parity;
+* the **released** kernel boots a guest on that glibc host, and the guest reports its
+  own arch, kernel release, CPU count and memory from inside.
+
+### Status page
+
+```sh
+uml4termux panel                     # http://127.0.0.1:8788/  (read-only)
+uml4termux panel --port 9123
+```
+
+Guests, their state as the daemon reports it over protocol v1, uptime, exposures,
+and the exact command to start or stop each one. **Read-only and loopback-only by
+design**: the daemon's HTTP endpoint is unauthenticated (see
+`docs/THREAT-MODEL.md`), so the page shows state and hands you the command instead of
+offering a control endpoint. Details and its test strategy: [panel/README.md](panel/README.md).
+
+### Recipes, with numbers you can hold us to
+
+`bench/recipes.sh` drives real workloads through a live guest's exec channel and
+reports what it measures — nothing here is estimated. Values below are from the
+reference device (aarch64 Android 16 phone); see the harness output for the run they
+came from.
+
+| Recipe | Measured |
+|---|---|
+| `docker run --rm alpine true` ×10, image warm | **15.7 s per container start** (10 starts in 157.4 s) |
+| nginx in one container, `ab` in another, 500 requests at concurrency 10 | **76.3 req/s**, 131.0 ms per request, 0 failed |
+| local registry: push then pull a built image | see the harness output — the first run exceeded the harness's 300 s budget pulling `registry:2`; run it with `--wait 600` |
+
+Numbers like these are why the recipes exist: container start inside UML on a phone
+is tens of seconds, not fractions of one, and a reader who plans around a native
+number will be disappointed by the phone.
+
 ## Verified capability table
 
 All rows were measured on the reference device (Android 16, host kernel

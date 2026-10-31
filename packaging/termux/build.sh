@@ -47,32 +47,12 @@ termux_step_make() {
 }
 
 termux_step_make_install() {
-  # Install the same file set as scripts/install.sh --no-symlink
-  # The source is in $TERMUX_PKG_SRCDIR (tarball extracted with --strip-components=1)
-  local SRCDIR="${TERMUX_PKG_SRCDIR}"
-  local DEST_BIN="${TERMUX_PREFIX}/bin"
-  local DEST_SHARE="${TERMUX_PREFIX}/share/uml4termux"
-
-  install -Dm755 "${SRCDIR}/bin/uml4termux" "${DEST_SHARE}/bin/uml4termux"
-  install -Dm755 "${SRCDIR}/bin/uml4termux" "${DEST_BIN}/uml4termux" || true
-  # The bin in $TERMUX_PREFIX/bin should be a symlink into share so the CLI
-  # self-locates its libs at ../lib. The install above copies; fix it:
-  rm -f "${DEST_BIN}/uml4termux"
-  ln -sf "${DEST_SHARE}/bin/uml4termux" "${DEST_BIN}/uml4termux"
-
-  # libs
-  for f in "${SRCDIR}/lib"/*.sh; do
-    [ -f "${f}" ] && install -Dm644 "${f}" "${DEST_SHARE}/lib/$(basename "${f}")"
-  done
-
-  # scripts (python generator + guest scripts)
-  [ -f "${SRCDIR}/scripts/build-initramfs.py" ] && \
-    install -Dm755 "${SRCDIR}/scripts/build-initramfs.py" "${DEST_SHARE}/scripts/build-initramfs.py"
-  for f in "${SRCDIR}/scripts/guest"/*; do
-    [ -f "${f}" ] && install -Dm755 "${f}" "${DEST_SHARE}/scripts/guest/$(basename "${f}")"
-  done
-
-  # Ensure directories exist (install -D does this)
+  # Delegate to the installer instead of keeping a second list of files here. The
+  # hand-written list this replaces had already drifted from the installer's, and
+  # every future file would have had to be added in two places -- or, as happened,
+  # in one place and wrongly.
+  bash "${TERMUX_PKG_SRCDIR}/scripts/install.sh" \
+    --prefix "${TERMUX_PREFIX}" --no-symlink
 }
 
 termux_step_post_make_install() {

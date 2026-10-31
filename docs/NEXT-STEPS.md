@@ -427,6 +427,67 @@ seluruh dokumen forensik.
 dibuka dengan build bersih. D3: panel menampilkan state nyata dari daemon.
 **Biaya.** Sedang. **Risiko.** Rendah.
 
+### Hasil D (2026-10-31) — D1, D3 SELESAI; D2 SIAP-PR; D4 terukur
+
+**D1 — varian glibc: SELESAI dengan bukti, bukan klaim.** Bukti:
+`evidence/20261031-d1-glibc-arm64.json` (verdict `pass`, dihasilkan CI), log kedua job,
+dan `.github/workflows/glibc-arm64.yml` + `ci/glibc/classify.sh`.
+
+Yang pertama harus dijawab adalah **apa sebenarnya yang khas-bionic**. Dari ELF-nya:
+kernel `linux-bionic` dan `stub_exe` **statically linked** (tanpa loader → jalan di
+Linux aarch64 mana pun), sedangkan `uml4termuxd` dan front end Rust memakai
+`/system/bin/linker64` (Android saja). Jadi pekerjaannya bukan membangun ulang kernel,
+melainkan membangun daemon di glibc dan **membuktikan** sisanya.
+
+| Yang diukur di runner `ubuntu-24.04-arm` (glibc, aarch64) | Hasil |
+|---|---|
+| kernel rilis boot di host glibc, guest melaporkan dari dalam | `arch=aarch64`, `7.2.0-rc4-g169b17ff3f66-dirty`, 3 CPU, MemTotal 509.696 KB, marker `DONE` |
+| daemon dibangun `cc` terhadap glibc | kontrak runtime v1 **OK**, hardening E3 **lulus (0 skipped)**, parity C-vs-Rust **OK**, Rust `37 passed` |
+| klasifikasi artefak | kernel + stub `PORTABLE (static, no loader)`; daemon terlacak `BIONIC-ONLY` |
+| verifikasi aset | digest dipin di env workflow + `sha256sum -c SHA256SUMS` (fail-closed) |
+
+Installer/portabilitas ikut diperbaiki sepanjang jalan: `ci/glibc/initramfs.sh`
+membangun guest sebagai initramfs busybox (tanpa disk, tanpa loop mount), dan empat
+peringatan gcc yang clang tidak pernah munculkan diselesaikan **di kode** — `path_fmt()`
+menolak start (exit 64) ketika sebuah path tidak muat, panjang `sun_path` diperiksa
+sebelum penyalinan, dan `strncat` dengan batas dari sumber diganti `memcpy` dengan
+panjang yang sudah diperiksa. Yang paling nyata: opsi kernel `ubd0=<cow>,<image>`
+menggabungkan dua path dari pengguna dalam satu buffer tetap.
+
+**D3 — panel status: SELESAI.** `panel/` (server stdlib + halaman tanpa build step +
+`render-check.mjs`), perintah `uml4termux panel`, dan gate `tests/test-panel.sh`
+(15 asersi, 0 skip; masuk `ci/local-ci.sh` dan `ci.yml`). Panel menampilkan state nyata
+**lewat kontrak** (protokol v1 `status`/`ports` JSON) — bukan dengan membaca berkas
+internal daemon — dan **read-only**: endpoint HTTP daemon tanpa autentikasi, jadi
+halaman memberi perintah untuk dijalankan, bukan tombol yang memutasi keadaan.
+
+Batasan yang jujur: **tidak ada browser engine di device ini** (Playwright menjawab
+`Unsupported platform: android`), jadi tidak ada asersi tingkat render-browser.
+Gantinya `panel/render-check.mjs` menjalankan skrip halaman itu sendiri di node
+terhadap balasan panel yang hidup, dengan DOM stub, dan mengasersi node yang benar-benar
+dibuat. Itu disebut sebagai apa adanya, bukan "uji browser".
+
+**D4 — resep nyata.** `bench/recipes.sh` menjalankan beban sungguhan lewat kanal exec
+instance yang hidup; angka di bawah ini hasil ukur di device referensi, bukan taksiran:
+
+| Resep | Terukur |
+|---|---|
+| `docker run --rm alpine true` ×10, image hangat | **15,7 s per start container** (10 start dalam 157,4 s); image alpine 8,3 MiB |
+| nginx di satu container, `ab` di container lain, 500 permintaan konkurensi 10 | **76,3 req/s**, 131,0 ms per permintaan, 0 gagal |
+| registry lokal: push lalu pull image hasil build | lihat keluaran harness (jalankan `--wait 600`) |
+
+Angka itu gunanya justru untuk itu: start container di dalam UML di ponsel adalah
+**belasan detik**, bukan pecahan detik, dan pembaca yang merencanakan dengan angka
+native akan kecewa.
+
+**D2 — paket Termux: siap-PR, belum diajukan.** `packaging/termux/build.sh` (v0.5.0 +
+digest tarball rilis) dan `packaging/termux/PR.md` berisi apa yang akan diajukan,
+field yang akan diperiksa reviewer, cara memverifikasi, dan batasan yang harus
+disebut di badan PR. `termux_step_make_install` kini **mendelegasikan ke
+`scripts/install.sh`** alih-alih memelihara daftar berkas kedua yang sudah
+menyimpang. Membuka PR ke repositori orang lain adalah tindakan publik: itu
+menunggu persetujuan pemilik repo, jadi bagian ini berhenti di "siap".
+
 ---
 
 ## E. Keamanan & isolasi
@@ -625,7 +686,8 @@ multi-instance yang hari ini masih berupa peringatan di dokumen.
 | ~~2~~ | ~~B (soak v2)~~ **SELESAI B1/B2/B3 + B1 ulang bersih 31 Okt** | Arsitektur berubah (daemon + COW) → butuh bukti baru | — |
 | ~~3~~ | ~~C (snapshot/resume)~~ **SELESAI C1–C4** | Fitur pembeda termurah yang memanfaatkan COW | — |
 | ~~4~~ | ~~E (keamanan)~~ **SELESAI E1–E4** | Prasyarat sebelum orang lain menjalankan image | — |
-| **berikutnya** | D (ekosistem) | Perluasan audiens setelah fondasi stabil | Rendah |
+| ~~5~~ | ~~D (ekosistem)~~ **SELESAI D1/D3; D2 siap-PR; D4 terukur** | Perluasan audiens setelah fondasi stabil | — |
+| **berikutnya** | F (hulu) | Paralel, tanpa menahan apa pun | Sedang |
 | 6 | F (hulu) | Paralel, tanpa menahan apa pun | Sedang |
 | ~~7~~ | ~~G (runtime mandiri)~~ **SELESAI G1–G5** | Portabilitas ke host non-Termux + penegakan invarian multi-instance | — |
 | 8 | G6 (facade D-Bus, opsional) | Hanya bila ada konsumen nyata; bukan jalur kritis | Rendah |

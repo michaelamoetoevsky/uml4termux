@@ -116,6 +116,11 @@ FILE_SPECS=(
   "scripts/guest/init|scripts/guest|0755|1"
   "scripts/guest/docker-init.sh|scripts/guest|0755|1"
   "scripts/guest/forensic.sh|scripts/guest|0755|1"
+  # The status panel (direction D3): read-only, loopback-only, and part of the
+  # user-facing surface now, so it is installed with everything else.
+  "panel/serve.py|panel|0755|1"
+  "panel/index.html|panel|0644|0"
+  "panel/render-check.mjs|panel|0644|0"
 )
 
 # ---------------------------------------------------------------------------

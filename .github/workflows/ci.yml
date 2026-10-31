@@ -278,6 +278,12 @@ jobs:
       - name: Daemon hardening (direction E3)
         run: bash tests/test-daemon-security.sh /tmp/uml4termuxd
 
+      - name: Status panel (direction D3, loopback + read-only)
+        # The page's own script is executed with node against the panel's live
+        # reply: this host has no browser engine, and grepping the HTML would prove
+        # nothing about what the page renders.
+        run: bash tests/test-panel.sh /tmp/uml4termuxd
+
       - name: Launcher adapters (systemd/s6/plain)
         run: bash tests/test-adapters.sh /tmp/uml4termuxd
 

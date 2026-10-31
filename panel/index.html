@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>uml4termux — guests</title>
+<style>
+  :root { color-scheme: dark; --fg:#e6e6e6; --dim:#8b949e; --bg:#0d1117; --card:#161b22;
+          --line:#30363d; --ok:#3fb950; --warn:#d29922; --bad:#f85149; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px; background:var(--bg); color:var(--fg);
+         font:14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  h1 { font-size:16px; margin:0 0 4px; font-weight:600; }
+  .sub { color:var(--dim); margin-bottom:20px; }
+  .badge { display:inline-block; padding:1px 8px; border:1px solid var(--line);
+           border-radius:999px; font-size:12px; color:var(--dim); }
+  table { width:100%; border-collapse:collapse; background:var(--card);
+          border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line);
+           vertical-align:top; }
+  th { color:var(--dim); font-weight:500; font-size:12px; text-transform:uppercase;
+       letter-spacing:.04em; }
+  tr:last-child td { border-bottom:none; }
+  .live { color:var(--ok); } .dead { color:var(--bad); } .unknown { color:var(--warn); }
+  .mono { color:var(--dim); }
+  button { background:#21262d; color:var(--fg); border:1px solid var(--line);
+           border-radius:6px; padding:2px 8px; font:inherit; font-size:12px; cursor:pointer; }
+  button:hover { background:#30363d; }
+  .empty { padding:28px; text-align:center; color:var(--dim); }
+  .empty code { color:var(--fg); }
+  footer { margin-top:18px; color:var(--dim); font-size:12px; max-width:80ch; }
+  #err { color:var(--bad); margin-top:12px; }
+</style>
+</head>
+<body>
+<h1>uml4termux — guests</h1>
+<div class="sub">
+  <span class="badge" data-testid="readonly">read-only</span>
+  <span id="count" data-testid="guest-count">—</span>
+  <span class="mono" id="stamp"></span>
+</div>
+
+<table>
+  <thead>
+    <tr><th>guest</th><th>state</th><th>pid</th><th>uptime</th><th>size</th><th>ssh</th><th>exposures</th><th>command</th></tr>
+  </thead>
+  <tbody id="rows" data-testid="rows"></tbody>
+</table>
+<div class="empty" id="empty" hidden>
+  no instances registered — start one with
+  <code>uml4termux up --name demo --image &lt;image&gt;</code>
+</div>
+
+<footer id="note"></footer>
+<div id="err" hidden></div>
+
+<script>
+const rows = document.getElementById('rows');
+const empty = document.getElementById('empty');
+const err = document.getElementById('err');
+
+function phaseClass(p) {
+  p = String(p || "");
+  if (p === 'running') return 'live';
+  if (!p || p === 'unknown' || p.startsWith('no reply')) return 'unknown';
+  return 'dead';
+}
+
+function cell(text, cls) {
+  const td = document.createElement('td');
+  td.textContent = text;
+  if (cls) td.className = cls;
+  return td;
+}
+
+function copyButton(label, text) {
+  const b = document.createElement('button');
+  b.textContent = label;
+  b.title = text;
+  b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(text); b.textContent = 'copied'; }
+    catch (_) { b.textContent = text.slice(0, 18) + '…'; }
+    setTimeout(() => { b.textContent = label; }, 1200);
+  });
+  return b;
+}
+
+function render(s) {
+  rows.replaceChildren();
+  const list = s.guests || [];
+  document.getElementById('count').textContent = `${list.length} guest(s)`;
+  document.getElementById('stamp').textContent =
+    'updated ' + new Date(s.generated_at * 1000).toLocaleTimeString();
+  document.getElementById('note').textContent = s.note || '';
+  empty.hidden = list.length > 0;
+
+  for (const g of list) {
+    const tr = document.createElement('tr');
+    tr.dataset.guest = g.name;
+    tr.append(cell(g.name));
+    tr.append(cell(g.state, phaseClass(g.state)));
+    tr.append(cell(g.guest_pid === '' ? '—' : String(g.guest_pid), 'mono'));
+    const up = Number(g.uptime_s || 0);
+    tr.append(cell(up ? `${Math.floor(up / 60)}m${String(up % 60).padStart(2, '0')}s` : '—', 'mono'));
+    tr.append(cell(`${g.mem || '?'} / ${g.ncpus || '?'} cpu`, 'mono'));
+    tr.append(cell(g.ssh_port || '—', 'mono'));
+    const exp = document.createElement('td');
+    if (!g.exposures || g.exposures.length === 0) {
+      exp.textContent = '—'; exp.className = 'mono';
+    } else {
+      for (const e of g.exposures) {
+        const div = document.createElement('div');
+        div.className = 'mono';
+        div.textContent = e.local ? `${e.local} -> ${e.remote}` : JSON.stringify(e);
+        exp.append(div);
+      }
+    }
+    tr.append(exp);
+    const cmd = document.createElement('td');
+    cmd.append(copyButton('stop', g.commands.stop), document.createTextNode(' '),
+               copyButton('start', g.commands.start));
+    tr.append(cmd);
+    rows.append(tr);
+  }
+}
+
+async function poll() {
+  try {
+    const r = await fetch('/api/state', {cache: 'no-store'});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    render(await r.json());
+    err.hidden = true;
+  } catch (e) {
+    err.hidden = false;
+    err.textContent = 'panel cannot read /api/state: ' + e.message;
+  }
+}
+
+poll();
+setInterval(poll, 2000);
+</script>
+</body>
+</html>

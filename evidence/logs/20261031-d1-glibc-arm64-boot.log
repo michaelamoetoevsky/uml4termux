@@ -1,0 +1,267 @@
+﻿2026-10-31T08:02:02.2790949Z Current runner version: '2.338.2'
+2026-10-31T08:02:02.2815092Z ##[group]Runner Image Provisioner
+2026-10-31T08:02:02.2816001Z Hosted Compute Agent
+2026-10-31T08:02:02.2816605Z Version: 20261021.618
+2026-10-31T08:02:02.2817390Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-31T08:02:02.2818138Z Build Date: 2026-10-21T00:45:21Z
+2026-10-31T08:02:02.2819047Z Worker ID: {5c5bdc68-3c68-447d-bccd-5ffb349aeba6}
+2026-10-31T08:02:02.2820134Z Region: centralus
+2026-10-31T08:02:02.2820714Z Cloud: Azure
+2026-10-31T08:02:02.2821423Z ##[endgroup]
+2026-10-31T08:02:02.2823094Z ##[group]Operating System
+2026-10-31T08:02:02.2823934Z Ubuntu
+2026-10-31T08:02:02.2824514Z 24.04.5
+2026-10-31T08:02:02.2825045Z LTS
+2026-10-31T08:02:02.2825638Z ##[endgroup]
+2026-10-31T08:02:02.2826204Z ##[group]Runner Image
+2026-10-31T08:02:02.2827280Z Image: ubuntu-24.04-arm
+2026-10-31T08:02:02.2827946Z Version: 20261025.165.1
+2026-10-31T08:02:02.2829493Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24-arm64/20261025.165/images/ubuntu/Ubuntu2404-Arm64-Readme.md
+2026-10-31T08:02:02.2831098Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24-arm64%2F20261025.165
+2026-10-31T08:02:02.2832183Z ##[endgroup]
+2026-10-31T08:02:02.2833281Z ##[group]GITHUB_TOKEN Permissions
+2026-10-31T08:02:02.2835807Z Contents: read
+2026-10-31T08:02:02.2836463Z Metadata: read
+2026-10-31T08:02:02.2837078Z ##[endgroup]
+2026-10-31T08:02:02.2839649Z Secret source: Actions
+2026-10-31T08:02:02.2840664Z Cache mode: write
+2026-10-31T08:02:02.2841803Z Prepare workflow directory
+2026-10-31T08:02:02.3235631Z Prepare all required actions
+2026-10-31T08:02:02.3282420Z Getting action download info
+2026-10-31T08:02:02.5685167Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-31T08:02:02.6552230Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-31T08:02:02.8808548Z Complete job name: boot
+2026-10-31T08:02:02.9744547Z ##[group]Run actions/checkout@v4
+2026-10-31T08:02:02.9745833Z with:
+2026-10-31T08:02:02.9746670Z   repository: michaelamoetoevsky/uml4termux
+2026-10-31T08:02:02.9750745Z   token: ***
+2026-10-31T08:02:02.9751367Z   ssh-strict: true
+2026-10-31T08:02:02.9752084Z   ssh-user: git
+2026-10-31T08:02:02.9752695Z   persist-credentials: true
+2026-10-31T08:02:02.9753295Z   clean: true
+2026-10-31T08:02:02.9753928Z   sparse-checkout-cone-mode: true
+2026-10-31T08:02:02.9754607Z   fetch-depth: 1
+2026-10-31T08:02:02.9755182Z   fetch-tags: false
+2026-10-31T08:02:02.9755931Z   show-progress: true
+2026-10-31T08:02:02.9756499Z   lfs: false
+2026-10-31T08:02:02.9757087Z   submodules: false
+2026-10-31T08:02:02.9757772Z   set-safe-directory: true
+2026-10-31T08:02:02.9758447Z   allow-unsafe-pr-checkout: false
+2026-10-31T08:02:02.9760449Z env:
+2026-10-31T08:02:02.9761267Z   KERNEL_SHA256: 6970ada592e49c03f90e1b422ffb38ea0ceced9d9d1de1c5120542126a426c02
+2026-10-31T08:02:02.9762659Z   STUB_SHA256: 731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e
+2026-10-31T08:02:02.9763843Z   RELEASE_BASE: https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.5.0
+2026-10-31T08:02:02.9764798Z ##[endgroup]
+2026-10-31T08:02:03.0671335Z Syncing repository: michaelamoetoevsky/uml4termux
+2026-10-31T08:02:03.0673892Z ##[group]Getting Git version info
+2026-10-31T08:02:03.0674815Z Working directory is '/home/runner/work/uml4termux/uml4termux'
+2026-10-31T08:02:03.0676352Z [command]/usr/bin/git version
+2026-10-31T08:02:03.0954787Z git version 2.56.0
+2026-10-31T08:02:03.0972246Z ##[endgroup]
+2026-10-31T08:02:03.0987822Z Temporarily overriding HOME='/home/runner/work/_temp/5e16d922-3b4f-43b6-9934-df1fc83f40ae' before making global git config changes
+2026-10-31T08:02:03.0989806Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-31T08:02:03.0992360Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/uml4termux/uml4termux
+2026-10-31T08:02:03.1135974Z Deleting the contents of '/home/runner/work/uml4termux/uml4termux'
+2026-10-31T08:02:03.1146426Z ##[group]Initializing the repository
+2026-10-31T08:02:03.1153931Z [command]/usr/bin/git init /home/runner/work/uml4termux/uml4termux
+2026-10-31T08:02:03.1262303Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-31T08:02:03.1263448Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-31T08:02:03.1264541Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-31T08:02:03.1265499Z hint: call:
+2026-10-31T08:02:03.1266072Z hint:
+2026-10-31T08:02:03.1266745Z hint: 	git config --global init.defaultBranch <name>
+2026-10-31T08:02:03.1267604Z hint:
+2026-10-31T08:02:03.1268385Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-31T08:02:03.1269744Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-31T08:02:03.1270612Z hint:
+2026-10-31T08:02:03.1271186Z hint: 	git branch -m <name>
+2026-10-31T08:02:03.1271927Z hint:
+2026-10-31T08:02:03.1272771Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-31T08:02:03.1274002Z Initialized empty Git repository in /home/runner/work/uml4termux/uml4termux/.git/
+2026-10-31T08:02:03.1276062Z [command]/usr/bin/git remote add origin https://github.com/michaelamoetoevsky/uml4termux
+2026-10-31T08:02:03.1324075Z ##[endgroup]
+2026-10-31T08:02:03.1325222Z ##[group]Disabling automatic garbage collection
+2026-10-31T08:02:03.1326711Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-31T08:02:03.1360075Z ##[endgroup]
+2026-10-31T08:02:03.1361203Z ##[group]Setting up auth
+2026-10-31T08:02:03.1365277Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-31T08:02:03.1396111Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-31T08:02:03.1688088Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-31T08:02:03.1718207Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-31T08:02:03.1900341Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-31T08:02:03.1930021Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-31T08:02:03.2116253Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-31T08:02:03.2156340Z ##[endgroup]
+2026-10-31T08:02:03.2157493Z ##[group]Fetching the repository
+2026-10-31T08:02:03.2164332Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +78cc7cab4ba7543704901ffc508b24352bdd38f2:refs/remotes/origin/main
+2026-10-31T08:02:03.7589860Z From https://github.com/michaelamoetoevsky/uml4termux
+2026-10-31T08:02:03.7590923Z  * [new ref]         78cc7cab4ba7543704901ffc508b24352bdd38f2 -> origin/main
+2026-10-31T08:02:03.7594244Z ##[endgroup]
+2026-10-31T08:02:03.7595415Z ##[group]Determining the checkout info
+2026-10-31T08:02:03.7596460Z ##[endgroup]
+2026-10-31T08:02:03.7602113Z [command]/usr/bin/git sparse-checkout disable
+2026-10-31T08:02:03.7647571Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-31T08:02:03.7677013Z ##[group]Checking out the ref
+2026-10-31T08:02:03.7681176Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-10-31T08:02:03.7854483Z Switched to a new branch 'main'
+2026-10-31T08:02:03.7863910Z branch 'main' set up to track 'origin/main'.
+2026-10-31T08:02:03.7873978Z ##[endgroup]
+2026-10-31T08:02:03.7907619Z [command]/usr/bin/git log -1 --format=%H
+2026-10-31T08:02:03.7928554Z 78cc7cab4ba7543704901ffc508b24352bdd38f2
+2026-10-31T08:02:03.8152639Z ##[group]Run set -euo pipefail
+2026-10-31T08:02:03.8153959Z [36;1mset -euo pipefail[0m
+2026-10-31T08:02:03.8154940Z [36;1mmkdir -p "$RUNNER_TEMP/assets"[0m
+2026-10-31T08:02:03.8156197Z [36;1mfor f in linux-bionic stub_exe SHA256SUMS uml4termux-0.5.0.tar.gz; do[0m
+2026-10-31T08:02:03.8157672Z [36;1m  curl -fsSL "$RELEASE_BASE/$f" -o "$RUNNER_TEMP/assets/$f"[0m
+2026-10-31T08:02:03.8158768Z [36;1mdone[0m
+2026-10-31T08:02:03.8160226Z [36;1mecho "$KERNEL_SHA256  $RUNNER_TEMP/assets/linux-bionic" | sha256sum -c -[0m
+2026-10-31T08:02:03.8161719Z [36;1mecho "$STUB_SHA256  $RUNNER_TEMP/assets/stub_exe" | sha256sum -c -[0m
+2026-10-31T08:02:03.8163025Z [36;1m( cd "$RUNNER_TEMP/assets" && sha256sum -c SHA256SUMS )[0m
+2026-10-31T08:02:03.8327525Z shell: /usr/bin/bash -e {0}
+2026-10-31T08:02:03.8328613Z env:
+2026-10-31T08:02:03.8329997Z   KERNEL_SHA256: 6970ada592e49c03f90e1b422ffb38ea0ceced9d9d1de1c5120542126a426c02
+2026-10-31T08:02:03.8331710Z   STUB_SHA256: 731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e
+2026-10-31T08:02:03.8333243Z   RELEASE_BASE: https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.5.0
+2026-10-31T08:02:03.8334479Z ##[endgroup]
+2026-10-31T08:02:05.0885864Z /home/runner/work/_temp/assets/linux-bionic: OK
+2026-10-31T08:02:05.0901879Z /home/runner/work/_temp/assets/stub_exe: OK
+2026-10-31T08:02:05.0914122Z uml4termux-0.5.0.tar.gz: OK
+2026-10-31T08:02:05.0971858Z ##[group]Run bash ci/glibc/classify.sh "$RUNNER_TEMP/assets/linux-bionic" "$RUNNER_TEMP/assets/stub_exe"
+2026-10-31T08:02:05.0972907Z [36;1mbash ci/glibc/classify.sh "$RUNNER_TEMP/assets/linux-bionic" "$RUNNER_TEMP/assets/stub_exe"[0m
+2026-10-31T08:02:05.1024593Z shell: /usr/bin/bash -e {0}
+2026-10-31T08:02:05.1024976Z env:
+2026-10-31T08:02:05.1025456Z   KERNEL_SHA256: 6970ada592e49c03f90e1b422ffb38ea0ceced9d9d1de1c5120542126a426c02
+2026-10-31T08:02:05.1026068Z   STUB_SHA256: 731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e
+2026-10-31T08:02:05.1026832Z   RELEASE_BASE: https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.5.0
+2026-10-31T08:02:05.1027409Z ##[endgroup]
+2026-10-31T08:02:05.2072456Z linux-bionic                 PORTABLE (static, no loader)
+2026-10-31T08:02:05.2149016Z stub_exe                     PORTABLE (static, no loader)
+2026-10-31T08:02:05.2198701Z ##[group]Run set -euo pipefail
+2026-10-31T08:02:05.2199334Z [36;1mset -euo pipefail[0m
+2026-10-31T08:02:05.2199852Z [36;1msudo apt-get update -qq[0m
+2026-10-31T08:02:05.2200296Z [36;1msudo apt-get install -y -qq busybox-static[0m
+2026-10-31T08:02:05.2200838Z [36;1mbash ci/glibc/initramfs.sh "$RUNNER_TEMP/guest.cpio.gz" GLIBCBOOT[0m
+2026-10-31T08:02:05.2242845Z shell: /usr/bin/bash -e {0}
+2026-10-31T08:02:05.2243343Z env:
+2026-10-31T08:02:05.2243797Z   KERNEL_SHA256: 6970ada592e49c03f90e1b422ffb38ea0ceced9d9d1de1c5120542126a426c02
+2026-10-31T08:02:05.2244447Z   STUB_SHA256: 731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e
+2026-10-31T08:02:05.2245130Z   RELEASE_BASE: https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.5.0
+2026-10-31T08:02:05.2245680Z ##[endgroup]
+2026-10-31T08:02:13.5775068Z initramfs: /home/runner/work/_temp/guest.cpio.gz (1006052 B, marker GLIBCBOOT)
+2026-10-31T08:02:13.5834162Z ##[group]Run set -uo pipefail
+2026-10-31T08:02:13.5835063Z [36;1mset -uo pipefail[0m
+2026-10-31T08:02:13.5835381Z [36;1mcd "$RUNNER_TEMP/assets"[0m
+2026-10-31T08:02:13.5835979Z [36;1mchmod +x linux-bionic stub_exe[0m
+2026-10-31T08:02:13.5836520Z [36;1m# con=null con0=null,fd:1: UML registers console fds with epoll and a CI[0m
+2026-10-31T08:02:13.5837075Z [36;1m# stdin is not pollable. initrd= unpacks the cpio as the root filesystem,[0m
+2026-10-31T08:02:13.5837565Z [36;1m# so the guest needs no ubd device at all.[0m
+2026-10-31T08:02:13.5838012Z [36;1mtimeout 180 ./linux-bionic mem=512M con=null con0=null,fd:1 seccomp=on \[0m
+2026-10-31T08:02:13.5838498Z [36;1m  stub_exe="$PWD/stub_exe" umid=glibcboot \[0m
+2026-10-31T08:02:13.5839485Z [36;1m  initrd="$RUNNER_TEMP/guest.cpio.gz" \[0m
+2026-10-31T08:02:13.5839998Z [36;1m  > "$RUNNER_TEMP/boot.log" 2>&1 || echo "boot: exit $? (a guest that powers off ends the kernel)"[0m
+2026-10-31T08:02:13.5840614Z [36;1mtail -30 "$RUNNER_TEMP/boot.log"[0m
+2026-10-31T08:02:13.5873427Z shell: /usr/bin/bash -e {0}
+2026-10-31T08:02:13.5873740Z env:
+2026-10-31T08:02:13.5874111Z   KERNEL_SHA256: 6970ada592e49c03f90e1b422ffb38ea0ceced9d9d1de1c5120542126a426c02
+2026-10-31T08:02:13.5874713Z   STUB_SHA256: 731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e
+2026-10-31T08:02:13.5875366Z   RELEASE_BASE: https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.5.0
+2026-10-31T08:02:13.5876189Z ##[endgroup]
+2026-10-31T08:02:13.9817321Z io scheduler mq-deadline registered
+2026-10-31T08:02:13.9817749Z io scheduler kyber registered
+2026-10-31T08:02:13.9818224Z io scheduler bfq registered
+2026-10-31T08:02:13.9818784Z Freeing initrd memory: 960K
+2026-10-31T08:02:13.9819157Z loop: module loaded
+2026-10-31T08:02:13.9819761Z tun: Universal TUN/TAP device driver, 1.6
+2026-10-31T08:02:13.9820130Z PPP generic driver version 2.4.2
+2026-10-31T08:02:13.9820665Z SLIP: version 0.8.4-NET3.019-NEWTTY (dynamic channels, max=256).
+2026-10-31T08:02:13.9824296Z NET: Registered PF_INET6 protocol family
+2026-10-31T08:02:13.9824700Z Segment Routing with IPv6
+2026-10-31T08:02:13.9825090Z In-situ OAM (IOAM) with IPv6
+2026-10-31T08:02:13.9825560Z NET: Registered PF_PACKET protocol family
+2026-10-31T08:02:13.9825899Z Bridge firewalling registered
+2026-10-31T08:02:13.9826286Z 9pnet: Installing 9P2000 support
+2026-10-31T08:02:13.9826612Z Initialized stdio console driver
+2026-10-31T08:02:13.9826918Z Console initialized on /dev/tty0
+2026-10-31T08:02:13.9827280Z printk: legacy console [tty0] enabled
+2026-10-31T08:02:13.9827642Z Initializing software serial port version 1
+2026-10-31T08:02:13.9828133Z printk: legacy console [mc-1] enabled
+2026-10-31T08:02:13.9828584Z Failed to initialize ubd device 0 :Couldn't determine size of device's file
+2026-10-31T08:02:13.9829059Z epollctl add err fd 1, Operation not permitted
+2026-10-31T08:02:13.9829713Z epollctl add err fd 14, Operation not permitted
+2026-10-31T08:02:13.9830067Z Run /init as init process
+2026-10-31T08:02:13.9830396Z GLIBCBOOT-OK arch=aarch64
+2026-10-31T08:02:13.9830778Z GLIBCBOOT-RELEASE 7.2.0-rc4-g169b17ff3f66-dirty
+2026-10-31T08:02:13.9831152Z GLIBCBOOT-NCPU 3
+2026-10-31T08:02:13.9831464Z GLIBCBOOT-MEMTOTAL 509696
+2026-10-31T08:02:13.9831741Z GLIBCBOOT-DONE
+2026-10-31T08:02:13.9832007Z reboot: Power down
+2026-10-31T08:02:13.9832183Z 
+2026-10-31T08:02:13.9878644Z ##[group]Run set -euo pipefail
+2026-10-31T08:02:13.9879098Z [36;1mset -euo pipefail[0m
+2026-10-31T08:02:13.9879845Z [36;1mlog="$RUNNER_TEMP/boot.log"[0m
+2026-10-31T08:02:13.9880137Z [36;1mmissing=0[0m
+2026-10-31T08:02:13.9880616Z [36;1mfor m in GLIBCBOOT-OK GLIBCBOOT-RELEASE GLIBCBOOT-NCPU GLIBCBOOT-MEMTOTAL GLIBCBOOT-DONE; do[0m
+2026-10-31T08:02:13.9881132Z [36;1m  if grep -qa "$m" "$log"; then[0m
+2026-10-31T08:02:13.9881457Z [36;1m    grep -a "$m" "$log" | head -1[0m
+2026-10-31T08:02:13.9881776Z [36;1m  else[0m
+2026-10-31T08:02:13.9882091Z [36;1m    echo "FAIL: $m missing from the console"[0m
+2026-10-31T08:02:13.9882439Z [36;1m    missing=$((missing + 1))[0m
+2026-10-31T08:02:13.9882725Z [36;1m  fi[0m
+2026-10-31T08:02:13.9882939Z [36;1mdone[0m
+2026-10-31T08:02:13.9883379Z [36;1m[ "$missing" -eq 0 ] || { echo "boot proof failed: $missing marker(s) missing"; exit 1; }[0m
+2026-10-31T08:02:13.9883956Z [36;1mgrep -qa 'GLIBCBOOT-OK arch=aarch64' "$log" || {[0m
+2026-10-31T08:02:13.9884421Z [36;1m  echo "FAIL: the guest did not report aarch64"; exit 1; }[0m
+2026-10-31T08:02:13.9913821Z shell: /usr/bin/bash -e {0}
+2026-10-31T08:02:13.9914189Z env:
+2026-10-31T08:02:13.9914562Z   KERNEL_SHA256: 6970ada592e49c03f90e1b422ffb38ea0ceced9d9d1de1c5120542126a426c02
+2026-10-31T08:02:13.9915166Z   STUB_SHA256: 731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e
+2026-10-31T08:02:13.9915759Z   RELEASE_BASE: https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.5.0
+2026-10-31T08:02:13.9916519Z ##[endgroup]
+2026-10-31T08:02:13.9984694Z GLIBCBOOT-OK arch=aarch64
+2026-10-31T08:02:14.0005802Z GLIBCBOOT-RELEASE 7.2.0-rc4-g169b17ff3f66-dirty
+2026-10-31T08:02:14.0025746Z GLIBCBOOT-NCPU 3
+2026-10-31T08:02:14.0046976Z GLIBCBOOT-MEMTOTAL 509696
+2026-10-31T08:02:14.0068081Z GLIBCBOOT-DONE
+2026-10-31T08:02:14.0173318Z ##[group]Run actions/upload-artifact@v4
+2026-10-31T08:02:14.0173729Z with:
+2026-10-31T08:02:14.0174057Z   name: glibc-boot-log
+2026-10-31T08:02:14.0174350Z   path: /home/runner/work/_temp/boot.log
+2026-10-31T08:02:14.0174697Z   if-no-files-found: warn
+2026-10-31T08:02:14.0175020Z   compression-level: 6
+2026-10-31T08:02:14.0175265Z   overwrite: false
+2026-10-31T08:02:14.0175536Z   include-hidden-files: false
+2026-10-31T08:02:14.0175840Z env:
+2026-10-31T08:02:14.0176192Z   KERNEL_SHA256: 6970ada592e49c03f90e1b422ffb38ea0ceced9d9d1de1c5120542126a426c02
+2026-10-31T08:02:14.0176813Z   STUB_SHA256: 731c48d5bf42ef25e26625af6a02627a5d658bf9f67d6f7fc443d6d644d6e52e
+2026-10-31T08:02:14.0177479Z   RELEASE_BASE: https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.5.0
+2026-10-31T08:02:14.0177964Z ##[endgroup]
+2026-10-31T08:02:14.1548088Z (node:2662) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-31T08:02:14.1549159Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-31T08:02:14.1611566Z With the provided path, there will be 1 file uploaded
+2026-10-31T08:02:14.1698920Z Artifact name is valid!
+2026-10-31T08:02:14.1700018Z Root directory input is valid!
+2026-10-31T08:02:14.4128963Z Beginning upload of artifact content to blob storage
+2026-10-31T08:02:14.4280285Z (node:2662) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-31T08:02:14.5521066Z Uploaded bytes 2794
+2026-10-31T08:02:14.5893732Z Finished uploading artifact content to blob storage!
+2026-10-31T08:02:14.5894465Z SHA256 digest of uploaded artifact zip is 888ebc1926a988faa55e7193944ed94d7b131ac180696c14c70894c9eda317d9
+2026-10-31T08:02:14.5895633Z Finalizing artifact upload
+2026-10-31T08:02:14.9966684Z Artifact glibc-boot-log.zip successfully finalized. Artifact ID 13035084779
+2026-10-31T08:02:14.9967489Z Artifact glibc-boot-log has been successfully uploaded! Final size is 2794 bytes. Artifact ID is 13035084779
+2026-10-31T08:02:14.9969115Z Artifact download URL: https://github.com/michaelamoetoevsky/uml4termux/actions/runs/41182920416/artifacts/13035084779
+2026-10-31T08:02:15.0187521Z Post job cleanup.
+2026-10-31T08:02:15.0909451Z [command]/usr/bin/git version
+2026-10-31T08:02:15.0949111Z git version 2.56.0
+2026-10-31T08:02:15.0983001Z Temporarily overriding HOME='/home/runner/work/_temp/63f5c831-3de0-4d1a-aa3c-cd6b83a47ceb' before making global git config changes
+2026-10-31T08:02:15.0984349Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-31T08:02:15.0987528Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/uml4termux/uml4termux
+2026-10-31T08:02:15.1024771Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-31T08:02:15.1061314Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-31T08:02:15.1258277Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-31T08:02:15.1278799Z http.https://github.com/.extraheader
+2026-10-31T08:02:15.1295778Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-31T08:02:15.1323495Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-31T08:02:15.1518884Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-31T08:02:15.1550021Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-31T08:02:15.1876351Z Cleaning up orphan processes
+2026-10-31T08:02:15.2345053Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
