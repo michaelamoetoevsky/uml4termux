@@ -53,6 +53,14 @@ That makes a refusal above a measured ceiling the honest behaviour, not a smalle
 the request is read until newline into an 8 KiB buffer, and the front end measures before
 it copies. `docs/RUNTIME-CONTRACT.md` §9a now carries the table above and the three bugs.
 
+**One caveat measured later, and worth keeping:** delivery *latency* is not stable run to
+run. A separate sweep (1 902–2 102 B, 30-second window per size) reported "not delivered"
+from 1 992 B upward, while another run measured 2 000 B arriving in 0 s and 2 502 B
+arriving in 40 s. Both are true: the line arrives, the drain rate varies. That is why the
+evidence record uses two witnesses from the guest itself (the agent's byte echo and the
+`DONE` marker at the end of the line) and a long window — a 30-second timeout measures the
+timeout, not the channel. The 2 000-byte limit bounds *size*, not latency.
+
 **Gate:** `tests/test-exec-limit.sh` — 10 assertions over both implementations (C and
 Rust), no guest needed: refusal at limit+1 with the documented number, acceptance at the
 limit, a long request read whole rather than half-parsed, and the front end's exit 64.

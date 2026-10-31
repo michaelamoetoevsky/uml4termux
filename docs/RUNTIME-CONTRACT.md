@@ -252,6 +252,14 @@ pengiriman yang tumbuh terhadap panjang**: di atas ~2 KB, perintah "berhasil" te
 tidak dalam waktu yang wajar, dan klien hanya menerima `{"started":true}` tanpa tahu
 kapan selesai.
 
+**Waktu tiba tidak stabil antar-run, dan itu bukan pemotongan.** Sapuan terpisah pada
+ukuran 1.902–2.102 B (jendela tunggu 30 detik per ukuran) melaporkan "tidak tiba" mulai
+1.992 B, sementara run lain mencatat 2.000 B tiba dalam 0 s dan 2.502 B tiba dalam 40 s.
+Ketiganya konsisten: baris panjang **tiba**, tetapi laju pengurasan konsol guest tidak
+tetap, sehingga "belum tiba dalam 30 s" bukan bukti pemotongan. Karena itu pengukuran yang
+dipakai sebagai bukti memakai dua saksi dari guest sendiri (echo byte + penanda `DONE` di
+ujung baris) dan jendela panjang; batas 2.000 byte membatasi **ukuran**, bukan latensi.
+
 Baris 2.502 B dan 2.902 B diukur **sebelum** batas ini ada. Dengan batas di tempatnya,
 ukuran itu sekarang **ditolak** (`rc=64`), bukan ditunggu 40 detik lalu 4 menit — itulah
 gunanya. Bukti ter-generate untuk kedua sisi batas: `evidence/20261031-exec-line-limit.json`
