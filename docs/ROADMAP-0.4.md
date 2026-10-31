@@ -1,3 +1,7 @@
+> **SUPERSEDED** by [docs/NEXT-STEPS.md](NEXT-STEPS.md), which carries directions
+> A–G and their outcomes. This file is kept for history: the 0.4 plan as it was
+> written on 28 Oct 2026.
+
 # Roadmap 0.4 — mobilitas, kapabilitas, aksesibilitas + daemon
 
 > Dibuka 28 Okt 2026 setelah rilis 0.3.0 (CI kernel diadopsi, repo publik).

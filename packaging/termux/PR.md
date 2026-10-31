@@ -1,9 +1,11 @@
 # Submission notes for `termux-packages`
 
-Prepared for a PR against [`termux/termux-packages`](https://github.com/termux/termux-packages);
-**not submitted**. Opening the PR is an external, public action on someone else's
-repository, so it waits for the repository owner's explicit go-ahead. Everything a
-reviewer needs is in this directory.
+Submitted to [`termux/termux-packages`](https://github.com/termux/termux-packages) as
+[#33074](https://github.com/termux/termux-packages/pull/33074) on 2026-10-31, then closed
+automatically by the repository's new-package trust check — not by a defect in this
+package. See `docs/PACKAGING-POLICY.md` for the exact rule, the evidence that
+`scripts/lint-packages.sh` passes every check, and the date (2026-12-24) after which the
+same patch reaches a human. Everything a reviewer needs is still in this directory.
 
 ## What the package is
 

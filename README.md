@@ -332,7 +332,7 @@ came from.
 |---|---|
 | `docker run --rm alpine true` ×10, image warm | **15.7 s per container start** (10 starts in 157.4 s) |
 | nginx in one container, `ab` in another, 500 requests at concurrency 10 | **76.3 req/s**, 131.0 ms per request, 0 failed |
-| local registry: push then pull a built image | **no number**: pulling `registry:2` inside the guest did not finish in ten minutes (alpine, nginx and httpd pull fine in the same guest), so the recipe never reaches the push. The mechanism is verified — the recipe script arrives in four base64 chunks and the guest runs it |
+| local registry: push then pull a built image | **10 074 ms push / 5 444 ms pull** for an 8.66 MB image (`registry:2` needs more than a ten-minute budget to pull inside the guest the first time; with 25 minutes it completes). Record: `evidence/20261031-registry-numbers.json` |
 
 Numbers like these are why the recipes exist: container start inside UML on a phone
 is tens of seconds, not fractions of one, and a reader who plans around a native
@@ -553,5 +553,9 @@ the notice in [LICENSE](LICENSE) and
 - [docs/KNOWN-LIMITS.md](docs/KNOWN-LIMITS.md) — what this cannot do.
 - [docs/ISSUES.md](docs/ISSUES.md) — known, open, deliberately unfixed gaps,
   each with what was measured and what "done" looks like.
+- [docs/PACKAGING-POLICY.md](docs/PACKAGING-POLICY.md) — Termux's seven packaging clauses
+  against this project, their linter's verdict, and the exact rule that closed the package PR.
+- [docs/ADOPTION.md](docs/ADOPTION.md) — the measured adoption baseline (stars, downloads,
+  contributors), the milestone list, and the honest rule about not manufacturing stars.
 - [docs/UPSTREAM-PR-1.md](docs/UPSTREAM-PR-1.md) — the prepared upstream patch,
   its evidence, and why it is not sent yet.

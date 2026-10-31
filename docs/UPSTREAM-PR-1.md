@@ -1,4 +1,4 @@
-# Upstream PR 1 — prepared, not submitted
+# Upstream PR 1 — sent as #26, open
 
 **Target:** [`Raymer8639/linux-um-arm64`](https://github.com/Raymer8639/linux-um-arm64)
 (the packaging fork this project pins), branch `um-arm64`.

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Ulter — the short name for uml4termux, for people who have to type it.
+#
+# A three-line wrapper rather than a second command: the binary, the library, the help
+# text and the tests all stay in one place, and this file cannot drift from them because
+# it carries no logic of its own. `uml4termux` remains the package name (it has to match
+# the project), `ulter` is what you type.
+#
+# SPDX-License-Identifier: GPL-2.0-only
+set -uo pipefail
+
+self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+for candidate in "${self_dir}/uml4termux" "${self_dir}/../share/uml4termux/bin/uml4termux"; do
+  if [ -x "${candidate}" ]; then
+    exec "${candidate}" "$@"
+  fi
+done
+
+printf 'ulter: cannot find the uml4termux CLI next to %s\n' "${self_dir}" >&2
+exit 3

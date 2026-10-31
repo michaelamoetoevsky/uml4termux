@@ -42,24 +42,24 @@ TERMUX_PKG_BUILD_IN_SRC=true
 
 # Skip the default configure/make steps — we only install
 termux_step_configure() {
-  return 0
+	return 0
 }
 
 termux_step_make() {
-  return 0
+	return 0
 }
 
 termux_step_make_install() {
-  # Delegate to the installer instead of keeping a second list of files here. The
-  # hand-written list this replaces had already drifted from the installer's, and
-  # every future file would have had to be added in two places -- or, as happened,
-  # in one place and wrongly.
-  bash "${TERMUX_PKG_SRCDIR}/scripts/install.sh" \
-    --prefix "${TERMUX_PREFIX}" --no-symlink
+	# Delegate to the installer instead of keeping a second list of files here. The
+	# hand-written list this replaces had already drifted from the installer's, and
+	# every future file would have had to be added in two places -- or, as happened,
+	# in one place and wrongly.
+	bash "${TERMUX_PKG_SRCDIR}/scripts/install.sh" \
+		--prefix "${TERMUX_PREFIX}" --no-symlink
 }
 
 termux_step_post_make_install() {
-  # Print the next step for the user after `pkg install uml4termux`
+	# Print the next step for the user after `pkg install uml4termux`
   cat <<'EOF'
 
 ======================================================================

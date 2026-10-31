@@ -111,6 +111,7 @@ info "DEST_SHARE=${DEST_SHARE}"
 # Note: order matters for summary output; critical file first.
 FILE_SPECS=(
   "bin/uml4termux|bin|0755|1"
+  "bin/ulter|bin|0755|1"   # short name (Ulter): a wrapper with no logic of its own
   "lib/*.sh|lib|0644|0"
   "scripts/build-initramfs.py|scripts|0755|1"
   "scripts/guest/init|scripts/guest|0755|1"

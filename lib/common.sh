@@ -7,7 +7,18 @@
 #
 # Sourced by bin/uml4termux (bash >= 4.2). Nothing here executes UML.
 
-UML4TERMUX_VERSION="${UML4TERMUX_VERSION:-0.1.0}"
+# The version has ONE source: ./VERSION at the project root. The fallback exists for an
+# installed tree where that file is absent, and tests/test-version.sh asserts the two agree
+# -- a CLI that reports 0.1.0 while the release says 0.5.0 is a packaging lie, and it was.
+if [ -z "${UML4TERMUX_VERSION:-}" ]; then
+  _uml4termux_vfile="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)/VERSION"
+  if [ -r "${_uml4termux_vfile}" ]; then
+    UML4TERMUX_VERSION="$(tr -d ' \n' < "${_uml4termux_vfile}")"
+  else
+    UML4TERMUX_VERSION="0.5.0"
+  fi
+  unset _uml4termux_vfile
+fi
 UML4TERMUX_LICENSE="GPL-2.0-only"
 UML4TERMUX_NAME="uml4termux"
 
