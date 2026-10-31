@@ -393,6 +393,8 @@ uml4termux/
 │   ├── MOBILITY.md        Android lifecycle/stability: phantom killer, LMK, doze
 │   ├── CI-CD.md           what CI can and cannot check; evidence and releases
 │   ├── KNOWN-LIMITS.md    what does not work, stated plainly
+│   ├── ISSUES.md          open gaps, with plans
+│   ├── UPSTREAM-PR-1.md   prepared upstream patch
 │   ├── FAQ.md             short answers to the questions people actually ask
 │   └── UPSTREAM.md        relationship to UML upstream, the forks, the packaging PR
 ├── evidence/
@@ -416,6 +418,7 @@ project; this documentation set does not define their contents.
 | [docs/MOBILITY.md](docs/MOBILITY.md) | you want it to survive Android's lifecycle on a real phone |
 | [docs/CI-CD.md](docs/CI-CD.md) | you are changing CI, evidence or the release process |
 | [docs/KNOWN-LIMITS.md](docs/KNOWN-LIMITS.md) | you are deciding whether this fits your use case |
+| [docs/ISSUES.md](docs/ISSUES.md) | you hit something and want to know if it is known |
 | [docs/NEXT-STEPS.md](docs/NEXT-STEPS.md) | you want to know where the project is going next (seven directions, A–G) |
 | [docs/RUNTIME-CONTRACT.md](docs/RUNTIME-CONTRACT.md) | you are integrating with the daemon (socket paths, protocol, exit codes, invariants — v1) |
 | [docs/RUST-MIGRATION-AUDIT.md](docs/RUST-MIGRATION-AUDIT.md) | you are deciding which component (if any) should be written in Rust |
@@ -548,3 +551,7 @@ the notice in [LICENSE](LICENSE) and
 - [docs/MOBILITY.md](docs/MOBILITY.md) — the mitigation checklist that keeps the
   guest alive on a real phone.
 - [docs/KNOWN-LIMITS.md](docs/KNOWN-LIMITS.md) — what this cannot do.
+- [docs/ISSUES.md](docs/ISSUES.md) — known, open, deliberately unfixed gaps,
+  each with what was measured and what "done" looks like.
+- [docs/UPSTREAM-PR-1.md](docs/UPSTREAM-PR-1.md) — the prepared upstream patch,
+  its evidence, and why it is not sent yet.

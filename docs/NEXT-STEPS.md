@@ -556,6 +556,40 @@ kompilasi + boot — lihat arah C4 di roadmap 0.4).
 **Biaya.** Rendah–sedang. **Risiko.** Sedang (ketidakpastian hulu) — karena
 itu F1 selalu menjadi fallback, bukan taruhan.
 
+### Hasil F (2026-10-31) — F1 aktif, F2 SIAP-KIRIM
+
+**Keadaan hulu, diperiksa lewat API hari ini.** `zalexdev/linux-um-arm64`: dorongan
+terakhir **17 Okt** (HEAD `32e5e10b81`, yang sudah kita buktikan kompilasi + boot),
+**nol PR** sepanjang riwayat, dan issue #4 kita (findings paket, dibuka 27 Okt) masih
+terbuka **tanpa satu komentar**. `Raymer8639/linux-um-arm64` sebaliknya hidup: dorongan
+31 Okt, PR #18–#25 diterima, satu issue terbuka (#23, "allow an optional SMP kernel
+asset"). Jadi jalur kontribusi yang realistis adalah **fork packaging**, bukan port
+kernel.
+
+**F1 — mandiri: tetap jalur utama, bukan cadangan sementara.** Kernel yang dirilis
+dibangun CI kita sendiri dari sumber yang dipin, dibuktikan boot di device dan di runner
+glibc (arah D1), dengan digest yang tidak bisa ditimpa hulu. Tidak ada satu pun rilis
+kita yang menunggu orang lain.
+
+**F2 — satu patch siap kirim, dengan bukti terukur.** Cacatnya: UML memegang
+`F_SETLK` eksklusif pada image; boot kedua pada image yang sama **tidak gagal** —
+guest naik dengan `NO_DISK`, penanda boot tetap muncul, dan setiap tulisan hilang.
+`harness/boot.py` hulu (81 baris, `ubd0=<rootfs>`) tidak memeriksa hal ini, jadi
+gerbang yang hanya membaca penanda akan lolos pada guest yang kehilangan data.
+
+| Yang disiapkan | Bukti |
+|---|---|
+| `ci/upstream/0001-harness-refuse-…patch` (3 hunk) | `patch -p1 --dry-run` bersih terhadap `boot.py` HEAD; hasil patch lolos `ast.parse`, 115 baris |
+| penjaga `image_is_held()` (lock, bukan scan `/proc`) | image terkunci → **rc=2** + pesan menyebut image dan jalan keluarnya; image bebas → perilaku tak berubah |
+| `ci/upstream/image-lock-probe.py` | 4/4: bebas, terkunci oleh proses lain, re-lock se-proses **berhasil** (POSIX lock per-proses — inilah yang membuat uji naif selalu lolos), dan bebas lagi setelah pemegang berhenti |
+| `docs/UPSTREAM-PR-1.md` | judul, badan PR, angka dari `evidence/20261031-soak-b1-clean.json` (90/90 siklus dengan salinan privat) + pola `UML4TERMUXD_STRICT_UBD=1` |
+
+**Kriteria F2 ("minimal satu PR terkirim") belum terpenuhi, dan itu disengaja.**
+Membuka PR di repositori orang lain adalah tindakan publik pada proyek eksternal; ia
+menunggu persetujuan pemilik repo ini. Statusnya dicatat di `docs/ISSUES.md` #6 supaya
+tidak jadi kalimat yang menguap. Bila tidak ada respons dalam 30 hari setelah dikirim,
+tetap F1.
+
 ---
 
 ## G. Runtime mandiri — supervisor, service, socket, daemon sendiri
@@ -688,7 +722,7 @@ multi-instance yang hari ini masih berupa peringatan di dokumen.
 | ~~4~~ | ~~E (keamanan)~~ **SELESAI E1–E4** | Prasyarat sebelum orang lain menjalankan image | — |
 | ~~5~~ | ~~D (ekosistem)~~ **SELESAI D1/D3; D2 siap-PR; D4 terukur** | Perluasan audiens setelah fondasi stabil | — |
 | **berikutnya** | F (hulu) | Paralel, tanpa menahan apa pun | Sedang |
-| 6 | F (hulu) | Paralel, tanpa menahan apa pun | Sedang |
+| ~~6~~ | ~~F (hulu)~~ **F1 aktif; F2 siap-kirim (menunggu persetujuan)** | Paralel, tanpa menahan apa pun | Sedang |
 | ~~7~~ | ~~G (runtime mandiri)~~ **SELESAI G1–G5** | Portabilitas ke host non-Termux + penegakan invarian multi-instance | — |
 | 8 | G6 (facade D-Bus, opsional) | Hanya bila ada konsumen nyata; bukan jalur kritis | Rendah |
 

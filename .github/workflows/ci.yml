@@ -278,6 +278,12 @@ jobs:
       - name: Daemon hardening (direction E3)
         run: bash tests/test-daemon-security.sh /tmp/uml4termuxd
 
+      - name: Image-lock probe (upstream patch F2)
+        # The guard proposed upstream is only worth sending if its logic is proven:
+        # an F_SETLK taken by another process must be detectable, and POSIX locks are
+        # per-process, so the probe forks its holder on purpose.
+        run: env -u LD_LIBRARY_PATH python3 ci/upstream/image-lock-probe.py
+
       - name: Status panel (direction D3, loopback + read-only)
         # The page's own script is executed with node against the panel's live
         # reply: this host has no browser engine, and grepping the HTML would prove

@@ -311,6 +311,11 @@ run_meta "shell: snapshot & resume (direction C)" '
   bash '"$ROOT"'/tests/test-snapshot.sh >/dev/null
 '
 
+run_meta "python: image-lock probe (upstream patch F2)" '
+  set -euo pipefail
+  env -u LD_LIBRARY_PATH python3 '"$ROOT"'/ci/upstream/image-lock-probe.py >/dev/null
+'
+
 run_meta "shell: status panel (direction D3)" '
   set -euo pipefail
   bash '"$ROOT"'/tests/test-panel.sh >/dev/null
