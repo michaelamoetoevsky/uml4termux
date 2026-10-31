@@ -14,7 +14,7 @@ sentence that quietly rots.
 | ~~2~~ | ~~Local-registry recipe has no number~~ — **CLOSED: numbers measured, and the parser that lost them fixed** | was: low | — |
 | ~~3~~ | ~~The status panel is verified by executing its script, not by rendering it~~ — **CLOSED for the DOM, residual gap moved to KNOWN-LIMITS** | low | — |
 | ~~4~~ | ~~`expose HOST:GUEST` once logged the host port as the guest port~~ — **CLOSED: mapping is correct, now gated** | was: unknown | — |
-| 5 | `termux-packages` PR prepared, not submitted | — | repository owner's approval |
+| 5 | `termux-packages` PR **sent** as #33074 — their lint and source checks pass | — | maintainer review |
 | 6 | Upstream patch **sent** as PR #26 — watching for a response | — | upstream response (30-day clock) |
 | ~~7~~ | ~~`up` on the shared asset image booted a guest that exited at once~~ — **CLOSED, root cause found** | was: unknown | — |
 
@@ -129,13 +129,28 @@ never appears in the remote half. 6 assertions pass; the end-to-end curl SKIPs w
 demo container is not listening (a booking, not a mapping). Device-only by nature, so it
 SKIPs cleanly where the assets or a guest are absent.
 
-## 5. `termux-packages` PR prepared, not submitted
+## 5. `termux-packages` package sent — PR #33074, their checks pass
 
-`packaging/termux/build.sh` (v0.5.0, digest pinned) and `packaging/termux/PR.md` are
-ready. Opening a PR against someone else's repository is a public action on an
-external project, so it waits for the repository owner's explicit go-ahead.
+**Sent 2026-10-31:** [termux/termux-packages#33074](https://github.com/termux/termux-packages/pull/33074),
+one file, `packages/uml4termux/build.sh`, +87 lines. Read back: `state=open`,
+`changed_files=1`, and the repository's own checks on the PR head (`bc8699f5`):
+`lint-pr` **success**, `check-new-package-source` **success**,
+`link-auto-update-issues` **success**. A script-only package that fails their lint is not
+worth sending, so those three results are the point of the submission.
 
----
+**One thing went wrong first, and it is worth writing down:** the first attempt (#33073)
+was opened from a branch cut from *my fork's* `master`, which was ahead of upstream and
+carried an unrelated `packages/pdn/build.sh` — so the diff contained a change that was not
+mine. It was closed with a note, and the replacement was cut from the upstream `master` sha
+itself (`f8d118f1`), which is the only way to be certain a one-file PR contains one file.
+
+**Also fixed while preparing it:** `TERMUX_PKG_DEPENDS` was empty. For a script-only
+package that is wrong — the CLI is bash, the library leans on coreutils, `fetch` verifies
+digests with sha256sum and downloads with curl, and the initramfs builder and panel are
+python — so it now declares `bash, coreutils, curl, python`.
+
+**Done looks like:** a maintainer review either way. If it lands, `TERMUX_PKG_DEPENDS` can
+name `linux-kernel-um` and `passt` once #32700 merges and the kernel fetch step disappears.
 
 ## 6. Upstream patch sent — PR #26, waiting on the maintainer
 
