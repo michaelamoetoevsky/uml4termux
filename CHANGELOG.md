@@ -4,6 +4,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`ulter`** — the short name, installed beside `uml4termux` as a three-line wrapper with no
+  logic of its own (the package name has to match the project; this is what you type).
+- `tests/test-version.sh` — the CLI, the `ulter` alias, every version fallback and
+  `TERMUX_PKG_VERSION` must all equal `VERSION`. Added because the CLI was reporting `0.1.0`
+  while the release shipped `0.5.0`.
+- `tests/test-image-lock.sh`, `tests/test-exec-limit.sh`, `tests/test-expose-mapping.sh`,
+  `tests/test-recipes-parse.sh` — the gates for the fixes below, all asserted against **both**
+  daemons (C and Rust) where both implement the behaviour.
+- `panel/render-dom-check.mjs` — renders the real page in a real DOM (jsdom) against a real
+  `/api/state` payload; the device has no browser engine, so this is the strongest check
+  available here, and `docs/KNOWN-LIMITS.md` says what it still cannot prove.
+- `bench/adoption-report.py` (prints the adoption baseline from the API, `--record` writes a
+  dated evidence file), `bench/exec-limit-check.sh` + `bench/exec-limit-evidence.py`.
+- `docs/PACKAGING-POLICY.md`, `docs/ADOPTION.md`, `docs/WHAT-MAINTAINERS-CHECK.md` — the Termux
+  policy clause by clause, the measured adoption baseline, and what maintainers actually weigh
+  (sampled from 12 merged `new package:` PRs).
+- `bin/uml4termux` reports a version it reads from `VERSION` instead of three hardcoded ones.
+
+### Changed
+- **`up` refuses an image another guest holds** (`F_GETLK`, `rc=2`, holder's pid named) instead
+  of booting a guest that comes up `NO_DISK` and exits 0 — issue #7, third disguise of the
+  `F_SETLK` trap. `UML4TERMUXD_ALLOW_SHARED_IMAGE=1` keeps the old behaviour on purpose.
+- **`exec` above 2 000 bytes is refused** with `{"error":"command too long","limit":2000}` and
+  `rc=64` from the front end, instead of being cut in three different places and reported as
+  success — issue #1. Delivery cost grows with length (measured: 2 002 B in 1 s, 2 502 B in
+  40 s), so the limit is measured, not guessed.
+- The launcher says `the daemon refused to start: …` rather than blaming a timeout for a
+  failure that took 3 s.
+- `packaging/termux/build.sh` is clean under `scripts/lint-packages.sh` (their linter): tab
+  indentation, a trailing newline, and `TERMUX_PKG_DEPENDS="bash, coreutils, curl, python"`.
+- `bench/recipes.sh` delegates its summary to `bench/recipes-summary.py` — one parser, so the
+  note a human reads and `summary.json` cannot disagree again.
+
+### Fixed
+- `summary.json` recorded `null` for every registry number the run had measured, because the
+  parser compared the whole marker token to the key while the marker is a prefix — issue #2.
+- The front end joined argv into a 900-byte buffer after checking the wrong variable; a
+  3 000-byte argument **segfaulted** it (`rc=139`).
+- The daemon read a request with a single `read()` into 512 bytes, so a long line arrived cut
+  in half and was still executed.
+- `SELFTEST_CHILD_DEFAULT` was the hardcoded Termux path, which made an x86 CI run report
+  `ConnectionRefused` against a daemon that had already exited.
+- Three `snprintf` sites could truncate a path suffix into a buffer the same size as its
+  source; one `path_join()` now refuses instead, and the reply buffers are sized for what they
+  carry (gcc's `-Wformat-truncation` found them one CI round trip at a time).
+
 ## [0.5.0] - 2026-10-30
 ### Added
 - **Ephemeral boots on UML's native copy-on-write** (roadmap B2):
