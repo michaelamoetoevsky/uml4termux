@@ -474,7 +474,7 @@ instance yang hidup; angka di bawah ini hasil ukur di device referensi, bukan ta
 |---|---|
 | `docker run --rm alpine true` ×10, image hangat | **15,7 s per start container** (10 start dalam 157,4 s); image alpine 8,3 MiB |
 | nginx di satu container, `ab` di container lain, 500 permintaan konkurensi 10 | **76,3 req/s**, 131,0 ms per permintaan, 0 gagal |
-| registry lokal: push lalu pull image hasil build | lihat keluaran harness (jalankan `--wait 600`) |
+| registry lokal: push lalu pull image hasil build | **tanpa angka** — pull `registry:2` di dalam guest tidak selesai >10 menit (image lain: alpine/nginx/httpd berhasil), jadi resepnya berhenti sebelum push. Yang terbukti adalah mekanismenya: skrip resep terunggah 4 potong base64 lewat kanal exec dan guest menjalankannya (`R3F…-START`, `R3F…-S1`) |
 
 Angka itu gunanya justru untuk itu: start container di dalam UML di ponsel adalah
 **belasan detik**, bukan pecahan detik, dan pembaca yang merencanakan dengan angka

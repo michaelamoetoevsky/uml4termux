@@ -332,7 +332,7 @@ came from.
 |---|---|
 | `docker run --rm alpine true` ×10, image warm | **15.7 s per container start** (10 starts in 157.4 s) |
 | nginx in one container, `ab` in another, 500 requests at concurrency 10 | **76.3 req/s**, 131.0 ms per request, 0 failed |
-| local registry: push then pull a built image | see the harness output — the first run exceeded the harness's 300 s budget pulling `registry:2`; run it with `--wait 600` |
+| local registry: push then pull a built image | **no number**: pulling `registry:2` inside the guest did not finish in ten minutes (alpine, nginx and httpd pull fine in the same guest), so the recipe never reaches the push. The mechanism is verified — the recipe script arrives in four base64 chunks and the guest runs it |
 
 Numbers like these are why the recipes exist: container start inside UML on a phone
 is tens of seconds, not fractions of one, and a reader who plans around a native

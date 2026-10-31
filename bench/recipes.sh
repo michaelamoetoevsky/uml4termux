@@ -18,6 +18,8 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=../bench/guest-put.sh
+. "${ROOT}/bench/guest-put.sh"
 DBIN="${UML4TERMUXD_BIN:-${ROOT}/bin/uml4termuxd}"
 RT="${UML4TERMUX_RUNTIME:?set UML4TERMUX_RUNTIME to a running instance}"
 OUT="${TMPDIR:-/tmp}/uml4termux-recipes-$(date +%Y%m%d-%H%M%S)"
@@ -57,8 +59,23 @@ run_in_guest() {
   # The script prints <marker>-START / <marker>-END around its work, and the marker
   # itself only ever exists inside the guest's output because the command carries it
   # base64-encoded.
-  "${DBIN}" exec "sh -c 'm=\$(echo ${mark} | base64 -d); echo \$m-START; ${script}; echo \$m-END'" \
-    >"${OUT}/${label}.exec.json" 2>&1
+  # The command is sent as a base64-encoded SCRIPT, not as a quoted one-liner: the
+  # guest's exec path evals what it receives, so nested quoting is re-parsed and
+  # breaks ("unexpected EOF while looking for matching `'`" -- measured on the
+  # registry recipe, which is the only one with a nested printf/heredoc). A base64
+  # blob has no quotes left to re-parse.
+  {
+    printf 'm=%s\n' "'${plain}'"
+    printf 'echo "$m-START"\n'
+    printf '%s\n' "${script}"
+    printf 'echo "$m-END"\n'
+  } >"${OUT}/${label}.sh"
+  # Uploaded in chunks, then run: a single exec line above ~568 bytes is silently
+  # truncated (measured), and the recipes are bigger than that.
+  guest_put_script "${RT}" "${DBIN}" "${OUT}/${label}.sh" "/tmp/u4t-${label}.sh" \
+    >"${OUT}/${label}.upload.txt" 2>&1
+  guest_exec "${RT}" "${DBIN}" "sh /tmp/u4t-${label}.sh"
+  echo '{"started":true}' >"${OUT}/${label}.exec.json"
   local i=0
   while [ "${i}" -lt "${WAIT}" ]; do
     grep -qa -- "${plain}-END" "${CONSOLE}" 2>/dev/null && break

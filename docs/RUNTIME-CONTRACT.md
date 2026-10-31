@@ -229,6 +229,34 @@ membandingkan byte), dan oleh bukti device `soak/snapshot-check.sh` (boot nyata:
 berkas yang ditulis sebelum snapshot terbaca sesudah resume, resume kedua tidak
 melihat tulisan resume pertama, image berbeda ditolak sebelum boot).
 
+### 9a. Panjang perintah `exec` — batas yang terukur, bukan tebakan
+
+Semua state-changing command lewat socket ditulis sebagai SATU baris. Untuk `exec`,
+baris itu diteruskan ke konsol guest dan dibaca di sana oleh agen guest
+(`IFS= read -r aline` pada `/dev/console`) lalu di-`eval`. Konsekuensinya diukur di
+device ini:
+
+| Panjang baris perintah | Hasil |
+|---|---|
+| 569 byte | diterima utuh |
+| 2.182 byte | **tidak terjadi apa-apa** — perintah diterima daemon, dieksekusi, `rc=0`, dan guest tidak pernah menjalankannya |
+
+Jadi perintah panjang **gagal secara senyap**, dan itu bentuk kegagalan terburuk:
+klien melihat sukses. Dua aturan untuk klien:
+
+1. **Jangan kirim perintah panjang.** Untuk skrip, unggah terpotong-potong
+   (`bench/guest-put.sh`: base64 dalam potongan ≤380 byte, satu `exec` per potongan,
+   lalu `base64 -d` dan jalankan). Terbukti: skrip 1.057 byte, 4 potongan, 60/60
+   baris penanda muncul.
+2. **Penanda yang dicari tidak boleh ada di teks perintah.** Konsol guest meng-echo
+   perintah itu, jadi penanda literal akan memuaskan asersi lewat echo, bukan lewat
+   kerja guest. Semuanya base64 (aturan yang sama dipakai seluruh harness).
+
+**Rencana perbaikan (belum dikerjakan).** Perbesar buffer baris di sisi guest, atau
+tolak perintah yang terlalu panjang di daemon dengan `{"error":"command too long"}`
+alih-alih mengeksekusi sesuatu yang akan hilang di jalan. Yang kedua lebih benar:
+kegagalan senyap harus menjadi kegagalan yang terlihat.
+
 ## 10. Batas yang tidak dijanjikan
 
 - Tidak ada **PID 1**: kontrak ini mengatur launcher, bukan boot Android.

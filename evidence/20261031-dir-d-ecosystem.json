@@ -28,11 +28,15 @@
     },
     "recipes_measured_on_device": {
       "ok": true,
-      "evidence": "bench/recipes.sh drove real workloads through a live guest: 10x \"docker run --rm alpine true\" with a warm image took 157404 ms in total (15740 ms median per container start; the alpine image occupies 8657121 bytes); nginx in one container served 500 requests at concurrency 10 to ab in another container at 76.32 req/s (131.023 ms per request). Local registry (push + pull of a built image): no number, because pulling registry:2 over the guest network exceeded the 300 s harness budget on this device."
+      "evidence": "bench/recipes.sh drove real workloads through a live guest: 10x \"docker run --rm alpine true\" with a warm image took 157404 ms in total (15740 ms median per container start; the alpine image occupies 8657121 bytes); nginx in one container served 500 requests at concurrency 10 to ab in another container at 76.32 req/s (131.023 ms per request). Local registry (push + pull of a built image): NO NUMBER, and the reason is now known rather than guessed. The recipe itself is blocked before it starts: pulling registry:2 from Docker Hub inside the guest did not complete in over ten minutes on this device, while smaller images (alpine, nginx:alpine, httpd:alpine) pulled and ran fine in the same guest, so it is image size over the guest network and not a broken path. What was verified is the mechanism: the recipe script was uploaded in four base64 chunks over the exec channel and the guest executed it, printing its own R3F...-START and R3F...-S1 markers -- which is what proved the exec channel silently drops a command line above roughly 568 bytes (569 bytes arrived, 2182 bytes did nothing at all with rc=0) and is why bench/guest-put.sh exists."
     },
     "boot": {
       "ok": true,
       "evidence": "A guest booted twice in this direction: on the glibc aarch64 runner (D1, evidence/20261031-d1-glibc-arm64.json, verified from inside the guest) and on this device, where bench/recipes.sh drove containers through a live guest running dockerd."
+    },
+    "exec_channel_line_limit": {
+      "ok": true,
+      "evidence": "Measured on the device: a 569-byte exec command reached the guest intact, a 2182-byte one produced no guest output at all while the daemon reported success. The guest agent reads one line from /dev/console and evals it, and the PTY line discipline truncates beyond that. Documented in docs/RUNTIME-CONTRACT.md 9a together with the two rules it implies (chunk long scripts; keep markers base64 so the console echo cannot satisfy an assertion)."
     }
   },
   "observed": {
@@ -46,9 +50,11 @@
   },
   "known_limits_observed": [
     "no browser engine on this device, so the panel is verified by executing its script in node rather than by rendering it in a browser",
-    "the container-start number includes UML itself: it is what a user waits for, and it is tens of seconds, not fractions of one"
+    "the container-start number includes UML itself: it is what a user waits for, and it is tens of seconds, not fractions of one",
+    "the exec channel delivers one console line, and a line above ~568 bytes is dropped in silence (the client sees rc=0), so long scripts must be uploaded in chunks",
+    "registry:2 could not be pulled inside the guest within ten minutes, so the local-registry recipe has no number on this device"
   ],
-  "notes": "Direction D (docs/NEXT-STEPS.md). D2 (termux-packages) is prepared in packaging/termux/PR.md and deliberately not submitted: opening a PR against another repository is an external action that waits for its owner.",
+  "notes": "Direction D (docs/NEXT-STEPS.md). D2 (termux-packages) is prepared in packaging/termux/PR.md and deliberately not submitted: opening a PR against another repository is an external action that waits for its owner. One protocol limit was measured the hard way while doing D4: exec commands above roughly 568 bytes are dropped silently, which is why bench/guest-put.sh uploads scripts in chunks.",
   "verdict": "pass",
   "artifacts": [
     {
@@ -65,6 +71,11 @@
       "kind": "console-log",
       "path": "logs/20261031-dir-d-recipes-r2-console.log",
       "sha256": "ddc1e8641f203e90fc513512574cb989a193dcb4fb5321540f671b632f89768d"
+    },
+    {
+      "kind": "console-log",
+      "path": "logs/20261031-dir-d-recipes-r3-markers.log",
+      "sha256": "5c0db32e79940c600486042b1e602e3104e2255999cea6f1d2533212f4d7622c"
     }
   ]
 }
