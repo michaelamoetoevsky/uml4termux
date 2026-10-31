@@ -217,7 +217,18 @@ cmd_up() {
     return 0
   fi
 
-  err "instance '${name}' did not become ready within ${timeout}s"
+  # The daemon can exit at once for a reason it printed as its own first line
+  # ("image already in use", a missing asset, a refused socket path). That is a
+  # refusal, not a timeout, and saying "did not become ready" sends the reader
+  # looking for slowness that does not exist -- measured: a locked image failed in
+  # 3 s and the message still blamed the clock.
+  local why
+  why="$(sed -n 's/^uml4termuxd: //p' "${rt}/daemon.log" 2>/dev/null | head -1)"
+  if [ -n "${why}" ]; then
+    err "the daemon refused to start: ${why}"
+  else
+    err "instance '${name}' did not become ready within ${timeout}s"
+  fi
   sed -n '1,20p' "${rt}/daemon.log" 2>/dev/null | sed 's/^/  /'
   cmd_down --name "${name}" >/dev/null 2>&1 || true
   return 1

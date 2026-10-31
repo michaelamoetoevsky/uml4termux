@@ -10,38 +10,52 @@ sentence that quietly rots.
 
 | # | Issue | Severity | Blocked on |
 |---|---|---|---|
-| 1 | `exec` drops a command line above ~568 bytes, silently | high | nothing — a fix is described below |
+| ~~1~~ | ~~`exec` drops a command line above ~568 bytes, silently~~ — **CLOSED: three silent truncations found and fixed, measured limit enforced** | was: high | — |
 | 2 | Local-registry recipe has no number (`registry:2` pull never completes) | low | device network/time |
-| 3 | The status panel is verified by executing its script, not by rendering it | low | a browser engine on Android |
+| ~~3~~ | ~~The status panel is verified by executing its script, not by rendering it~~ — **CLOSED for the DOM, residual gap moved to KNOWN-LIMITS** | low | — |
 | 4 | `expose HOST:GUEST` once logged the host port as the guest port — **unverified** | unknown | a clean reproduction |
 | 5 | `termux-packages` PR prepared, not submitted | — | repository owner's approval |
 | 6 | Upstream patch **sent** as PR #26 — watching for a response | — | upstream response (30-day clock) |
-| 7 | `up` on the shared asset image booted a guest that exited at once — **unverified** | unknown | a clean reproduction |
+| ~~7~~ | ~~`up` on the shared asset image booted a guest that exited at once~~ — **CLOSED, root cause found** | was: unknown | — |
 
 ---
 
-## 1. `exec` silently drops a command line above ~568 bytes — HIGH
+## 1. CLOSED — three silent truncations plus a measured limit
 
-**Measured** (`docs/RUNTIME-CONTRACT.md` §9a): a 569-byte command reached the guest
-and ran; a 2182-byte one did nothing at all while the daemon answered `rc=0`. The
-command is delivered as one console line; the guest agent reads it with
-`IFS= read -r aline` on `/dev/console` and evals it, and the PTY truncates beyond that.
+**What the code actually did** (found while chasing the reported symptom): three
+independent places cut a command, none of them said so, and the guest's `__EXEC_n_DONE`
+marker still appeared — so the client saw `rc=0` while the guest ran a fragment.
 
-**Why it is high severity:** the failure is invisible. A client sees success and the
-guest did nothing. Every other failure in this project at least says so.
+1. `main()` joined argv into `char joined[900]` after testing `used` **before** copying a
+   whole argument; one long argument walked past the end. Proven on the device: the old
+   front end **segfaulted** (`rc=139`) on a 3 000-byte argument.
+2. `client_line()` built the request with `snprintf` into `char buf[1024]`, so the real
+   limit was 1 022 bytes with no message.
+3. The daemon read the request with **one** `read()` into `char req[512]`; anything longer
+   was cut at 511 bytes and the half line was still executed.
 
-**Worked around, not fixed:** `bench/guest-put.sh` uploads a script as base64 in
-≤380-byte chunks (verified: 1057 B in 4 chunks, 60/60 markers intact).
+**What the device then measured** (one command per line, timing until
+`__EXEC_<seq>_DONE_`, which sits at the END of the line and therefore proves the whole
+line arrived; the agent's own `__AGENT_GOT__` echo proves the bytes):
 
-**Done looks like:** the daemon refuses an over-long command with
-`{"error":"command too long","limit":N}` before it writes anything to the PTY, and a
-test asserts both the refusal and that the limit is the one documented. Enlarging the
-guest's line buffer is the alternative, but a visible refusal is the better failure.
+| command | arrived whole? | time to DONE |
+|---|---|---|
+| 502 B | yes | ~0 s |
+| 2 002 B | yes | 1 s |
+| 2 502 B | yes — `x_diterima=2500/2500` | 40 s |
+| 2 902 B | no | not in 279 s |
 
-**Where:** `src/uml4termuxd.c` (the `exec` branch), `rust/src/daemon.rs` for parity,
-`tests/test-runtime-contract.sh` for the gate.
+So long commands are not truncated, they are **slow**: delivery cost grows with length.
+That makes a refusal above a measured ceiling the honest behaviour, not a smaller buffer.
 
----
+**Fixed:** the limit is **2 000 bytes**, enforced at both hops (front end: exit 64 with
+`command too long: N bytes, limit 2000`; daemon: `{"error":"command too long","limit":2000}`),
+the request is read until newline into an 8 KiB buffer, and the front end measures before
+it copies. `docs/RUNTIME-CONTRACT.md` §9a now carries the table above and the three bugs.
+
+**Gate:** `tests/test-exec-limit.sh` — 10 assertions over both implementations (C and
+Rust), no guest needed: refusal at limit+1 with the documented number, acceptance at the
+limit, a long request read whole rather than half-parsed, and the front end's exit 64.
 
 ## 2. The local-registry recipe has no number — LOW
 
@@ -59,19 +73,29 @@ the numbers added to the direction-D evidence.
 
 ---
 
-## 3. The panel is verified by executing its script, not by rendering it — LOW
+## 3. CLOSED for the DOM — a real renderer is still absent, and that is now a known limit
 
-**Measured:** this device has no browser engine. Playwright answers
-`Unsupported platform: android`, and the local Chromium backend is not installed, so
-`tests/test-panel.sh` runs the page's own JavaScript in node against the panel's live
-reply, with a DOM stub (`panel/render-check.mjs`). That is stronger than grepping the
-HTML and weaker than a browser assertion; the docs say exactly that.
+**Done here:** `panel/render-dom-check.mjs` renders the real `panel/index.html` in
+**jsdom** — the actual HTML is parsed into the actual element tree and the page's own
+inline script runs — against a **real** `/api/state` payload captured from a live
+instance. 8 assertions: no error banner, `N guest(s)` matching the payload, timestamp,
+one row per guest, the guest name in the table, its phase, the empty state when there are
+no guests, and no uncaught script errors. First run against a 1-guest payload: 8/8.
 
-**Done looks like:** a browser-based check — a Playwright (or WebView) run on an
-Android host that asserts the rendered DOM and attaches a screenshot — added beside
-the node check rather than replacing it.
+It caught its own false negative first: the stub `fetch` was installed after
+construction, the page's `poll()` had already run, and the check rendered an empty page
+while reporting on the placeholder — fixed with `beforeParse`. A check that cannot fail
+is not a check.
 
----
+**Still unproven, and now written where limits live:** layout, CSS and a screenshot need
+a browser engine. Verified unavailable on this device — Playwright MCP answers
+`Unsupported platform: android`, and the local browser backend is not installed
+(`agent-browser CLI not found`). `docs/KNOWN-LIMITS.md` says so, so nobody reads the
+gate as "rendered in a browser".
+
+**Gate:** `tests/test-panel.sh` runs the jsdom check when jsdom is importable and SKIPs
+with the reason when it is not (the project does not add a runtime dependency for a
+test); CI installs it in its own step.
 
 ## 4. `expose HOST:GUEST` once logged the host port as the guest port — UNVERIFIED
 
@@ -120,37 +144,32 @@ builds and tests itself, so nothing here blocks a release.
 
 ---
 
-## 7. `up` on the shared asset image: the guest exited immediately — UNVERIFIED
+## 7. CLOSED — the shared asset image was simply already locked
 
-**Observed twice** while chasing issue #4, both times with
-`--image $UML4TERMUX_HOME/debian-docker.ext4` (the shared asset, used directly rather
-than copied): `up` failed, and the daemon log it printed said
+**Root cause (measured).** The guest did not die because of the image's contents. UML
+takes an exclusive `F_SETLK` on the backing image, and the shared asset, its symlink
+target and `~/.local/share/uml4termux/debian-docker.ext4` are **one inode** — so the
+runit service's own guest was holding it. The console log says it plainly:
 
 ```
-uml4termuxd[26667]: child 26692 died (exit 0)
-uml4termuxd[26667]: guest session completed; not restarting
-uml4termuxd[26667]: gvproxy stopped
+F_SETLK failed, file already locked by pid 26563
+Failed to lock '.../uml-forensics/debian-docker.ext4', err = 11
+ubda: Can't open ".../exp.cow": errno = 11
+UML4TERMUX_INIT NO_DISK: no /dev/ubda, running /docker-init.sh inside the initramfs
 ```
 
-i.e. the kernel came up and exited cleanly within about a second, so the console never
-had a guest to show. `up` did report the failure and printed those lines — the
-fail-fast path added in direction D worked — but *why* the guest exits is not known.
+The guest booted with no disk, found nothing to mount, and powered off with exit 0 — a
+*clean* exit that reads as a finished session. The earlier "dirty ext4 journal" guess
+was wrong: it is the F_SETLK trap again, in its third disguise.
 
-**Not a reproduction of #4.** It was found while trying to reproduce #4, and it blocks
-that reproduction rather than explaining it.
+**Fixed.** The daemon refuses before spawning anything: `F_GETLK` (read-only; it neither
+takes nor disturbs the lock) asks the kernel who holds it, and a held image stops the
+boot with `uml4termuxd: image already in use by pid N`, `rc=2`.
+`UML4TERMUXD_ALLOW_SHARED_IMAGE=1` restores the old behaviour on purpose, and
+`UML4TERMUXD_STRICT_UBD=1` stays the second line of defence. The launcher now says
+`the daemon refused to start: …` instead of blaming a timeout that never happened
+(measured: the refusal takes 3 s, not 15).
 
-**Why it might happen, untested:** that image was written by the interrupted
-registry-pull runs in direction D4 and may carry a dirty journal, so the guest's own
-init could be bailing out; or the shared path is being opened by something else. Both
-are guesses.
-
-**Workaround that is already the project's practice:** every harness copies the image
-per instance (`soak/soak.sh`, `soak/snapshot-check.sh`, `bench/recipes.sh`) — 90/90 and
-80/80 clean cycles on copies — and passes `UML4TERMUXD_STRICT_UBD=1`.
-
-**Done looks like:** a test that boots an instance on a *freshly copied* asset image and
-on the shared asset image, and asserts the same exit state for both; if the shared case
-really is the dirty image, the answer is that `fetch`/`init-image` must produce a clean
-one and `up` should refuse an image whose ext4 journal is dirty instead of booting a
-guest that dies. Until then the entry stays as an observation with a workaround, not a
-diagnosis.
+**Gate:** `tests/test-image-lock.sh` — locked image refused with the holder's pid in the
+message, free image not accused, override really bypasses, for **both** daemons (C and
+Rust, 6/6). Contract: `docs/RUNTIME-CONTRACT.md` §9b.

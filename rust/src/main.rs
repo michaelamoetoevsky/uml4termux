@@ -110,7 +110,22 @@ fn main() -> ExitCode {
         Cmd::Stop => daemon(&sock, client::stop(&sock), cli.raw),
         Cmd::Protocol => daemon(&sock, client::protocol(&sock), cli.raw),
         Cmd::Ports => daemon(&sock, client::ports(&sock), cli.raw),
-        Cmd::Exec { argv } => daemon(&sock, client::exec(&sock, &argv), cli.raw),
+        Cmd::Exec { argv } => {
+            // Refuse an argument list that cannot fit, and refuse it HERE: the C front
+            // end exits 64 before touching the socket, so a Rust client that instead
+            // connected and let the daemon answer would report a different exit code
+            // for the same input (the contract requires parity, §3).
+            let need: usize = argv.iter().map(|a| a.len() + 1).sum();
+            if need > daemon::EXEC_MAX + 1 {
+                eprintln!(
+                    "uml4termux-rs: command too long: {} bytes, limit {}",
+                    need - 1,
+                    daemon::EXEC_MAX
+                );
+                return ExitCode::from(64);
+            }
+            daemon(&sock, client::exec(&sock, &argv), cli.raw)
+        }
         Cmd::Expose {
             host_port,
             guest_port,

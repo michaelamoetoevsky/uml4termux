@@ -33,6 +33,14 @@ const PROTOCOL: u8 = 1;
 const RUNTIME_CONTRACT: u8 = 1;
 const COMMANDS: &str = "\"status\",\"stop\",\"ports\",\"expose\",\"exec\",\"protocol\"";
 
+/// Max bytes of an `exec` command, MEASURED on the device: 502 B ran immediately,
+/// 2002 B in 1 s, 2502 B in 40 s, and 2902 B had still not arrived after 279 s. The
+/// guest agent reads one line per command, so delivery cost grows with length and
+/// 2000 is where "works" stops meaning "works in bounded time". The C twin enforces
+/// the same number (WM_EXEC_MAX) and `docs/RUNTIME-CONTRACT.md` §9a documents both
+/// the number and the measurement behind it.
+pub const EXEC_MAX: usize = 2000;
+
 static STOP: AtomicBool = AtomicBool::new(false);
 static CHILD_EXITED: AtomicBool = AtomicBool::new(false);
 
@@ -182,6 +190,21 @@ impl Daemon {
                 eprintln!("uml4termux-rs: {e}");
                 return Ok(2);
             }
+            if let Some(holder) = Self::image_lock_holder(&self.image) {
+                logf(&format!(
+                    "image in use: {} is locked by pid {holder}",
+                    self.image
+                ));
+                eprintln!(
+                    "uml4termux-rs: image already in use by pid {holder}: {}\n  \
+                     UML holds an exclusive lock on the backing image, so a second\n  \
+                     guest would boot with NO_DISK and silently lose every write.\n  \
+                     Boot a private copy instead, or set\n  \
+                     UML4TERMUXD_ALLOW_SHARED_IMAGE=1 to try anyway.",
+                    self.image
+                );
+                return Ok(2);
+            }
             self.exposures_path = Some(dir.join("exposures.jsonl"));
             logf(&format!(
                 "guest: kernel={} mem={} ncpus={} console={}",
@@ -210,6 +233,39 @@ impl Daemon {
             return Ok(1);
         }
         self.serve_loop(lfd)
+    }
+
+    /// One guest per backing image. UML takes an exclusive F_SETLK on the image, so a
+    /// second boot on the same image does NOT fail loudly: the ubd attach fails, the
+    /// initramfs reports NO_DISK, and the guest powers off with exit 0 -- which reads
+    /// as a clean session from outside. F_GETLK is a read-only query: it reports the
+    /// holder without taking or disturbing the lock. UML4TERMUXD_ALLOW_SHARED_IMAGE=1
+    /// keeps the old behaviour for anyone who wants to watch the diskless boot.
+    fn image_lock_holder(path: &str) -> Option<libc::pid_t> {
+        if std::env::var("UML4TERMUXD_ALLOW_SHARED_IMAGE")
+            .map(|v| !v.is_empty() && v != "0")
+            .unwrap_or(false)
+        {
+            return None;
+        }
+        let cpath = std::ffi::CString::new(path).ok()?;
+        // F_GETLK for a write lock needs a writable fd; a read-only open answers EBADF,
+        // which would look exactly like "nobody holds it".
+        let fd = unsafe { libc::open(cpath.as_ptr(), libc::O_RDWR) };
+        if fd < 0 {
+            return None;
+        }
+        let mut fl: libc::flock = unsafe { std::mem::zeroed() };
+        fl.l_type = libc::F_WRLCK as libc::c_short;
+        fl.l_whence = libc::SEEK_SET as libc::c_short;
+        fl.l_start = 0;
+        fl.l_len = 0;
+        let rc = unsafe { libc::fcntl(fd, libc::F_GETLK, &mut fl) };
+        unsafe { libc::close(fd) };
+        if rc != 0 || fl.l_type == libc::F_UNLCK as libc::c_short {
+            return None;
+        }
+        Some(fl.l_pid)
     }
 
     fn check_guest_config(&self) -> Result<(), String> {
@@ -891,12 +947,37 @@ impl Daemon {
     }
 
     fn handle_client(&mut self, fd: RawFd) {
-        let mut req = [0u8; 512];
-        let n = unsafe { libc::read(fd, req.as_mut_ptr() as *mut libc::c_void, req.len() - 1) };
-        if n <= 0 {
+        // One read() is not one message: a stream socket may return half of it, and a
+        // 512-byte buffer cut every longer request in half -- which is how a long
+        // `exec` reached the guest truncated and still answered success.
+        let mut req = [0u8; 8192];
+        let mut len = 0usize;
+        loop {
+            let r = unsafe {
+                libc::read(
+                    fd,
+                    req[len..].as_mut_ptr() as *mut libc::c_void,
+                    req.len() - 1 - len,
+                )
+            };
+            if r < 0 {
+                if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return;
+            }
+            if r == 0 {
+                break;
+            }
+            len += r as usize;
+            if req[..len].contains(&b'\n') || len >= req.len() - 1 {
+                break;
+            }
+        }
+        if len == 0 {
             return;
         }
-        let raw = &req[..n as usize];
+        let raw = &req[..len];
         let line: Vec<u8> = raw
             .iter()
             .take_while(|b| **b != b'\n' && **b != b'\r')
@@ -942,6 +1023,10 @@ impl Daemon {
         }
         if let Some(rest) = line.strip_prefix("exec ") {
             self.audit("exec", rest);
+            if rest.len() > EXEC_MAX {
+                self.audit("exec-denied", "command too long");
+                return format!("{{\"error\":\"command too long\",\"limit\":{EXEC_MAX}}}\n");
+            }
             if self.exec_rate_limited() {
                 let min_ms = self.exec_min_interval_ms();
                 self.audit("exec-denied", "rate-limited");

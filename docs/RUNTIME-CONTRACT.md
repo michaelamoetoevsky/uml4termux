@@ -229,33 +229,91 @@ membandingkan byte), dan oleh bukti device `soak/snapshot-check.sh` (boot nyata:
 berkas yang ditulis sebelum snapshot terbaca sesudah resume, resume kedua tidak
 melihat tulisan resume pertama, image berbeda ditolak sebelum boot).
 
-### 9a. Panjang perintah `exec` — batas yang terukur, bukan tebakan
+### 9a. Panjang perintah `exec` — batas yang DIUKUR, dan ditegakkan
 
-Semua state-changing command lewat socket ditulis sebagai SATU baris. Untuk `exec`,
-baris itu diteruskan ke konsol guest dan dibaca di sana oleh agen guest
-(`IFS= read -r aline` pada `/dev/console`) lalu di-`eval`. Konsekuensinya diukur di
-device ini:
+Agen konsol guest membaca **satu baris per perintah** dari konsol (`IFS= read -r
+aline`, lalu `eval`), dan agen itu meng-echo apa yang ia terima sebagai
+`__AGENT_GOT__: <baris>`. Echo itulah alat ukurnya: menghitung byte di baris
+`__AGENT_GOT__` mengukur **apa yang tiba**, bukan apa yang kita kirim.
 
-| Panjang baris perintah | Hasil |
-|---|---|
-| 569 byte | diterima utuh |
-| 2.182 byte | **tidak terjadi apa-apa** — perintah diterima daemon, dieksekusi, `rc=0`, dan guest tidak pernah menjalankannya |
+Diukur di device ini (image docker, kernel ter-pin), satu perintah per baris, waktu
+sampai `__EXEC_<seq>_DONE_` — penanda yang berada di **ujung** baris, jadi munculnya
+berarti seluruh baris tiba:
 
-Jadi perintah panjang **gagal secara senyap**, dan itu bentuk kegagalan terburuk:
-klien melihat sukses. Dua aturan untuk klien:
+| Panjang perintah | Tiba utuh? | Waktu sampai DONE |
+|---|---|---|
+| 502 B | ya | ~0 s |
+| 2.002 B | ya | 1 s |
+| 2.502 B | ya — `x_diterima=2500/2500` dari echo agen | **40 s** |
+| 2.902 B | tidak | belum tiba setelah 279 s |
 
-1. **Jangan kirim perintah panjang.** Untuk skrip, unggah terpotong-potong
-   (`bench/guest-put.sh`: base64 dalam potongan ≤380 byte, satu `exec` per potongan,
-   lalu `base64 -d` dan jalankan). Terbukti: skrip 1.057 byte, 4 potongan, 60/60
-   baris penanda muncul.
-2. **Penanda yang dicari tidak boleh ada di teks perintah.** Konsol guest meng-echo
-   perintah itu, jadi penanda literal akan memuaskan asersi lewat echo, bukan lewat
-   kerja guest. Semuanya base64 (aturan yang sama dipakai seluruh harness).
+Jadi masalahnya **bukan pemotongan** (baris panjang tiba utuh) melainkan **biaya
+pengiriman yang tumbuh terhadap panjang**: di atas ~2 KB, perintah "berhasil" tetapi
+tidak dalam waktu yang wajar, dan klien hanya menerima `{"started":true}` tanpa tahu
+kapan selesai.
 
-**Rencana perbaikan (belum dikerjakan).** Perbesar buffer baris di sisi guest, atau
-tolak perintah yang terlalu panjang di daemon dengan `{"error":"command too long"}`
-alih-alih mengeksekusi sesuatu yang akan hilang di jalan. Yang kedua lebih benar:
-kegagalan senyap harus menjadi kegagalan yang terlihat.
+**Tiga truncation senyap yang ditemukan saat menelusuri ini, dan sudah ditutup:**
+
+1. `main()` merangkai argv menjadi `char joined[900]` dengan memeriksa `used` **sebelum**
+   menyalin satu argumen penuh — satu argumen 3.000 byte melewati batas itu dan
+   menimpa stack. Terbukti di device: front end lama **SIGSEGV** (`rc=139`) pada
+   argumen 3.000 byte. Sekarang: ukur kebutuhan dulu, tolak bila tidak muat (`rc=64`).
+2. `client_line()` menyusun permintaan dengan `snprintf` ke `char buf[1024]`, jadi
+   batas sebenarnya 1.022 byte — dan pesan galatnya tidak ada. Sekarang buffer
+   `WM_EXEC_MAX + 64` dan permintaan yang tidak muat ditolak dengan angka.
+3. Daemon membaca permintaan dengan **satu** `read()` ke `char req[512]`: paket yang
+   lebih panjang terpotong di 511 byte, dan baris yang tiba separuh tetap dieksekusi
+   (sebagian) sementara penanda `DONE` tetap dicetak — jadi klien diberi `rc=0`.
+   Sekarang: baca sampai newline (buffer 8 KiB), lalu tolak yang terlalu panjang.
+
+**Batas yang ditegakkan sekarang: 2.000 byte**, di **kedua** hop (front end dan daemon),
+dengan galat yang terlihat dan bukan pemotongan:
+
+```
+{"error":"command too long","limit":2000}
+```
+
+Front end menolak lebih awal: `uml4termuxd: command too long: N bytes, limit 2000`,
+`rc=64`. Untuk skrip, jalur yang benar tetap **unggah terpotong** (`bench/guest-put.sh`:
+base64 dalam potongan ≤380 byte, satu `exec` per potongan, lalu `base64 -d`) — terbukti
+pada skrip 1.057 byte dalam 4 potongan.
+
+**Gate:** `tests/test-exec-limit.sh` — 2.001 byte ditolak dengan limit yang disebut,
+2.000 byte lolos pemeriksaan panjang, permintaan panjang dibaca utuh (bukan separuh),
+front end menolak dengan `rc=64`, untuk **kedua** implementasi (C dan Rust), 10 asersi,
+tanpa perlu guest.
+
+### 9b. Satu guest per image — lock adalah syaratnya, bukan gejalanya
+
+UML memegang `F_SETLK` eksklusif pada **image backing**, termasuk saat boot memakai
+COW (yang dikunci adalah backing-nya, bukan overlay-nya). Boot kedua pada image yang
+sama **tidak gagal**. Ia berhasil: attach ubd gagal, initramfs melaporkan `NO_DISK`,
+guest hidup tanpa disk, menulis ke mana-mana, lalu keluar `exit 0` — dan dari luar itu
+terbaca seperti sesi yang selesai normal. Diukur di device ini, log konsol apa adanya:
+
+```
+F_SETLK failed, file already locked by pid 26563
+Failed to lock '.../uml-forensics/debian-docker.ext4', err = 11
+ubda: Can't open ".../exp.cow": errno = 11
+UML4TERMUX_INIT NO_DISK: no /dev/ubda, running /docker-init.sh inside the initramfs
+```
+
+Perhatikan bentuknya: satu-satunya petunjuk ada di log kernel guest, dan penanda
+"boot selesai" tetap muncul. Karena itu pengecekan dilakukan **sebelum** spawn, bukan
+dengan membaca konsol sesudahnya. Daemon bertanya ke kernel lewat `F_GETLK` — query
+baca yang tidak mengambil dan tidak mengganggu lock — dan menolak:
+
+```
+uml4termuxd: image already in use by pid 26563: <image>
+```
+
+`rc=2`, dan launcher melaporkan `the daemon refused to start: image already in use by
+pid N` — bukan pesan timeout yang menyalahkan jam. Override
+`UML4TERMUXD_ALLOW_SHARED_IMAGE=1` mengembalikan perilaku lama bagi siapa pun yang
+ingin melihat sendiri boot tanpa disk itu; `UML4TERMUXD_STRICT_UBD=1` tetap backstop
+kedua (`state=failed`, ubd-attach gagal). Ditegakkan `tests/test-image-lock.sh` untuk
+**kedua** implementasi daemon (C dan Rust): image terkunci ditolak dengan menyebut
+pid pemegang, image bebas tidak dituduh, dan override benar-benar melewati penjaga.
 
 ## 10. Batas yang tidak dijanjikan
 

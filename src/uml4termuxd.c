@@ -96,6 +96,16 @@ static int g_exec_seq;
 static char g_exposures[512];  /* A3b: registry file (JSONL) */
 static char g_gvapi[512];      /* gvproxy unix API socket path */
 
+/* Max bytes of an `exec` command. MEASURED on the device, not derived:
+     502 B -> executed immediately      2002 B -> executed in 1 s
+    2502 B -> executed in 40 s         2902 B -> did NOT arrive in 279 s
+   The console agent reads one line per command from the guest console and the
+   delivery cost grows with its length, so 2000 is where "it works" stops being
+   "it works in bounded time". Enforced at BOTH hops (front end and daemon) and
+   documented in docs/RUNTIME-CONTRACT.md §9a: a limit that lives only in prose gets
+   crossed silently, which is the failure this constant exists to remove. */
+#define WM_EXEC_MAX 2000
+
 /* fixed gvproxy DHCP topology (verified across all runs) */
 #define GUEST_IP "192.168.127.2"
 
@@ -138,6 +148,40 @@ static int load_guest_config(char *err, size_t errn)
 		}
 	}
 	return 0;
+}
+
+/* One guest per backing image. UML takes an exclusive F_SETLK on the image, so a
+   second boot on the same image does NOT fail loudly: the ubd attach fails, the
+   initramfs reports NO_DISK, and the guest powers off with exit 0 -- which reads
+   as a clean session from outside (this is exactly how a repro run was mistaken
+   for a healthy boot). Ask the kernel who holds the lock with F_GETLK -- a
+   read-only query that neither takes nor disturbs the lock -- and refuse before
+   spawning anything. UML4TERMUXD_ALLOW_SHARED_IMAGE=1 opts back into the old
+   behaviour for anyone who wants to watch the diskless boot happen. */
+static pid_t image_lock_holder(const char *path)
+{
+	struct flock fl;
+	const char *allow = getenv("UML4TERMUXD_ALLOW_SHARED_IMAGE");
+	int fd;
+
+	if (allow && *allow && strcmp(allow, "0") != 0)
+		return 0;
+	/* F_GETLK for a write lock needs a writable fd; a read-only open would
+	   answer EBADF and look exactly like "nobody holds it". */
+	fd = open(path, O_RDWR);
+	if (fd < 0)
+		return 0;
+	memset(&fl, 0, sizeof(fl));
+	fl.l_type = F_WRLCK;
+	fl.l_whence = SEEK_SET;
+	fl.l_start = 0;
+	fl.l_len = 0; /* whole file, the range UML locks */
+	if (fcntl(fd, F_GETLK, &fl) != 0) {
+		close(fd);
+		return 0;
+	}
+	close(fd);
+	return fl.l_type == F_UNLCK ? 0 : fl.l_pid;
 }
 
 /* Every path this daemon builds is the runtime directory plus a suffix, and a
@@ -870,14 +914,38 @@ static int exec_rate_limited(long *min_ms_out)
 
 static void handle_client(int fd)
 {
-	char req[512];
+	char req[8192];
 	char resp[512];
 	ssize_t n;
 
-	n = read(fd, req, sizeof(req) - 1);
-	if (n <= 0)
-		return;
-	req[n] = '\0';
+	/* One read() is not one message: a stream socket may hand back half of it, and
+	   a 512-byte buffer truncated every request that did not fit -- which is how a
+	   long `exec` reached the guest cut in half and still reported success. Read
+	   until the newline or the buffer fills, so a command is either whole or
+	   explicitly refused. */
+	{
+		size_t len = 0;
+
+		for (;;) {
+			ssize_t r = read(fd, req + len, sizeof(req) - 1 - len);
+
+			if (r < 0) {
+				if (errno == EINTR)
+					continue;
+				return;
+			}
+			if (r == 0)
+				break;
+			len += (size_t)r;
+			req[len] = '\0';
+			if (strchr(req, '\n') || len >= sizeof(req) - 1)
+				break;
+		}
+		if (len == 0)
+			return;
+		req[len] = '\0';
+	}
+	n = (ssize_t)strlen(req);
 	for (ssize_t i = 0; i < n; i++)
 		if (req[i] == '\n' || req[i] == '\r')
 			req[i] = '\0';
@@ -914,12 +982,21 @@ static void handle_client(int fd)
 		respond(fd, "{\"state\":\"stopping\"}\n");
 		g_stop = 1;
 	} else if (strncmp(req, "exec ", 5) == 0) {
-		char line[1024];
+		char line[WM_EXEC_MAX + 128];
 		int seq;
 		long min_ms = 0;
 
 		audit_line("exec", req + 5);
-		if (exec_rate_limited(&min_ms)) {
+		if (strlen(req + 5) > (size_t)WM_EXEC_MAX) {
+			/* Visible refusal. The alternative -- writing it anyway -- delivers a
+			   truncated command, and the guest's own echo proves it was cut, but
+			   the client has already been told rc=0. */
+			audit_line("exec-denied", "command too long");
+			snprintf(resp, sizeof(resp),
+				 "{\"error\":\"command too long\",\"limit\":%d}\n",
+				 WM_EXEC_MAX);
+			respond(fd, resp);
+		} else if (exec_rate_limited(&min_ms)) {
 			audit_line("exec-denied", "rate-limited");
 			snprintf(resp, sizeof(resp),
 				 "{\"error\":\"rate-limited\",\"min_interval_ms\":%ld}\n", min_ms);
@@ -1226,6 +1303,25 @@ static int daemon_main(int selftest)
 			fprintf(stderr, "uml4termuxd: %s\n", err);
 			return 2;
 		}
+		/* Refuse a guest whose backing image another UML already holds. Without
+		   this the guest boots diskless (NO_DISK) and exits 0, so the caller sees
+		   a "failed up" whose log explains nothing and the run looks flaky. */
+		{
+			pid_t holder = image_lock_holder(g_image);
+
+			if (holder > 0) {
+				logf_("image in use: %s is locked by pid %d", g_image,
+				      (int)holder);
+				fprintf(stderr,
+					"uml4termuxd: image already in use by pid %d: %s\n"
+					"  UML holds an exclusive lock on the backing image, so a second\n"
+					"  guest would boot with NO_DISK and silently lose every write.\n"
+					"  Boot a private copy instead, or set\n"
+					"  UML4TERMUXD_ALLOW_SHARED_IMAGE=1 to try anyway.\n",
+					(int)holder, g_image);
+				return 2;
+			}
+		}
 		snprintf(g_child_argv0, sizeof(g_child_argv0), "%s", g_kernel);
 		logf_("guest: kernel=%s mem=%s ncpus=%s console=%s",
 		      g_kernel, g_mem, g_ncpus, g_consolelog);
@@ -1312,7 +1408,11 @@ static int client_line(const char *what, const char *prefix)
 {
 	struct sockaddr_un addr;
 	int fd;
-	char buf[1024];
+	/* Room for the largest command the daemon accepts (WM_EXEC_MAX) plus the verb.
+	   A 1024-byte buffer here silently became the REAL limit -- 1022 bytes -- and
+	   the documented 3000 was unreachable from the front end, which is the same
+	   "limit in prose, not in code" trap one layer down. */
+	char buf[WM_EXEC_MAX + 64];
 	ssize_t n;
 
 	sock_path(g_sockpath, sizeof(g_sockpath));
@@ -1332,6 +1432,17 @@ static int client_line(const char *what, const char *prefix)
 		fprintf(stderr, "daemon not reachable at %s: %s\n", g_sockpath, strerror(errno));
 		close(fd);
 		return 3;
+	}
+	{
+		size_t need = strlen(prefix) + strlen(what) + 2;
+
+		if (need > sizeof(buf)) {
+			fprintf(stderr,
+				"uml4termuxd: request too long: %zu bytes, limit %zu\n",
+				need - 2, sizeof(buf) - 2);
+			close(fd);
+			return 64;
+		}
 	}
 	snprintf(buf, sizeof(buf), "%s%s\n", prefix, what);
 	if (write(fd, buf, strlen(buf)) < 0) {
@@ -1384,13 +1495,25 @@ int main(int argc, char **argv)
 		return client_line(pair, "expose ");
 	}
 	if (argc >= 3 && strcmp(argv[1], "exec") == 0) {
-		/* join argv[2..] into one command line for the console agent */
-		char joined[900];
-		size_t used = 0;
+		/* Join argv[2..] with single spaces. The previous form tested
+		   `used < sizeof(joined) - 2` BEFORE copying a whole argument, so one long
+		   argument overran the buffer; and client_line()'s snprintf then cut
+		   anything above ~1 KiB in silence. Both are one bug: a limit that exists
+		   but is not enforced. Measure the need first, then copy. */
+		static char joined[WM_EXEC_MAX + 1];
+		size_t need = 0, used = 0;
 		int i;
 
+		for (i = 2; i < argc; i++)
+			need += strlen(argv[i]) + 1;
+		if (need > (size_t)WM_EXEC_MAX + 1) {
+			fprintf(stderr,
+				"uml4termuxd: command too long: %zu bytes, limit %d\n",
+				need - 1, WM_EXEC_MAX);
+			return 64;
+		}
 		joined[0] = '\0';
-		for (i = 2; i < argc && used < sizeof(joined) - 2; i++) {
+		for (i = 2; i < argc; i++) {
 			size_t len = strlen(argv[i]);
 
 			if (used)
