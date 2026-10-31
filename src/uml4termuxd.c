@@ -1592,12 +1592,6 @@ int main(int argc, char **argv)
 			return 3;
 		}
 		/* index line offsets, keep the last `want` */
-		{
-			char offbuf[600];
-
-			snprintf(offbuf, sizeof(offbuf), "%s", logbuf);
-			(void)offbuf;
-		}
 		while (fgets(line, sizeof(line), f)) {
 			if (off_n == off_cap) {
 				off_cap = off_cap ? off_cap * 2 : 256;
