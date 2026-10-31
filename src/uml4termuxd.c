@@ -140,6 +140,30 @@ static int load_guest_config(char *err, size_t errn)
 	return 0;
 }
 
+/* Every path this daemon builds is the runtime directory plus a suffix, and a
+   truncated path is a failure this project has already paid for once: the daemon
+   binds and reports one path while using another, and the kernel dies with an
+   error that names neither. gcc's -Wformat-truncation flags the risk at compile
+   time but cannot see the runtime invariant, so enforce it here instead: build
+   the path, and refuse to start if it did not fit. */
+static void path_fmt(char *dst, size_t n, const char *fmt, ...)
+	__attribute__((format(printf, 3, 4)));
+static void path_fmt(char *dst, size_t n, const char *fmt, ...)
+{
+	va_list ap;
+	int w;
+
+	va_start(ap, fmt);
+	w = vsnprintf(dst, n, fmt, ap);
+	va_end(ap);
+	if (w < 0 || (size_t)w >= n) {
+		fprintf(stderr,
+			"uml4termuxd: path does not fit in %u bytes (%d needed): %s\n",
+			(unsigned)n, w, dst);
+		exit(64);
+	}
+}
+
 static void logf_(const char *fmt, ...)
 {
 	va_list ap;
@@ -417,7 +441,7 @@ static int spawn_gvproxy(void)
 
 		if (stat(g_bess, &st) == 0 && S_ISSOCK(st.st_mode)) {
 			logf_("gvproxy up pid=%d bess=%s", (int)pid, g_bess);
-			snprintf(g_gvapi, sizeof(g_gvapi), "%s.gv.sock", g_bess);
+				path_fmt(g_gvapi, sizeof(g_gvapi), "%s.gv.sock", g_bess);
 			return 0;
 		}
 		usleep(100000);
@@ -562,7 +586,7 @@ static int spawn_child(void)
 		if (g_cow[0]) {
 			/* B2 ephemeral: UML's syntax is ubd0=<cow>,<backing> --
 			   the COW file comes FIRST, the backing image second. */
-			snprintf(ubdopt, sizeof(ubdopt), "ubd0=%s,%s", g_cow, g_image);
+			path_fmt(ubdopt, sizeof(ubdopt), "ubd0=%s,%s", g_cow, g_image);
 		}
 		argv[i++] = ubdopt;
 		argv[i++] = "root=/dev/ubda";
@@ -1171,7 +1195,7 @@ static int daemon_main(int selftest)
 
 	audit_open();
 	sock_path(g_sockpath, sizeof(g_sockpath));
-	snprintf(g_statepath, sizeof(g_statepath), "%s.state", g_sockpath);
+			path_fmt(g_statepath, sizeof(g_statepath), "%s.state", g_sockpath);
 	{
 		char dirbuf[512];
 		snprintf(dirbuf, sizeof(dirbuf), "%s", g_sockpath);
@@ -1237,7 +1261,15 @@ static int daemon_main(int selftest)
 		close(lfd);
 		return 1;
 	}
-	strncpy(addr.sun_path, g_sockpath, sizeof(addr.sun_path) - 1);
+		/* sun_path is 108 bytes and the path must fit WITH its NUL. The strncpy
+		   form both truncates silently and trips -Wstringop-truncation; check the
+		   length here so the invariant lives in the code, not in the compiler. */
+		if (strlen(g_sockpath) >= sizeof(addr.sun_path)) {
+			fprintf(stderr, "uml4termuxd: socket path too long for sun_path: %s\n",
+				g_sockpath);
+			return 1;
+		}
+		memcpy(addr.sun_path, g_sockpath, strlen(g_sockpath) + 1);
 	if (bind(lfd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
 		logf_("bind %s: %s", g_sockpath, strerror(errno));
 		close(lfd);

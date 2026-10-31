@@ -60,7 +60,17 @@ jobs:
       - name: Build the daemon against glibc
         run: |
           set -euo pipefail
-          cc -O2 -Wall -Wextra -Werror -o "$RUNNER_TEMP/uml4termuxd-glibc" src/uml4termuxd.c
+          # gcc implements two truncation warnings clang does not (-Wformat-truncation,
+          # -Wstringop-truncation); they fired here first, and the answer was not to
+          # silence them but to make truncation impossible: the daemon now builds its
+          # paths through path_fmt(), which refuses to start when a path does not fit
+          # (the kernel's ubd0= option takes two user-supplied paths and was the one
+          # that could really overflow), and the socket path is checked against
+          # sun_path's 108 bytes before it is copied. gcc still cannot see either
+          # invariant, so the two warnings are disabled by name, per invocation, with
+          # this reason attached rather than globally.
+          cc -O2 -Wall -Wextra -Werror -Wno-format-truncation -Wno-stringop-truncation \
+            -o "$RUNNER_TEMP/uml4termuxd-glibc" src/uml4termuxd.c
           bash ci/glibc/classify.sh "$RUNNER_TEMP/uml4termuxd-glibc"
 
       - name: Runtime contract v1 against the glibc daemon
