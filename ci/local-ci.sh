@@ -322,6 +322,11 @@ run_meta "shell: snapshot & resume (direction C)" '
   bash '"$ROOT"'/tests/test-snapshot.sh >/dev/null
 '
 
+run_meta "python: /proc parser past a comm with ')'" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-procstat.sh >/dev/null
+'
+
 run_meta "python: console stamper (boot timeline)" '
   set -euo pipefail
   bash '"$ROOT"'/tests/test-console-stamp.sh >/dev/null
