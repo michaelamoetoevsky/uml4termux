@@ -143,8 +143,9 @@ _bundle_export() {
   local version; version="$(cat "${UML4TERMUX_ROOT}/VERSION" 2>/dev/null || printf 'unknown')"
   uml4termux_bundle_manifest_write "${work}" "${version}" >/dev/null
 
-  ( cd "${work}" && tar -cf "${out}.tmp" manifest.json kernel image $( [ -f cow ] && printf 'cow' ) ) \
-    || die "bundle export: tar failed"
+  local files=(manifest.json kernel image)
+  [ -f "${work}/cow" ] && files+=(cow)
+  ( cd "${work}" && tar -cf "${out}.tmp" "${files[@]}" ) || die "bundle export: tar failed"
   mv -f "${out}.tmp" "${out}"
   printf 'bundle: %s (%s bytes)\n' "${out}" "$(wc -c < "${out}" | tr -d ' ')"
 }
