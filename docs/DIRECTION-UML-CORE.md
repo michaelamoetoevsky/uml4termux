@@ -81,14 +81,16 @@ The console channel was the standing instability: a request that was never read,
 fell back to signals, a teardown that cost 20 s. That is closed, and the mechanism now has a test
 path (`__AGENT_READY__`, `__AGENT_GOT__`, `clean shutdown landed`).
 
-What is left is **regression pressure**: the guest script changed substantially (agent first, async
-eval, pull-if-missing, log truncation, readiness markers) and the last full soak predates all of it.
-A 90-cycle soak costs ~2 hours of device time, so it belongs in a bounded run, not in a working
-session — but it must happen before the next release, because the boot path it exercises is new.
+**Measured checkpoint:** a bounded soak with the current guest script completed **20/20 cycles**
+in **42.9 minutes**: 0 failed cycles, 0 leftover processes, backing image unchanged, dockerd and
+container completion 20/20, daemon RSS trend **-0.6%**. Evidence: `evidence/20261101-soak-console-channel.json`.
+This is a regression PASS for the cycle path, not the full release gate: the record's
+`restart_checked` is `false`, so a deliberate mid-run `down` remains outstanding. A 90-cycle soak
+costs ~2 hours of device time; run it only as a bounded background job before release.
 
-**Done looks like:** one soak with the new guest script (cycle count chosen to finish inside the
-interruption horizon), 0 failed cycles, RSS trend recorded, and one deliberate mid-run `down` to
-prove the clean halt holds under load.
+**Done looks like:** the bounded soak remains green, plus one deliberate mid-run `down` proves the
+clean halt holds under load. If the release policy still requires 90 cycles, record that longer run
+separately; do not infer it from this 20-cycle result.
 
 ## Order
 

@@ -2,32 +2,31 @@
 
 Termux's packaging policy asks for "active, well-known projects with an established
 community". That is a real requirement with an automated shadow, so this file keeps the
-numbers rather than an opinion. Everything below was read from the GitHub API on
-**2026-10-31**; the commands are included so the numbers can be re-measured instead of
-trusted.
+numbers rather than an opinion. The initial baseline was read from the GitHub API on **2026-10-31**;
+the latest snapshot below was re-measured on **2026-11-01**. Commands are included so numbers
+can be re-measured instead of trusted.
 
 ## Baseline
 
 | Signal | Value | How it was read |
 |---|---|---|
-| stars | **0** | `GET /repos/michaelamoetoevsky/uml4termux` → `stargazers_count` |
+| stars | **1** | `GET /repos/michaelamoetoevsky/uml4termux` → `stargazers_count`; checkpoint 2026-11-01 |
 | forks | **0** | → `forks_count` |
 | watchers | **1** | → `subscribers_count` |
 | contributors | **1** (`michaelamoetoevsky`) | `GET /repos/.../contributors` |
-| repository age | **5.75 days** (created `2026-10-25T23:53:35Z`) | → `created_at` |
+| repository age | **6.45 days** (created `2026-10-25T23:53:35Z`) | → `created_at`; checkpoint 2026-11-01 |
 | releases | **5** | `GET /repos/.../releases` |
-| release asset downloads | **88** (v0.5.0: 60, v0.4.0: 10, v0.2.0: 7, v0.3.0: 6, v0.1.0: 5) | → `assets[].download_count`, re-measured 18:11 UTC |
-| views, 14 days | **377** (6 unique) | `GET /repos/.../traffic/views` |
-| clones, 14 days | **963** (166 unique) | `GET /repos/.../traffic/clones` |
-| referrers | `github.com` 50 | `GET /repos/.../traffic/popular/referrers` |
+| release asset downloads | **97** (v0.5.0: 69, v0.4.0: 10, v0.3.0: 6, v0.2.0: 7, v0.1.0: 5) | → `assets[].download_count`; checkpoint 2026-11-01 |
+| views, 14 days | **431** (10 unique) | `GET /repos/.../traffic/views`; checkpoint 2026-11-01 |
+| clones, 14 days | **1,438** (242 unique) | `GET /repos/.../traffic/clones`; checkpoint 2026-11-01 |
+| referrers | `github.com` 64, `search.brave.com` 1 | `GET /repos/.../traffic/popular/referrers`; checkpoint 2026-11-01 |
 | topics | **10, set 2026-10-31** (was empty) | `GET /repos/...` → `topics` |
 | external issues opened by others | 0 | `GET /repos/.../issues?state=all` |
 | external PRs from others | 0 | `GET /repos/.../pulls?state=all` |
 
-Read honestly: 76 downloads and one contributor is a project that a few people have run and
-nobody else has worked on. 166 unique clones in fourteen days sounds better than it is —
-most of them are CI runners cloning for a workflow. The unique-view count (6) is the
-uncomfortable one, and it is the number to move first.
+Read honestly: 97 asset downloads and one contributor is a project that a few people have run
+and nobody else has worked on. 242 unique clones in fourteen days include CI runners; they are
+not equivalent to 242 users. The unique-view count (10) remains the adoption signal to move first.
 
 ## The gate, as arithmetic
 
@@ -99,3 +98,26 @@ curl -sS -H "Authorization: Bearer $T" https://api.github.com/repos/michaelamoet
 
 If a number in this file and a number from those commands disagree, the commands win — and
 the file gets corrected in the same commit, not annotated underneath.
+
+---
+
+## 2026-11-01 checkpoint
+
+Latest API measurement: **stars=1**, forks=0, watchers=1, age=6.45 days. The repository is public.
+The gate remains active because `age_days < 60` and `stars < 10`; it opens on **2026-12-24**
+by calendar or earlier at **stars>=10**. Evidence: `evidence/adoption-20261101.json`.
+
+| Signal | Latest value | Evidence |
+|---|---:|---|
+| release asset downloads | **97** | v0.5.0: 69; v0.4.0: 10; v0.3.0: 6; v0.2.0: 7; v0.1.0: 5 |
+| views, 14 days | **431** (10 unique) | GitHub traffic API |
+| clones, 14 days | **1,438** (242 unique) | GitHub traffic API |
+| referrers | `github.com` 64; `search.brave.com` 1 | GitHub traffic API |
+| contributors | **1** | GitHub contributors API |
+| external issues | **0** | GitHub issues API |
+
+Session hygiene was previously verified: `$TMPDIR` 16G→162M; uml4termux home 1.5G→264M.
+Round-trip was verified: guest boot → dockerd ready → alpine pull OK → stop RC5=0 → service restart.
+Dynamic PID and service age are intentionally omitted; re-read them at resume.
+
+Resume checklist: see `docs/PROGRESS-20261101.md`.

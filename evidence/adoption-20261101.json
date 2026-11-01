@@ -1,0 +1,81 @@
+{
+  "measured_at": "2026-11-01T10:43:24Z",
+  "repo": "michaelamoetoevsky/uml4termux",
+  "created_at": "2026-10-25T23:53:35Z",
+  "age_days": 6.45,
+  "stars": 1,
+  "forks": 0,
+  "watchers": 1,
+  "topics": [
+    "android",
+    "arm64",
+    "containers",
+    "docker",
+    "linux-kernel",
+    "proot-alternative",
+    "rootless",
+    "termux",
+    "user-mode-linux",
+    "virtualization"
+  ],
+  "license": "GPL-2.0",
+  "contributors": 1,
+  "contributor_logins": [
+    "michaelamoetoevsky"
+  ],
+  "releases": [
+    {
+      "tag": "v0.5.0",
+      "created": "2026-10-29",
+      "downloads": 69
+    },
+    {
+      "tag": "v0.4.0",
+      "created": "2026-10-28",
+      "downloads": 10
+    },
+    {
+      "tag": "v0.3.0",
+      "created": "2026-10-27",
+      "downloads": 6
+    },
+    {
+      "tag": "v0.2.0",
+      "created": "2026-10-26",
+      "downloads": 7
+    },
+    {
+      "tag": "v0.1.0",
+      "created": "2026-10-25",
+      "downloads": 5
+    }
+  ],
+  "downloads_total": 97,
+  "views_14d": {
+    "count": 431,
+    "uniques": 10
+  },
+  "clones_14d": {
+    "count": 1438,
+    "uniques": 242
+  },
+  "referrers": [
+    [
+      "github.com",
+      64
+    ],
+    [
+      "search.brave.com",
+      1
+    ]
+  ],
+  "external_issues": 0,
+  "external_issue_numbers": [],
+  "gate": {
+    "rule": "closed while owner == author AND age_days < 60 AND stars < 10",
+    "is_new": true,
+    "low_stars": true,
+    "gate_clears_on_date": "2026-12-24",
+    "stars_needed": 9
+  }
+}

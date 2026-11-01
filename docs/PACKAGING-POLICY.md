@@ -18,7 +18,7 @@ Quoted from [`CONTRIBUTING.md` § Packaging policy](https://github.com/termux/te
 
 | Clause | Status | Evidence |
 |---|---|---|
-| Must be active, well-known project with an established community | **not met yet** | 0 stars, 0 forks, 1 watcher, 5.75 days old — see `docs/ADOPTION.md` for the arithmetic and the date this stops mattering |
+| Must be active, well-known project with an established community | **not met yet** | 1 star, 0 forks, 1 watcher, 6.45 days old — see `docs/ADOPTION.md` for the arithmetic and the date this stops mattering |
 | Widely recognised open-source licence | **met** | `TERMUX_PKG_LICENSE=GPL-2.0-only`; GitHub reports `GPL-2.0`; licence list check in their linter: PASS |
 | Not installable through a language package manager | **met** | it is not on crates.io, npm or PyPI; the Rust front end is built from this repository's own sources and ships in its release |
 | Resulting package under 100 MiB | **met by three orders of magnitude** | release tarball 222 203 B; the ~1.5 GB runtime is fetched on first use with pinned digests, not packaged |
@@ -42,13 +42,14 @@ if same_owner and is_new and low_stars:
     # comment, label "invalid", close the PR
 ```
 
-Our inputs, read from the API on 2026-10-31:
+Our initial inputs, read from the API on 2026-10-31; the latest snapshot is in
+`evidence/adoption-20261101.json`:
 
 | Input | Value | Threshold | Verdict |
 |---|---|---|---|
 | `owner == PR author` | `michaelamoetoevsky` | — | true, and not changeable |
-| `age_days` | 5.75 (created `2026-10-25T23:53:35Z`) | `< 60` | **true until 2026-12-24** |
-| `stargazers_count` | 0 | `< 10` | true |
+| `age_days` | 6.45 (created `2026-10-25T23:53:35Z`) | `< 60` | **true until 2026-12-24** |
+| `stargazers_count` | 1 | `< 10` | true |
 
 So the gate fires on **all three**, and it stops firing when **either** the repository is 60
 days old (**2026-12-24**) **or** it has 10 stars. Both are facts, not arguments. Note the
