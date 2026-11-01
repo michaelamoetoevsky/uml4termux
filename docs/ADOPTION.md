@@ -14,9 +14,9 @@ can be re-measured instead of trusted.
 | forks | **0** | → `forks_count` |
 | watchers | **1** | → `subscribers_count` |
 | contributors | **1** (`michaelamoetoevsky`) | `GET /repos/.../contributors` |
-| repository age | **6.45 days** (created `2026-10-25T23:53:35Z`) | → `created_at`; checkpoint 2026-11-01 |
+| repository age | **6.49 days** (created `2026-10-25T23:53:35Z`) | → `created_at`; checkpoint 2026-11-01 |
 | releases | **5** | `GET /repos/.../releases` |
-| release asset downloads | **97** (v0.5.0: 69, v0.4.0: 10, v0.3.0: 6, v0.2.0: 7, v0.1.0: 5) | → `assets[].download_count`; checkpoint 2026-11-01 |
+| release asset downloads | **99** (v0.5.0: 71, v0.4.0: 10, v0.3.0: 6, v0.2.0: 7, v0.1.0: 5) | → `assets[].download_count`; checkpoint 2026-11-01 |
 | views, 14 days | **431** (10 unique) | `GET /repos/.../traffic/views`; checkpoint 2026-11-01 |
 | clones, 14 days | **1,438** (242 unique) | `GET /repos/.../traffic/clones`; checkpoint 2026-11-01 |
 | referrers | `github.com` 64, `search.brave.com` 1 | `GET /repos/.../traffic/popular/referrers`; checkpoint 2026-11-01 |
@@ -24,7 +24,7 @@ can be re-measured instead of trusted.
 | external issues opened by others | 0 | `GET /repos/.../issues?state=all` |
 | external PRs from others | 0 | `GET /repos/.../pulls?state=all` |
 
-Read honestly: 97 asset downloads and one contributor is a project that a few people have run
+Read honestly: 99 asset downloads and one contributor is a project that a few people have run
 and nobody else has worked on. 242 unique clones in fourteen days include CI runners; they are
 not equivalent to 242 users. The unique-view count (10) remains the adoption signal to move first.
 
@@ -103,13 +103,13 @@ the file gets corrected in the same commit, not annotated underneath.
 
 ## 2026-11-01 checkpoint
 
-Latest API measurement: **stars=1**, forks=0, watchers=1, age=6.45 days. The repository is public.
+Latest API measurement: **stars=1**, forks=0, watchers=1, age=6.49 days. The repository is public.
 The gate remains active because `age_days < 60` and `stars < 10`; it opens on **2026-12-24**
 by calendar or earlier at **stars>=10**. Evidence: `evidence/adoption-20261101.json`.
 
 | Signal | Latest value | Evidence |
 |---|---:|---|
-| release asset downloads | **97** | v0.5.0: 69; v0.4.0: 10; v0.3.0: 6; v0.2.0: 7; v0.1.0: 5 |
+| release asset downloads | **99** | v0.5.0: 71; v0.4.0: 10; v0.3.0: 6; v0.2.0: 7; v0.1.0: 5 |
 | views, 14 days | **431** (10 unique) | GitHub traffic API |
 | clones, 14 days | **1,438** (242 unique) | GitHub traffic API |
 | referrers | `github.com` 64; `search.brave.com` 1 | GitHub traffic API |

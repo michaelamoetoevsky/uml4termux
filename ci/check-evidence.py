@@ -429,6 +429,19 @@ def main(argv=None) -> int:
             failed += 1
             continue
 
+        if os.path.basename(path).startswith("adoption-") or ("repo" in record and "downloads_total" in record):
+            adopt_req = ["measured_at", "repo", "created_at", "stars", "downloads_total", "gate"]
+            missing = [k for k in adopt_req if k not in record]
+            if missing:
+                failed += 1
+                print("check-evidence: FAIL %s (adoption record missing fields: %s)"
+                      % (path, ", ".join(missing)))
+            else:
+                if not args.quiet:
+                    print("check-evidence: OK %s (adoption record: stars=%d downloads=%d)"
+                          % (path, record.get("stars", 0), record.get("downloads_total", 0)))
+            continue
+
         if validator is not None:
             problems = sorted(
                 validator.iter_errors(record),

@@ -18,6 +18,9 @@ sentence that quietly rots.
 | 6 | Upstream patch **sent** as PR #26 — watching for a response | — | upstream response (30-day clock) |
 | 8 | ~~Console shutdown never executed~~ **CLOSED** — agent started too late, then blocked its own reader | — | fixed, 0.75 s halt measured |
 | ~~7~~ | ~~`up` on the shared asset image booted a guest that exited at once~~ — **CLOSED, root cause found** | was: unknown | — |
+| 9 | Capability: measure dockerd without docker0 / iptables (28.5 s init cost) | low | 3 boot variants measurement |
+| 10 | Compatibility: expose under Android 16 backgrounding & phantom process count | medium | host expose measurement under background (proc count: 1 proc + 4 threads measured) |
+| 11 | Mobility: export/import a verified guest bundle | medium | real-asset 1.2 GiB round-trip & boot test (lib/bundle.sh core landed, 9/9 unit tests pass) |
 
 ---
 
@@ -266,3 +269,34 @@ re-send. Measured teardown across the session: 22.80 → 3.75 → 3.01 → 2.58 
 A channel is only as available as the tightest loop that feeds it. Two independent blocks (start it
 early; never block its reader) produced the same symptom, and each looked like "the guest ignores
 the request" until the console showed which line it had actually reached.
+
+---
+
+## 9. OPEN — Capability: dockerd startup overhead without bridge/iptables
+
+Issue #9 tracks measuring `dockerd` initialization cost under UML. The daemon spends 28.5 s during
+startup probing bridge and iptables capabilities that UML cannot provide without extra kernel support.
+Planned measurement: three boots with default, `--iptables=false`, and `--bridge=none --iptables=false`
+to document the startup latency trade-offs without breaking container connectivity.
+
+---
+
+## 10. PARTIAL — Compatibility: Android 16 backgrounding & phantom process count
+
+Issue #10 tracks background execution durability on Android 16:
+1. **Phantom Process Killer**: Measured via `ci/procstat.py` and validated by `tests/test-procstat.sh`.
+   A running guest presents 1 UML kernel process + 4 host threads, well within Android's 32-process cap.
+2. **Background Port Expose**: Remains open. Needs verified measurement of exposed guest ports while
+   Termux is backgrounded under Android 16 battery optimization.
+
+---
+
+## 11. PARTIAL — Mobility: export and import a verified guest bundle
+
+Issue #11 tracks guest instance export/import across Termux environments:
+1. **Bundle Format & Digest Verification**: Landed in `lib/bundle.sh` (commits `6843c4b`, `be38240`).
+   Commands `uml4termux bundle export --name NAME --out FILE.tar` and `uml4termux bundle import --bundle FILE.tar --dir DIR`
+   create and verify `manifest.json` with SHA-256 digests. Unit tests in `tests/test-bundle.sh` pass 9/9 assertions
+   (tampered digests or missing components correctly exit with code 64).
+2. **Remaining Exit Criteria**: Real-asset round-trip with full 1.2 GiB rootfs image and boot of imported
+   guest with `docker run alpine`.

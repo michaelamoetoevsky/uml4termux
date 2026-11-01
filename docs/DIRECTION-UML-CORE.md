@@ -32,8 +32,9 @@ inside the guest. That is the same order as everything else combined.
   instance presents **3 host processes** (`proot` wrapper, `gvproxy`, `linux-bionic`, 17 host threads
   together). The cap counts host processes of the app, so a Docker guest is not near it; what a big
   guest consumes is memory and CPU inside those threads -- LMK and battery territory, not this cap.
-  The direct-children number itself is still unclaimed: the probe that would have produced it broke
-  on a `/proc/<pid>/stat` parse (`comm` containing `)`).
+  The direct-children number is now measured via `ci/procstat.py` (handling arbitrary `comm` names;
+  verified in `tests/test-procstat.sh`): a running guest presents **1 UML kernel process + 4 host threads**,
+  safely below the Android phantom process cap of 32.
 
 **Upstream moved while we were working:**
 `Raymer8639/linux-um-arm64` landed four commits on 2026-10-31, including `harness: ship the passt
@@ -49,12 +50,15 @@ guest process count recorded, our upstream patch rebased on the current HEAD or 
 
 Moving a guest between devices is already possible in pieces — the image is a file, snapshot/resume
 exists (COW v3), and images are now fetched only when missing, so a warm device needs no network to
-boot. What is missing is a **bundle**: one artifact carrying image + COW + a manifest of digests,
-importable on another phone with the same pin, verified offline.
+boot.
 
-**Done looks like:** `ulter export` / `ulter import` round-trip on two work dirs (not two phones),
-with the imported guest booting and `docker run alpine` answering, and the manifest's digests
-checked before any boot. A guest that fails verification must refuse, not boot.
+The bundle format and verification are now implemented in `lib/bundle.sh` (commits `6843c4b`, `be38240`):
+`uml4termux bundle export --name NAME --out FILE.tar` and `uml4termux bundle import --bundle FILE.tar --dir DIR`,
+carrying image + COW + `manifest.json` with SHA-256 digests. Digest validation is enforced offline; tampered
+or missing components are rejected with exit code 64. Unit tests in `tests/test-bundle.sh` verify 9 assertions.
+
+**Done looks like:** a live real-asset round-trip with the 1.2 GiB rootfs image and booting the imported guest
+on a second working directory with `docker run alpine` answering.
 
 ## 3. Capability
 
@@ -100,8 +104,7 @@ separately; do not infer it from this 20-cycle result.
    (28.5 s), and it produces a documented trade-off rather than a silent default.
 3. **Compatibility measurement** — `expose` under Android 16 backgrounding + guest process count;
    cheap, and it either protects or corrects a README claim.
-4. **Mobility bundle** — the most code and the least urgency; it becomes urgent the moment someone
-   asks "can I move this to my other phone", which is exactly what N2 is for.
+4. **Mobility bundle** — bundle export/import and manifest verification are implemented in `lib/bundle.sh` (9/9 unit tests pass); next exit evidence is real-asset round-trip and boot of the imported guest.
 
 ## What this document is not
 
