@@ -86,11 +86,11 @@ harness: refuse a second boot on a backing image another UML holds
 
 ---
 
-## What I would send, in order
+## What was sent (completed 2026-10-31)
 
-1. Fork `Raymer8639/linux-um-arm64` (public).
-2. Branch `harness/image-lock` from `um-arm64`, commit the patch with the message
-   above as the body (their commit prefixes are `harness:`, `evidence:`, `release:`).
-3. Open the PR with the body above, and link `docs/ISSUES.md` item 6 here for context.
-4. If no response in 30 days, record it and stay on F1 — the project already builds,
-   pins and tests the kernel it ships, so nothing here blocks a release.
+1. Forked `Raymer8639/linux-um-arm64`.
+2. Branched `harness/image-lock` from `um-arm64`, committed the patch with the message
+   above as the body.
+3. Opened PR #26 (https://github.com/Raymer8639/linux-um-arm64/pull/26) linking
+   `docs/ISSUES.md` item 6 for context.
+4. Tracking upstream response until 2026-11-30; project remains on F1 independently.

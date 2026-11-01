@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   policy clause by clause, the measured adoption baseline, and what maintainers actually weigh
   (sampled from 12 merged `new package:` PRs).
 - `bin/uml4termux` reports a version it reads from `VERSION` instead of three hardcoded ones.
+- `lib/bundle.sh` & `bin/uml4termux bundle export/import` — portable instance packaging with SHA256 manifest verification and digest checking, backed by `tests/test-bundle.sh` (9/9 passed).
+- 20/20 console soak evidence (`evidence/20261101-soak-console-channel.json`) — 20 repeat boots and shutdowns through PTY console channel without hung state or kernel panic.
+- Process count model clarification: 102 guest processes map to 1 host kernel process + 4 host worker threads, well below Android's 32 phantom process threshold (`ci/procstat.py`, `tests/test-procstat.sh`).
 
 ### Changed
 - **`up` refuses an image another guest holds** (`F_GETLK`, `rc=2`, holder's pid named) instead

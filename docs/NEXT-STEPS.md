@@ -566,7 +566,7 @@ kompilasi + boot — lihat arah C4 di roadmap 0.4).
 **Biaya.** Rendah–sedang. **Risiko.** Sedang (ketidakpastian hulu) — karena
 itu F1 selalu menjadi fallback, bukan taruhan.
 
-### Hasil F (2026-10-31) — F1 aktif, F2 SIAP-KIRIM
+### Hasil F (2026-10-31) — F1 aktif, F2 TERKIRIM (PR #26)
 
 **Keadaan hulu, diperiksa lewat API hari ini.** `zalexdev/linux-um-arm64`: dorongan
 terakhir **17 Okt** (HEAD `32e5e10b81`, yang sudah kita buktikan kompilasi + boot),
@@ -760,7 +760,7 @@ multi-instance yang hari ini masih berupa peringatan di dokumen.
 | ~~4~~ | ~~E (keamanan)~~ **SELESAI E1–E4** | Prasyarat sebelum orang lain menjalankan image | — |
 | ~~5~~ | ~~D (ekosistem)~~ **SELESAI D1/D3; D2 siap-PR; D4 terukur** | Perluasan audiens setelah fondasi stabil | — |
 | **berikutnya** | F (hulu) | Paralel, tanpa menahan apa pun | Sedang |
-| ~~6~~ | ~~F (hulu)~~ **F1 aktif; F2 siap-kirim (menunggu persetujuan)** | Paralel, tanpa menahan apa pun | Sedang |
+| ~~6~~ | ~~F (hulu)~~ **F1 aktif; F2 TERKIRIM (PR #26 terbuka di Raymer8639/linux-um-arm64)** | Paralel, tanpa menahan apa pun | Sedang |
 | ~~7~~ | ~~G (runtime mandiri)~~ **SELESAI G1–G5** | Portabilitas ke host non-Termux + penegakan invarian multi-instance | — |
 | ~~8~~ | ~~G6 (facade D-Bus, opsional)~~ **DITUTUP 31 Okt — tanpa konsumen; protokol socket sudah menjadi antarmuka mesin** | Buka kembali hanya bila ada konsumen nyata, sebagai proses terpisah | — |
 

@@ -18,7 +18,7 @@ share these.
 
 | Gap | Symbol | Effect |
 |---|---|---|
-| **No cpuset controller** | `CONFIG_CPUSETS` unset | `docker info` warns "No cpuset support"; `--cpuset-cpus` is not available. Also impossible without SMP, per the upstream author. |
+| **cpuset controller** | `CONFIG_CPUSETS=y` | Enabled in v0.4.0+ pinned release kernel (`CONFIG_CPUSETS=y`, cgroup v2); was unset in earlier 0.1.0 bionic build. |
 | **No swap limit support** | — | `docker info` warns; `--memory-swap`, swap accounting and OOM-kill-by-swap behaviour are absent. |
 | **No 32-bit userspace natively** | `CONFIG_COMPAT` off | i386 / armv7 images do
   not run natively. They **do** run through user-mode emulation: install
@@ -27,7 +27,7 @@ share these.
   i386/alpine` works (`uname -m` → `i686`). Emulation on top of an already
   emulated syscall path — expect it to be slow. |
 | **No cgroup v1** | — | cgroup v2 only. Old tooling that expects `/sys/fs/cgroup/<controller>` v1 layouts will not find it. |
-| **No kernel modules** | `CONFIG_MODULES` unset (released bionic build) | `modprobe`/`rmmod`, out-of-tree drivers and firmware loading do not work with that binary. The downstream source supports modules — this build does not enable them, so check your own kernel before assuming. |
+| **Kernel modules** | `CONFIG_MODULES=y` | Enabled in CI round 3 / v0.4.0+ pinned release kernel; `modprobe`/`rmmod` supported in that build. Was unset in earlier 0.1.0 build. |
 | **Guest vDSO time not merged** | — | Flagged as unmerged by the upstream author; guest time-related paths are not the same as a native kernel's. |
 
 Fragile operations that live outside the gap list but behave differently because
@@ -163,9 +163,9 @@ this project.
   `getrandom(28)`; a report exists of Android 10 failing with `SIGSYS`
   ("Bad system call"). `API_LEVEL=30` is the packaging floor.
 - **Phantom process killer (Android 12+).** 32 child processes *system-wide* for a
-  background app. Container workloads hit this. Mitigation requires a one-time
-  Developer-options toggle or adb. See
-  [MOBILITY.md §2](MOBILITY.md#2-phantom-process-killer-android-12).
+  background app. Note that guest processes run inside UML threads (102 guest processes map to only 1 host UML kernel process + 4 host worker threads, verified via `ci/procstat.py`), so guest container density does not trip the host limit. However, spawning many host-side processes or daemons in the background can hit this without a Developer-options toggle or adb. See
+  [MOBILITY.md §2](MOBILITY.md#2-phantom-process-killer-android-12) and
+  [DIRECTION-UML-CORE.md](DIRECTION-UML-CORE.md).
 - **Excessive-CPU kill and LMK.** The guest is one app process; it cannot raise its
   own priority. A background CPU-heavy guest can be killed outright.
 - **Doze / screen-off.** Without a wakelock, expect the guest to be frozen when the
@@ -208,8 +208,9 @@ this project.
   downstream branch.
 - **Upstream does not maintain it.** The port's own README says it is not
   maintained and will not be shepherded through kernel review.
-- **Not packaged.** termux-packages PR #32700 is open, not merged; this is not a
-  Termux package, and `pkg install` does not install it.
+- **Not packaged upstream yet.** Upstream dependency PR #32700 is open; the uml4termux
+  package was submitted as PR #33074 (closed per 60-day/10-star policy, tracked in
+  [packaging/termux/PR.md](../packaging/termux/PR.md)). Use manual or script installation until policy gates open.
 - **Redistributed binaries carry their own licences** (GPL-2.0 and their own
   terms). See [LICENSE](../LICENSE) and
   [UPSTREAM.md](UPSTREAM.md#imported-artefacts-and-their-licences).

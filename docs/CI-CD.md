@@ -154,10 +154,10 @@ are:
 
 ### 4.2 The contract
 
-- One directory per run: `evidence/<run-id>/` containing `evidence.json` plus the
-  sanitised logs it names. The naming scheme is fixed in
+- Stored as flat evidence files: `evidence/<run-id>.json` plus associated logs in
+  `evidence/logs/`. The naming scheme is fixed in
   [../evidence/README.md](../evidence/README.md).
-- `evidence.json` must validate against [../evidence/schema.json](../evidence/schema.json).
+- Every `evidence/*.json` file must validate against [../evidence/schema.json](../evidence/schema.json).
 - **The verdict is the marker string, never the exit status.** A run whose script
   exited 0 but whose `evidence` string never appeared is a **FAIL**. A run whose
   script exited non-zero but whose `evidence` appeared is a PASS *with a note*.
@@ -165,7 +165,7 @@ are:
   then dies badly (gvproxy exiting on BESS EOF is exactly that shape), and because
   a timeout wrapper can turn a live guest into a non-zero exit.
 - Every capability probe declares an `ok` boolean and an `evidence` string; the
-  log file that contains the evidence is part of the run directory.
+  log file that contains the evidence is stored under `evidence/logs/`.
 - Sanitisation is mandatory and recorded in `notes` (or `known_limits_observed`
   for limits), so a reviewer knows what was removed rather than trusting that
   nothing was.

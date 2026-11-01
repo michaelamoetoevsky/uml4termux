@@ -96,9 +96,9 @@ Practical alternatives:
   Artix-style), then run services directly.
 - If you specifically need systemd *inside a container*, that is a different
   question from guest PID 1 — and it is **[unverified]** here; systemd in a
-  container wants cgroup delegation and a writable cgroup hierarchy, and this
-  guest has no cpuset controller (`CONFIG_CPUSETS` unset) and no swap limit
-  support, both of which systemd-related tooling tends to complain about.
+  container wants cgroup delegation and a writable cgroup hierarchy, and while
+  the v0.4.0+ pinned release kernel enables `CONFIG_CPUSETS=y`, swap limit
+  support remains absent, both of which systemd-related tooling tends to complain about.
 
 Also note the ground rules if you try: never `exit` the guest (`poweroff -f`), and
 `con=null con0=null,fd:1` is mandatory.
@@ -176,8 +176,8 @@ What that means in practice:
 
 - A multi-arch image whose manifest expects an armv7 or i386 layer will fail.
 - The workaround is qemu-user + binfmt_misc **inside the guest**, i.e. emulation
-  layered on top of an already-emulated syscall path — slow, and **[unverified]**
-  here (it was not tested).
+  layered on top of an already-emulated syscall path — slow, but **[verified in capability round 2]**
+  (`qemu-user-static` + binfmt_misc running `i386/alpine`, `uname -m` → `i686`).
 - 64-bit (aarch64, x86_64-via-emulation is a separate matter) images are the
   supported case.
 
@@ -227,14 +227,16 @@ Rules of thumb:
 - The guest is a single Android process and cannot raise its own priority, so
   there is no "nice it down" escape hatch.
 - Remember the phantom-process budget (**32 child processes system-wide** for a
-  background app on Android 12+) — a container density that would be trivial on a
-  server can trip it.
+  background app on Android 12+). Guest container processes run inside UML threads
+  and do not count as host processes (102 guest processes map to only 1 host kernel
+  process + 4 host threads, verified in `ci/procstat.py`), but spawning multiple
+  host-side processes or daemons in the background can hit it.
 
 ## Why is Docker's storage driver overlay2 — do I need to configure anything?
 
 No. **[verified here]** On a docker-capable kernel it is automatic:
 `Storage Driver: overlay2`, `Backing Filesystem: extfs`,
-`Native Overlay Diff: true`, cgroup v2 with controllers `cpu io memory pids`.
+`Native Overlay Diff: true`, cgroup v2 with controllers `cpu io memory pids` (and `cpuset` on v0.4.0+ pinned kernel).
 
 The one thing to check is that your kernel *is* docker-capable — one of the three
 shipped binaries is not. Verify with
@@ -288,9 +290,7 @@ through that path.
 ## Is there a Termux package? Can I `pkg install` it?
 
 **Not yet.** **[verified here as an ecosystem fact]** termux-packages PR #32700
-(open, not merged) would add `linux-kernel-um` (56 aarch64 patches plus a Docker
-config fragment) and `passt` (13 Android patches), at API level 30. Until it is
-merged, this is not a Termux package and `pkg install` will not install it.
+(open, not merged) covers the upstream `linux-kernel-um` and `passt` dependencies; the `uml4termux` package itself was submitted as PR #33074 (closed per 60-day/10-star policy, tracked in [packaging/termux/PR.md](../packaging/termux/PR.md)). Until upstream gates open, this is not in the official Termux repo and `pkg install` will not install it.
 
 The historical position in that repository — "UML is x86-only, wontfix" — is
 recorded in Discussion #8555 (2022); the PR is the answer to it. See

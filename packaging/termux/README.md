@@ -41,7 +41,7 @@ pkg install ./uml4termux_*_aarch64.deb
 When merging this into termux-packages:
 
 1. Place `build.sh` at `packages/uml4termux/build.sh`
-2. Update `TERMUX_PKG_VERSION` to the release tag (e.g., `0.1.0`)
+2. Update `TERMUX_PKG_VERSION` to the release tag (e.g., `0.5.0`)
 3. Replace `TERMUX_PKG_SHA256` with the actual checksum of the GitHub release tarball
 4. Once `linux-kernel-um` and `passt` are in the main repo, uncomment:
    ```sh

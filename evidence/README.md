@@ -48,27 +48,24 @@ Practical consequences:
 
 ## 2. Layout and naming scheme
 
-One directory per run, one run per directory:
+Evidence records are stored as flat JSON files under `evidence/` with associated logs in `evidence/logs/`:
 
 ```
 evidence/
 ├── README.md
-├── schema.json          (see §4 for its structure)
-├── 2026-10-26-android16-aarch64-runbook/
-│   ├── evidence.json      validated against schema.json
-│   ├── boot.log           kernel boot, includes the Userspace mode line
-│   ├── guest.log          guest-side checks and their markers
-│   ├── gvproxy.log        gvproxy lifecycle (including any EOF exit)
-│   └── host.log           host-side commands and their output
-└── 2026-10-25-android16-aarch64-config-matrix/
-    ├── evidence.json
-    └── guest.log
+├── schema.json                    (see §4 for its structure)
+├── <run-id>.json                  (e.g. 20261026-capability-round-2.json)
+├── adoption-<date>.json           (adoption metrics baseline)
+└── logs/
+    ├── <run-id>.boot.log          kernel boot log
+    ├── <run-id>.guest.log         guest-side probe log
+    └── <run-id>.host.log          host-side command log
 ```
 
 **Naming scheme:**
 
 ```
-evidence/<YYYY-MM-DD>-android<API>-<arch>-<slug>/
+evidence/<YYYY-MM-DD>-android<API>-<arch>-<slug>.json
 ```
 
 - `<YYYY-MM-DD>` — date the run was **executed** (not the date of the commit).
@@ -82,13 +79,12 @@ evidence/<YYYY-MM-DD>-android<API>-<arch>-<slug>/
 If the same slug runs twice on the same day, suffix `-2`, `-3`, … — never
 overwrite a run. A run is a measurement, and measurements are not edited.
 
-Inside `evidence.json`, `run_id` must equal the directory name exactly. That is the
-one field that ties the JSON to the files, and CI checks it.
+Inside the evidence record, `run_id` matches the artifact identifier, and CI (`ci/check-evidence.py`) validates every `evidence/*.json` file directly against [`schema.json`](schema.json).
 
-## 3. Evidence file: `evidence.json` (schema v1)
+## 3. Evidence file: `evidence/*.json` (schema v1)
 
-The `evidence.json` file in each run directory is the *only* JSON CI validates.
-It conforms to [`schema.json`](schema.json) (JSON Schema draft-07, see §4).
+Each `evidence/*.json` file is validated by CI (`ci/check-evidence.py`).
+Device runs conform to [`schema.json`](schema.json) (JSON Schema draft-07, see §4), while adoption baseline snapshots track repository health metrics.
 
 ### Core required fields
 

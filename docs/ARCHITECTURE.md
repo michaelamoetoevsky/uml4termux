@@ -247,18 +247,18 @@ container ports reachable from the phone. Full reasoning in
 
 ### Console
 
-The kernel command line **must** be:
+The console configuration depends on execution mode:
 
-```
-con=null con0=null,fd:1
-```
+- **Headless automation**: `con=null con0=null,fd:1` (writes guest stdout to fd 1).
+- **Interactive shell**: `con=null con0=fd:0,fd:1` (binds terminal stdin/stdout).
+- **Daemon supervisor**: `con=null con0=pty` (allocates a PTY pair in `src/uml4termuxd.c`).
 
 Rationale, measured: if the console is given a regular-file descriptor, the
 `epoll_ctl` that the console path performs fails with `EPERM` and the console
 dies **silently** — no error, no output. `con=null con0=null,fd:1` keeps the
 console off the kernel's logging path while still giving guest output a usable
-descriptor, which is why the forensics boot logs exist at all. `console=tty0` is
-only relevant if you want a getty prompt from a distribution init.
+descriptor, while PTY mode provides bi-directional streaming for the daemon agent.
+`console=tty0` is only relevant if you want a getty prompt from a distribution init.
 
 ### Init
 

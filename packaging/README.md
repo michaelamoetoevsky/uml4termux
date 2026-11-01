@@ -13,16 +13,16 @@ This document describes the three ways to install `uml4termux`:
 Pick the latest release from: https://github.com/michaelamoetoevsky/uml4termux/releases
 
 ```sh
-# Download the release tarball + checksums
-curl -L -O https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.1.0/uml4termux-0.1.0.tar.gz
-curl -L -O https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.1.0/SHA256SUMS
+# Download the release tarball + checksums (v0.5.0 example)
+curl -L -O https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.5.0/uml4termux-0.5.0.tar.gz
+curl -L -O https://github.com/michaelamoetoevsky/uml4termux/releases/download/v0.5.0/SHA256SUMS
 
 # Verify the tarball
-sha256sum -c SHA256SUMS 2>&1 | grep uml4termux-0.1.0.tar.gz
+sha256sum -c SHA256SUMS 2>&1 | grep uml4termux-0.5.0.tar.gz
 
 # Extract and install (copy mode = self-contained)
-tar -xzf uml4termux-0.1.0.tar.gz
-cd uml4termux-0.1.0
+tar -xzf uml4termux-0.5.0.tar.gz
+cd uml4termux-0.5.0
 ./scripts/install.sh --no-symlink
 
 # Verify

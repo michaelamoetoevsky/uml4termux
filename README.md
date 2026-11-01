@@ -16,8 +16,8 @@ paling penting — **port container bisa diakses dari HP lewat `127.0.0.1`** mem
 (port-forward) hidup bersamaan.
 
 Yang **belum** terbukti: bridge `passt` + `umnet` versi rilis tidak bisa
-meneruskan koneksi masuk (outbound saja), `CONFIG_CPUSETS` tidak ada di guest,
-tidak ada dukungan 32-bit, dan proyek ini bukan sandbox keamanan.
+meneruskan koneksi masuk (outbound saja), swap limit tidak didukung di guest,
+tidak ada dukungan native 32-bit (hanya via qemu-user), dan proyek ini bukan sandbox keamanan.
 
 Titik awal: [60-second quickstart](#60-second-quickstart), lalu
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) dan [docs/FORENSICS.md](docs/FORENSICS.md).
@@ -362,7 +362,7 @@ quoted from an upstream README.
 | Inbound forwarding via released `passt` + `umnet` | **fails (outbound only)** | `umnet` hardcodes `-t none -u none`; patched to `-t 127.0.0.1/8123` it still accepts without forwarding |
 | Multi-CPU with ptrace | **not supported** | 1 CPU only |
 | Run all three released kernels with Docker | **only two of three** | the non-SMP `linux-bionic` lacks `OVERLAY_FS`/`VETH`/`BRIDGE`/`NETFILTER`/`PID_NS`/`USER_NS`/`MEMCG`/`CGROUP_PIDS` |
-| cpuset controller | **absent** | `CONFIG_CPUSETS` not set; `docker info` warns "No cpuset support" |
+| cpuset controller | **supported in v0.4.0+** | `CONFIG_CPUSETS=y` in pinned release kernel (`cgroup v2`); was absent in earlier 0.1.0 build |
 | swap limit support | **absent** | guest kernel gap |
 | 32-bit (i386 / armv7) userspace | **via qemu-user emulation** | native: `CONFIG_COMPAT` off; emulated: `qemu-user-static` + binfmt_misc inside the guest runs `i386/alpine` (`uname -m` → `i686`) |
 | IPv6 container networking | **verified** | two containers on `--ipv6` network ping each other over `fd00:9::/64`, 0% loss both ways (avg 1.8/3.8 ms) |
@@ -464,8 +464,8 @@ filter active, `/proc/sys` not readable.
   `con=null con0=null,fd:1` is required; never `exit` in the guest; `stub_exe=`
   is mandatory; OpenRC as PID 1 hangs; `ip addr add 127.0.0.1/8 dev lo` fails
   with `Address already assigned`.
-- Guest kernel gaps: no `CONFIG_CPUSETS`, no swap limit support, `CONFIG_COMPAT`
-  off (native 32-bit), hostfs exposes host storage.
+- Guest kernel gaps: no swap limit support, `CONFIG_COMPAT`
+  off (native 32-bit), hostfs exposes host storage (`CONFIG_CPUSETS` is enabled in v0.4.0+ pinned release kernel).
 - Capability round 2 (evidence `20261026-capability-round-2.json`): 32-bit
   images run through `qemu-user-static` + binfmt_misc (`i386/alpine` →
   `uname -m` = `i686`); Docker Compose v2.29.7 runs a two-service stack
@@ -505,14 +505,15 @@ filter active, `/proc/sys` not readable.
   comparisons: only the in-app ~2.0 µs/syscall seccomp figure was measured. The
   upstream ratios are quoted, not re-measured.
 - **Docker feature completeness.** swarm, `--cpuset-cpus`, swap limits and
-  anything requiring the cgroup cpuset controller remain unexercised. Compose,
+  advanced storage drivers remain unexercised (`CONFIG_CPUSETS=y` is enabled in v0.4.0+). Compose,
   BuildKit, 32-bit-via-qemu and the memory-limit OOM path *are* now verified
   (see capability round 2); io limits and tmpfs charging are verified gaps.
 - **Any performance claim against proot or QEMU.** Comparative micro-benchmarks
   used for this device were not run by this project; community numbers exist and
   are not reproduced here.
-- **The packaging path.** termux-packages PR #32700 is open, not merged; the
-  project is not a Termux package and `pkg install` does not install it.
+- **The packaging path.** termux-packages PR #32700 is open (dependencies); the
+  `uml4termux` package was submitted as PR #33074 (closed per 60-day/10-star policy, tracked in
+  [packaging/termux/PR.md](packaging/termux/PR.md)). The project is not yet in the official Termux repo and `pkg install` does not install it.
 - **Version, tag and commit conventions** in [docs/CI-CD.md](docs/CI-CD.md) are
   project policy, not measured facts.
 - **The harness CLI surface** (subcommands, flags, file names under `bin/`,
