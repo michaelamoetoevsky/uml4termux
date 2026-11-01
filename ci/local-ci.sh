@@ -239,7 +239,7 @@ run_meta "meta: VERSION/CHANGELOG" '
   set -euo pipefail
   version=$(tr -d " \t\r\n" < '"$ROOT/VERSION"')
   [ -n "$version" ] || exit 1
-  bash '"$ROOT/ci/changelog-extract.sh"' "$version" >/dev/null
+  bash '"$ROOT/ci/changelog-extract.sh"' "$version" 
 '
 
 run_meta "meta: required files" '
@@ -266,7 +266,7 @@ run_meta "meta: workflow YAML structural" '
 
 run_meta "meta: evidence/schema.json valid" '
   set -euo pipefail
-  python3 '"$ROOT/ci/check-evidence.py"' --list-fields >/dev/null
+  python3 '"$ROOT/ci/check-evidence.py"' --list-fields 
 '
 
 # ---------------------------------------------------------------------------
@@ -278,73 +278,73 @@ run_meta "rust: cargo test+clippy" '
   cd '"$ROOT/rust"'
   cargo test --release --quiet
   cargo clippy --all-targets --release --quiet -- -D warnings 2>/dev/null || \
-    cargo clippy --all-targets --release -- -D warnings >/dev/null
+    cargo clippy --all-targets --release -- -D warnings 
 '
 
 run_meta "rust: daemon parity (C vs Rust)" '
   set -euo pipefail
   [ -x '"$ROOT"'/rust/target/release/uml4termux-rs ] || exit 77
-  bash '"$ROOT"'/ci/verify-daemon-parity.sh >/dev/null
+  bash '"$ROOT"'/ci/verify-daemon-parity.sh 
 '
 
 run_meta "shell: expose routing (daemon owns state)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-expose-routing.sh >/dev/null
+  bash '"$ROOT"'/tests/test-expose-routing.sh 
 '
 
 run_meta "shell: runtime contract v1" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-runtime-contract.sh >/dev/null
+  bash '"$ROOT"'/tests/test-runtime-contract.sh 
 '
 
 run_meta "shell: launcher + registry (no runit)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-launcher.sh >/dev/null
+  bash '"$ROOT"'/tests/test-launcher.sh 
 '
 
 run_meta "shell: log rotation (no svlogd)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-log-rotation.sh >/dev/null
+  bash '"$ROOT"'/tests/test-log-rotation.sh 
 '
 
 run_meta "shell: release signature (direction E2)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-signature.sh >/dev/null
+  bash '"$ROOT"'/tests/test-signature.sh 
 '
 
 run_meta "shell: daemon hardening (direction E3)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-daemon-security.sh >/dev/null
+  bash '"$ROOT"'/tests/test-daemon-security.sh 
 '
 
 run_meta "shell: snapshot & resume (direction C)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-snapshot.sh >/dev/null
+  bash '"$ROOT"'/tests/test-snapshot.sh 
 '
 
 run_meta "python: /proc parser past a comm with ')'" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-procstat.sh >/dev/null
+  bash '"$ROOT"'/tests/test-procstat.sh 
 '
 
 run_meta "python: console stamper (boot timeline)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-console-stamp.sh >/dev/null
+  bash '"$ROOT"'/tests/test-console-stamp.sh 
 '
 
 run_meta "shell: version consistency (CLI == VERSION == packaging)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-version.sh >/dev/null
+  bash '"$ROOT"'/tests/test-version.sh 
 '
 
 run_meta "python: recipes summary parser (#2)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-recipes-parse.sh >/dev/null
+  bash '"$ROOT"'/tests/test-recipes-parse.sh 
 '
 
 run_meta "shell: exec length limit (#1, C + Rust)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-exec-limit.sh >/dev/null
+  bash '"$ROOT"'/tests/test-exec-limit.sh 
 '
 
 run_meta "node: panel real-DOM render (jsdom, fixture)" '
@@ -367,22 +367,22 @@ run_meta "shell: expose mapping (#4, device only)" '
 
 run_meta "shell: image lock (#7, C + Rust)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-image-lock.sh >/dev/null
+  bash '"$ROOT"'/tests/test-image-lock.sh 
 '
 
 run_meta "python: image-lock probe (upstream patch F2)" '
   set -euo pipefail
-  env -u LD_LIBRARY_PATH python3 '"$ROOT"'/ci/upstream/image-lock-probe.py >/dev/null
+  env -u LD_LIBRARY_PATH python3 '"$ROOT"'/ci/upstream/image-lock-probe.py 
 '
 
 run_meta "shell: status panel (direction D3)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-panel.sh >/dev/null
+  bash '"$ROOT"'/tests/test-panel.sh 
 '
 
 run_meta "shell: launcher adapters (systemd/s6/plain)" '
   set -euo pipefail
-  bash '"$ROOT"'/tests/test-adapters.sh >/dev/null
+  bash '"$ROOT"'/tests/test-adapters.sh 
 '
 
 
