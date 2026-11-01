@@ -322,6 +322,11 @@ run_meta "shell: snapshot & resume (direction C)" '
   bash '"$ROOT"'/tests/test-snapshot.sh 
 '
 
+run_meta "shell: mobility bundle (export/import/refuse)" '
+  set -euo pipefail
+  bash '"$ROOT"'/tests/test-bundle.sh
+'
+
 run_meta "python: /proc parser past a comm with ')'" '
   set -euo pipefail
   bash '"$ROOT"'/tests/test-procstat.sh 

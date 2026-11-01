@@ -42,6 +42,8 @@ unset _uml4_self _uml4_link 2>/dev/null || true
 . "${UML4TERMUX_ROOT}/lib/guest.sh"
 # shellcheck source=../lib/mobility.sh
 . "${UML4TERMUX_ROOT}/lib/mobility.sh"
+# shellcheck source=../lib/bundle.sh
+. "${UML4TERMUX_ROOT}/lib/bundle.sh"
 # shellcheck source=../lib/service.sh
 . "${UML4TERMUX_ROOT}/lib/service.sh"
 # shellcheck source=../lib/doctor.sh
@@ -213,6 +215,7 @@ cmd_help() {
           snapshots)  usage_snapshots ;;
         version)    printf 'uml4termux version — print the version and where the tree lives.\n' ;;
         dist-info)  printf 'uml4termux dist-info — machine-readable paths, assets and configuration.\n' ;;
+        bundle)     printf 'uml4termux bundle export --name NAME --out FILE.tar\numl4termux bundle import --bundle FILE.tar --dir DIR -- verify digests before anything boots.\n' ;;
         help)       usage ;;
       esac
       ;;
@@ -669,6 +672,7 @@ main() {
     rotate)         cmd_rotate "${argv[@]}" ;;
       snapshot)       cmd_snapshot "${argv[@]}" ;;
       snapshots)      cmd_snapshots "${argv[@]}" ;;
+    bundle)         cmd_bundle "${argv[@]}" ;;
     ls)             cmd_ls "${argv[@]}" ;;
     panel)          cmd_panel "${argv[@]}" ;;
     doctor)         cmd_doctor "${argv[@]}" ;;
