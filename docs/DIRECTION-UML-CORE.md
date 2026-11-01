@@ -27,9 +27,13 @@ inside the guest. That is the same order as everything else combined.
   `expose` path is exactly such a server (gvproxy listening in Termux, containers behind it), so the
   behaviour of `expose` on Android 16 with Termux backgrounded is **unmeasured** and must be measured
   before it is promised in the README.
-- The phantom process killer (Android 12+) caps background child processes app-wide. A guest with
-  dockerd + containerd + containers is a multi-process tree; the count inside our guest has never
-  been recorded. Measuring it is cheap and turns a folklore risk into a number.
+- The phantom process killer (Android 12+) caps background child processes app-wide. **Measured
+  2026-11-01**: the guest runs **102 processes (110 with a container), 319 threads**, and the whole
+  instance presents **3 host processes** (`proot` wrapper, `gvproxy`, `linux-bionic`, 17 host threads
+  together). The cap counts host processes of the app, so a Docker guest is not near it; what a big
+  guest consumes is memory and CPU inside those threads -- LMK and battery territory, not this cap.
+  The direct-children number itself is still unclaimed: the probe that would have produced it broke
+  on a `/proc/<pid>/stat` parse (`comm` containing `)`).
 
 **Upstream moved while we were working:**
 `Raymer8639/linux-um-arm64` landed four commits on 2026-10-31, including `harness: ship the passt
